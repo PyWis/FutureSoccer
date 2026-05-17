@@ -16,19 +16,19 @@ FACILITY_LABELS = {
     'training': 'Impianto di allenamento',
     'stream':   'Servizi stream',
     'locker':   'Spogliatoi',
-    'ground':   'Ground',
+    'ground':   'Campo',
 }
 FACILITY_ICONS = {
     'training': '🏋️',
     'stream':   '📡',
     'locker':   '🚿',
-    'ground':   '🌱',
+    'ground':   '⚽',
 }
 FACILITY_EFFECTS = {
     'training': 'Allenamento gratuito al Sabato (p200k) per N giocatori pari alle stelle',
     'stream':   '— Effetto in arrivo',
     'locker':   '— Effetto in arrivo',
-    'ground':   '— Effetto in arrivo',
+    'ground':   'Riduce il rischio infortuni in partita (-0.1% per stella)',
 }
 # Index = star level (0 = unbuilt). Upgrade cost = FACILITY_PRICES[n+1] - FACILITY_PRICES[n]
 FACILITY_PRICES = [0, 1_000_000, 3_000_000, 5_000_000, 10_000_000, 25_000_000]

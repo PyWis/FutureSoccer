@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}Partita — FutureSoccer{% endblock %}
+{% block extra_head %}
+<style>
+  .lobby-header{text-align:center;margin-bottom:2rem;}
+  .lobby-header h1{font-size:2rem;letter-spacing:2px;}
+  .day-badge{display:inline-block;padding:.25rem .8rem;border-radius:20px;font-size:.75rem;font-weight:700;letter-spacing:1px;margin-top:.4rem;}
+  .day-badge.sunday{background:rgba(0,245,255,.12);border:1px solid var(--cyan);color:var(--cyan);}
+  .day-badge.not-sunday{background:rgba(123,47,255,.12);border:1px solid var(--purple);color:var(--purple);}
+  .score-result{font-family:'Orbitron',monospace;font-size:2.4rem;font-weight:900;text-align:center;letter-spacing:2px;}
+  .section-title{font-size:.7rem;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:.75rem;}
+  .team-row{display:flex;align-items:center;justify-content:space-between;padding:.6rem .5rem;border-bottom:1px solid var(--card-border);}
+  .team-row:last-child{border-bottom:none;}
+  .challenge-card{display:flex;align-items:center;justify-content:space-between;gap:.5rem;padding:.7rem .5rem;border-bottom:1px solid var(--card-border);}
+  .challenge-card:last-child{border-bottom:none;}
+  .btn-sm{padding:.3rem .8rem;font-size:.78rem;}
+  .btn-group{display:flex;gap:.4rem;}
+</style>
+{% endblock %}
+{% block content %}
+
+<div class="lobby-header">
+  <h1>🏟️ PARTITA DOMENICALE</h1>
+  {% if is_sunday %}
+  <div class="day-badge sunday">OGGI È DOMENICA — PUOI GIOCARE</div>
+  {% else %}
+  <div class="day-badge not-sunday">Le partite amichevoli si giocano la Domenica</div>
+  {% endif %}
+</div>
+
+{% if completed_match %}
+<!-- ── RESULT CARD ── -->
+<div class="card mb-3" style="border-color:var(--cyan);text-align:center;">
+  <div class="section-title">Risultato di Oggi</div>
+  <div style="font-size:.85rem;color:var(--muted);margin-bottom:.5rem;">
+    {% if completed_match.home_team_id == team.id %}
+      {{ team.name }}
+      <span style="margin:0 .5rem;color:var(--muted);">vs</span>
+      {{ completed_match.away_team.name if completed_match.away_team else 'Squadra del Bar' }}
+    {% else %}
+      {{ completed_match.home_team.name }}
+      <span style="margin:0 .5rem;color:var(--muted);">vs</span>
+      {{ team.name }}
+    {% endif %}
+  </div>
+  <div class="score-result">
+    <span style="color:var(--cyan);">{{ completed_match.home_score }}</span>
+    <span style="color:var(--muted);font-size:1.4rem;margin:0 .4rem;">—</span>
+    <span style="color:var(--purple);">{{ completed_match.away_score }}</span>
+  </div>
+  <div style="font-size:.75rem;color:var(--muted);margin-top:.5rem;">Partita completata</div>
+  <a href="{{ url_for('match.view', match_id=completed_match.id) }}" class="btn btn-outline" style="margin-top:.75rem;display:inline-block;">
+    Vedi Dettagli
+  </a>
+</div>
+{% endif %}
+
+{% if is_sunday %}
+
+<!-- ── CHALLENGES RECEIVED ── -->
+{% if pending_challenges %}
+<div class="card mb-3" style="border-color:var(--danger);">
+  <div class="section-title" style="color:var(--danger);">⚠️ Sfide Ricevute</div>
+  {% for ch in pending_challenges %}
+  <div class="challenge-card">
+    <div>
+      <strong>{{ ch.challenger.name }}</strong>
+      <div style="font-size:.75rem;color:var(--muted);">ti ha sfidato a una partita</div>
+    </div>
+    <div class="btn-group">
+      <form method="POST" action="{{ url_for('match.accept_challenge', challenge_id=ch.id) }}">
+        <button class="btn btn-sm" style="background:var(--success);color:#000;">✓ Accetta</button>
+      </form>
+      <form method="POST" action="{{ url_for('match.reject_challenge', challenge_id=ch.id) }}">
+        <button class="btn btn-outline btn-sm">✗ Rifiuta</button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- ── BOT MATCH ── -->
+<div class="card mb-3" style="text-align:center;padding:1.5rem;">
+  <div style="font-size:1.2rem;font-weight:700;margin-bottom:.4rem;">⚽ Partita Veloce</div>
+  <div style="font-size:.82rem;color:var(--muted);margin-bottom:1rem;">
+    Gioca contro la <strong>Squadra del Bar</strong> — un avversario casuale di livello base.
+  </div>
+  <form method="POST" action="{{ url_for('match.start_bot') }}">
+    <button class="btn" style="font-size:1rem;padding:.7rem 2rem;">
+      ⚽ Gioca vs Squadra del Bar
+    </button>
+  </form>
+</div>
+
+<!-- ── CHALLENGE A TEAM ── -->
+{% if other_teams %}
+<div class="card mb-3">
+  <div class="section-title">Sfida una Squadra</div>
+  {% for t in other_teams %}
+  <div class="team-row">
+    <div>
+      <strong>{{ t.name }}</strong>
+      <span style="font-size:.75rem;color:var(--muted);margin-left:.5rem;">{{ t.city }}</span>
+    </div>
+    <form method="POST" action="{{ url_for('match.send_challenge', team_id=t.id) }}">
+      <button class="btn btn-outline btn-sm">Sfida</button>
+    </form>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card mb-3" style="text-align:center;color:var(--muted);padding:1.2rem;">
+  Nessuna altra squadra disponibile da sfidare oggi.
+</div>
+{% endif %}
+
+{% else %}
+<!-- NOT SUNDAY -->
+<div class="card" style="text-align:center;padding:2rem;border-color:var(--purple);">
+  <div style="font-size:2rem;margin-bottom:.5rem;">📅</div>
+  <div style="font-weight:700;font-size:1.1rem;margin-bottom:.4rem;">Non è Domenica</div>
+  <div style="color:var(--muted);font-size:.85rem;">
+    Le partite amichevoli si giocano solo la Domenica.<br>
+    Torna domenica per sfidare altre squadre o giocare contro la Squadra del Bar.
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

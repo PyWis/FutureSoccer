@@ -233,3 +233,47 @@ class FreeAgentBid(db.Model):
 
     listing = db.relationship('FreeAgentListing', back_populates='bids')
     team = db.relationship('Team', foreign_keys=[team_id], backref='free_agent_bids')
+
+
+class FriendlyMatch(db.Model):
+    __tablename__ = 'friendly_matches'
+    id = db.Column(db.Integer, primary_key=True)
+    home_team_id = db.Column(db.Integer, db.ForeignKey('teams.id'), nullable=False)
+    away_team_id = db.Column(db.Integer, db.ForeignKey('teams.id'), nullable=True)  # null = bot
+    game_day = db.Column(db.Integer, nullable=False)
+    status = db.Column(db.String(20), default='active')  # active | completed
+    current_turn = db.Column(db.Integer, default=0)      # 0=pre-match, 1-6=regular, 7=extra
+    home_score = db.Column(db.Integer, default=0)
+    away_score = db.Column(db.Integer, default=0)
+    last_turn_at = db.Column(db.DateTime, nullable=True)
+    # Per-match lineup snapshots (JSON). Don't touch the saved TeamFormation.
+    home_lineup_json = db.Column(db.Text, default='{}')
+    away_lineup_json = db.Column(db.Text, default='{}')  # bot data when away_team_id is null
+    # Pending substitutions submitted by user (applied next turn)
+    home_pending_subs_json = db.Column(db.Text, default='{}')
+    # Accumulated injury penalties (applied to Player.freshness at match end)
+    injuries_json = db.Column(db.Text, default='[]')
+    # Turn-by-turn log
+    turns_json = db.Column(db.Text, default='[]')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    home_team = db.relationship('Team', foreign_keys=[home_team_id],
+                                backref=db.backref('home_matches', lazy='dynamic'))
+    away_team = db.relationship('Team', foreign_keys=[away_team_id],
+                                backref=db.backref('away_matches', lazy='dynamic'))
+
+
+class MatchChallenge(db.Model):
+    __tablename__ = 'match_challenges'
+    id = db.Column(db.Integer, primary_key=True)
+    challenger_id = db.Column(db.Integer, db.ForeignKey('teams.id'), nullable=False)
+    challenged_id = db.Column(db.Integer, db.ForeignKey('teams.id'), nullable=False)
+    game_day = db.Column(db.Integer, nullable=False)
+    status = db.Column(db.String(20), default='pending')  # pending | accepted | rejected
+    match_id = db.Column(db.Integer, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    challenger = db.relationship('Team', foreign_keys=[challenger_id],
+                                 backref='sent_challenges')
+    challenged = db.relationship('Team', foreign_keys=[challenged_id],
+                                 backref='received_challenges')
