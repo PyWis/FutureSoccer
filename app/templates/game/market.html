@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Mercato — FutureSoccer{% endblock %}
+{% block content %}
+<div class="page-header flex flex-between flex-center">
+  <div>
+    <h1>💰 MERCATO</h1>
+    <p class="text-muted">{{ players|length }} giocatori disponibili — Anno 2099</p>
+  </div>
+  {% if current_user.team %}
+  <div style="text-align:right;">
+    <div style="font-size:0.8rem;color:var(--muted);">Il tuo budget</div>
+    <div style="font-family:'Orbitron',monospace;font-size:1.3rem;color:var(--success);">€{{ "%.1f"|format(current_user.team.budget/1000000) }}M</div>
+  </div>
+  {% endif %}
+</div>
+
+{% if players %}
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>GIOCATORE</th><th>POS</th><th>ETA</th><th>OVR</th><th>POT</th><th>CYBER</th><th>VALORE</th><th>AZIONE</th></tr>
+      </thead>
+      <tbody>
+        {% for p in players %}
+        <tr>
+          <td>
+            <div style="font-weight:700;">{{ p.name }}</div>
+            <div style="font-size:0.75rem;color:var(--muted);">{{ p.nationality }}</div>
+          </td>
+          <td>
+            <span class="badge {% if p.position == 'GK' %}badge-purple{% elif p.position == 'DEF' %}badge-cyan{% elif p.position == 'MID' %}badge-green{% else %}badge-gold{% endif %}">
+              {{ p.position }}
+            </span>
+          </td>
+          <td>{{ p.age }}</td>
+          <td><strong style="color:{% if p.overall >= 85 %}var(--success){% elif p.overall >= 70 %}var(--cyan){% else %}var(--muted){% endif %}">{{ p.overall }}</strong></td>
+          <td style="color:var(--muted);">{{ p.potential }}</td>
+          <td>
+            {% if p.cyber_enhancement > 0 %}
+              <span class="badge badge-purple">Lv.{{ p.cyber_enhancement }} 🔮</span>
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            <strong style="color:var(--cyan);">€{{ "%.1f"|format(p.market_value/1000000) }}M</strong>
+          </td>
+          <td>
+            {% if current_user.team %}
+              {% if current_user.team.budget >= p.market_value %}
+                <form method="POST" action="{{ url_for('game.buy_player', player_id=p.id) }}" onsubmit="return confirm('Acquistare {{ p.name }} per €{{ '%.1f'|format(p.market_value/1000000) }}M?')">
+                  <button type="submit" class="btn btn-primary btn-sm">Acquista</button>
+                </form>
+              {% else %}
+                <span style="font-size:0.75rem;color:var(--danger);">Budget insuff.</span>
+              {% endif %}
+            {% else %}
+              <a href="{{ url_for('game.create_team') }}" class="btn btn-secondary btn-sm">Crea squadra</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="card" style="text-align:center;padding:3rem;">
+  <div style="font-size:3rem;margin-bottom:1rem;">🔍</div>
+  <p class="text-muted">Nessun giocatore disponibile al momento. L'admin può aggiungerne dal pannello di controllo.</p>
+</div>
+{% endif %}
+{% endblock %}

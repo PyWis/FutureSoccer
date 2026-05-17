@@ -1,0 +1,241 @@
+from flask import Blueprint, render_template, redirect, url_for, flash, request, abort
+from flask_login import login_required, current_user
+from app import db
+from app.models.user import User
+from app.models.team import Team, Player
+from functools import wraps
+
+admin_bp = Blueprint('admin', __name__)
+
+
+def superadmin_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not current_user.is_authenticated or not current_user.is_superadmin:
+            abort(403)
+        return f(*args, **kwargs)
+    return decorated
+
+
+@admin_bp.route('/')
+@login_required
+@superadmin_required
+def dashboard():
+    users = User.query.order_by(User.created_at.desc()).all()
+    teams = Team.query.order_by(Team.prestige.desc()).all()
+    players = Player.query.count()
+    return render_template('admin/dashboard.html', users=users, teams=teams, total_players=players)
+
+
+# ─── USERS CRUD ───────────────────────────────────────────────────────────────
+
+@admin_bp.route('/users')
+@login_required
+@superadmin_required
+def users_list():
+    users = User.query.order_by(User.created_at.desc()).all()
+    return render_template('admin/users.html', users=users)
+
+
+@admin_bp.route('/users/<int:user_id>/edit', methods=['GET', 'POST'])
+@login_required
+@superadmin_required
+def user_edit(user_id):
+    user = User.query.get_or_404(user_id)
+    if request.method == 'POST':
+        user.username = request.form.get('username', user.username).strip()
+        user.email = request.form.get('email', user.email).strip().lower()
+        user.role = request.form.get('role', user.role)
+        user.is_verified = request.form.get('is_verified') == 'on'
+        new_pw = request.form.get('new_password', '').strip()
+        if new_pw:
+            if len(new_pw) < 8:
+                flash('La nuova password deve avere almeno 8 caratteri.', 'danger')
+                return render_template('admin/user_edit.html', user=user)
+            user.set_password(new_pw)
+        db.session.commit()
+        flash(f'Utente {user.username} aggiornato.', 'success')
+        return redirect(url_for('admin.users_list'))
+    return render_template('admin/user_edit.html', user=user)
+
+
+@admin_bp.route('/users/<int:user_id>/delete', methods=['POST'])
+@login_required
+@superadmin_required
+def user_delete(user_id):
+    user = User.query.get_or_404(user_id)
+    if user.id == current_user.id:
+        flash('Non puoi eliminare il tuo account.', 'danger')
+        return redirect(url_for('admin.users_list'))
+    db.session.delete(user)
+    db.session.commit()
+    flash(f'Utente eliminato.', 'success')
+    return redirect(url_for('admin.users_list'))
+
+
+@admin_bp.route('/users/<int:user_id>/toggle-verify', methods=['POST'])
+@login_required
+@superadmin_required
+def user_toggle_verify(user_id):
+    user = User.query.get_or_404(user_id)
+    user.is_verified = not user.is_verified
+    db.session.commit()
+    status = 'verificato' if user.is_verified else 'non verificato'
+    flash(f'{user.username} è ora {status}.', 'info')
+    return redirect(url_for('admin.users_list'))
+
+
+# ─── TEAMS CRUD ───────────────────────────────────────────────────────────────
+
+@admin_bp.route('/teams')
+@login_required
+@superadmin_required
+def teams_list():
+    teams = Team.query.order_by(Team.prestige.desc()).all()
+    return render_template('admin/teams.html', teams=teams)
+
+
+@admin_bp.route('/teams/new', methods=['GET', 'POST'])
+@login_required
+@superadmin_required
+def team_new():
+    if request.method == 'POST':
+        name = request.form.get('name', '').strip()
+        city = request.form.get('city', '').strip()
+        stadium = request.form.get('stadium', '').strip()
+        budget = float(request.form.get('budget', 50_000_000))
+        prestige = int(request.form.get('prestige', 50))
+        color_primary = request.form.get('color_primary', '#00f5ff')
+        color_secondary = request.form.get('color_secondary', '#7b2fff')
+
+        if not name or not city or not stadium:
+            flash('Compila tutti i campi obbligatori.', 'danger')
+            return render_template('admin/team_form.html', team=None)
+
+        if Team.query.filter_by(name=name).first():
+            flash('Squadra già esistente.', 'danger')
+            return render_template('admin/team_form.html', team=None)
+
+        team = Team(name=name, city=city, stadium=stadium, budget=budget,
+                    prestige=prestige, color_primary=color_primary, color_secondary=color_secondary)
+        db.session.add(team)
+        db.session.commit()
+        flash(f'Squadra {name} creata!', 'success')
+        return redirect(url_for('admin.teams_list'))
+    return render_template('admin/team_form.html', team=None)
+
+
+@admin_bp.route('/teams/<int:team_id>/edit', methods=['GET', 'POST'])
+@login_required
+@superadmin_required
+def team_edit(team_id):
+    team = Team.query.get_or_404(team_id)
+    if request.method == 'POST':
+        team.name = request.form.get('name', team.name).strip()
+        team.city = request.form.get('city', team.city).strip()
+        team.stadium = request.form.get('stadium', team.stadium).strip()
+        team.budget = float(request.form.get('budget', team.budget))
+        team.prestige = int(request.form.get('prestige', team.prestige))
+        team.color_primary = request.form.get('color_primary', team.color_primary)
+        team.color_secondary = request.form.get('color_secondary', team.color_secondary)
+        db.session.commit()
+        flash(f'Squadra {team.name} aggiornata.', 'success')
+        return redirect(url_for('admin.teams_list'))
+    return render_template('admin/team_form.html', team=team)
+
+
+@admin_bp.route('/teams/<int:team_id>/delete', methods=['POST'])
+@login_required
+@superadmin_required
+def team_delete(team_id):
+    team = Team.query.get_or_404(team_id)
+    db.session.delete(team)
+    db.session.commit()
+    flash('Squadra eliminata.', 'success')
+    return redirect(url_for('admin.teams_list'))
+
+
+# ─── PLAYERS CRUD ─────────────────────────────────────────────────────────────
+
+@admin_bp.route('/players')
+@login_required
+@superadmin_required
+def players_list():
+    players = Player.query.order_by(Player.overall.desc()).all()
+    return render_template('admin/players.html', players=players)
+
+
+@admin_bp.route('/players/new', methods=['GET', 'POST'])
+@login_required
+@superadmin_required
+def player_new():
+    teams = Team.query.order_by(Team.name).all()
+    if request.method == 'POST':
+        player = Player(
+            name=request.form.get('name', '').strip(),
+            position=request.form.get('position', 'MID'),
+            nationality=request.form.get('nationality', '').strip(),
+            age=int(request.form.get('age', 25)),
+            overall=int(request.form.get('overall', 70)),
+            potential=int(request.form.get('potential', 75)),
+            market_value=float(request.form.get('market_value', 1_000_000)),
+            salary=float(request.form.get('salary', 50_000)),
+            speed=int(request.form.get('speed', 70)),
+            strength=int(request.form.get('strength', 70)),
+            technique=int(request.form.get('technique', 70)),
+            stamina=int(request.form.get('stamina', 70)),
+            cyber_enhancement=int(request.form.get('cyber_enhancement', 0)),
+        )
+        team_id = request.form.get('team_id')
+        if team_id:
+            player.team_id = int(team_id)
+            player.is_free_agent = False
+        db.session.add(player)
+        db.session.commit()
+        flash(f'Giocatore {player.name} creato!', 'success')
+        return redirect(url_for('admin.players_list'))
+    return render_template('admin/player_form.html', player=None, teams=teams)
+
+
+@admin_bp.route('/players/<int:player_id>/edit', methods=['GET', 'POST'])
+@login_required
+@superadmin_required
+def player_edit(player_id):
+    player = Player.query.get_or_404(player_id)
+    teams = Team.query.order_by(Team.name).all()
+    if request.method == 'POST':
+        player.name = request.form.get('name', player.name).strip()
+        player.position = request.form.get('position', player.position)
+        player.nationality = request.form.get('nationality', player.nationality).strip()
+        player.age = int(request.form.get('age', player.age))
+        player.overall = int(request.form.get('overall', player.overall))
+        player.potential = int(request.form.get('potential', player.potential))
+        player.market_value = float(request.form.get('market_value', player.market_value))
+        player.salary = float(request.form.get('salary', player.salary))
+        player.speed = int(request.form.get('speed', player.speed))
+        player.strength = int(request.form.get('strength', player.strength))
+        player.technique = int(request.form.get('technique', player.technique))
+        player.stamina = int(request.form.get('stamina', player.stamina))
+        player.cyber_enhancement = int(request.form.get('cyber_enhancement', player.cyber_enhancement))
+        team_id = request.form.get('team_id')
+        if team_id:
+            player.team_id = int(team_id)
+            player.is_free_agent = False
+        else:
+            player.team_id = None
+            player.is_free_agent = True
+        db.session.commit()
+        flash(f'Giocatore {player.name} aggiornato.', 'success')
+        return redirect(url_for('admin.players_list'))
+    return render_template('admin/player_form.html', player=player, teams=teams)
+
+
+@admin_bp.route('/players/<int:player_id>/delete', methods=['POST'])
+@login_required
+@superadmin_required
+def player_delete(player_id):
+    player = Player.query.get_or_404(player_id)
+    db.session.delete(player)
+    db.session.commit()
+    flash('Giocatore eliminato.', 'success')
+    return redirect(url_for('admin.players_list'))

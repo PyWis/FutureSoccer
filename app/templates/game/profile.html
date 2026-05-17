@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Profilo — FutureSoccer{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>👤 PROFILO</h1>
+</div>
+
+<div class="grid-2" style="max-width:900px;">
+  <div class="card">
+    <h3 class="mb-3">INFORMAZIONI ACCOUNT</h3>
+    <div style="margin-bottom:1rem;">
+      <div style="font-size:0.75rem;color:var(--muted);letter-spacing:1px;">NOME MANAGER</div>
+      <div style="font-size:1.1rem;font-weight:700;margin-top:0.2rem;">{{ current_user.username }}</div>
+    </div>
+    <div style="margin-bottom:1rem;">
+      <div style="font-size:0.75rem;color:var(--muted);letter-spacing:1px;">EMAIL</div>
+      <div style="font-size:0.95rem;margin-top:0.2rem;">{{ current_user.email }}</div>
+    </div>
+    <div style="margin-bottom:1rem;">
+      <div style="font-size:0.75rem;color:var(--muted);letter-spacing:1px;">RUOLO</div>
+      <div style="margin-top:0.3rem;">
+        {% if current_user.is_superadmin %}
+          <span class="badge badge-gold">SUPERADMIN</span>
+        {% else %}
+          <span class="badge badge-cyan">PLAYER</span>
+        {% endif %}
+      </div>
+    </div>
+    <div>
+      <div style="font-size:0.75rem;color:var(--muted);letter-spacing:1px;">ULTIMO ACCESSO</div>
+      <div style="font-size:0.9rem;margin-top:0.2rem;">
+        {{ current_user.last_login.strftime('%d/%m/%Y alle %H:%M') if current_user.last_login else 'Prima sessione' }}
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 class="mb-3">MODIFICA PROFILO</h3>
+    <form method="POST">
+      <div class="form-group">
+        <label>NOME MANAGER</label>
+        <input type="text" name="username" class="form-control" value="{{ current_user.username }}" minlength="3" maxlength="50" required>
+      </div>
+      <button type="submit" class="btn btn-primary">Salva Modifiche</button>
+    </form>
+
+    <div class="cyber-line mt-3"></div>
+
+    <h3 class="mb-2 mt-2">LA TUA SQUADRA</h3>
+    {% if current_user.team %}
+    <div style="display:flex;align-items:center;gap:1rem;">
+      <div style="width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,{{ current_user.team.color_primary }},{{ current_user.team.color_secondary }});"></div>
+      <div>
+        <div style="font-weight:700;">{{ current_user.team.name }}</div>
+        <div style="font-size:0.8rem;color:var(--muted);">{{ current_user.team.city }}</div>
+      </div>
+    </div>
+    <a href="{{ url_for('game.my_team') }}" class="btn btn-secondary btn-sm mt-2">Vedi squadra</a>
+    {% else %}
+    <p class="text-muted" style="font-size:0.9rem;">Non hai ancora una squadra.</p>
+    <a href="{{ url_for('game.create_team') }}" class="btn btn-primary btn-sm mt-2">Crea squadra</a>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

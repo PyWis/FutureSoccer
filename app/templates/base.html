@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}FutureSoccer 2099{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Exo+2:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --cyan: #00f5ff;
+      --purple: #7b2fff;
+      --dark: #0a0a1a;
+      --darker: #060610;
+      --card: #0f0f2a;
+      --card-border: #1a1a4a;
+      --text: #e0e0f0;
+      --muted: #888;
+      --danger: #ff4757;
+      --success: #2ed573;
+      --warning: #ffa502;
+      --info: #1e90ff;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Exo 2', sans-serif;
+      background: var(--darker);
+      color: var(--text);
+      min-height: 100vh;
+      background-image:
+        radial-gradient(ellipse at 20% 20%, rgba(123,47,255,0.08) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 80%, rgba(0,245,255,0.06) 0%, transparent 50%);
+    }
+    /* ── NAV ── */
+    nav {
+      background: rgba(10,10,26,0.95);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--card-border);
+      padding: 0 2rem;
+      position: sticky; top: 0; z-index: 1000;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 64px;
+    }
+    .nav-brand {
+      font-family: 'Orbitron', monospace;
+      font-size: 1.3rem; font-weight: 900;
+      text-decoration: none;
+      color: var(--cyan);
+      letter-spacing: 2px;
+    }
+    .nav-brand span { color: var(--purple); }
+    .nav-links { display: flex; gap: 0.5rem; align-items: center; }
+    .nav-links a {
+      color: var(--text); text-decoration: none;
+      padding: 0.4rem 0.9rem; border-radius: 6px;
+      font-size: 0.9rem; font-weight: 600; transition: all 0.2s;
+    }
+    .nav-links a:hover { background: var(--card-border); color: var(--cyan); }
+    .btn-nav {
+      background: linear-gradient(135deg, var(--cyan), var(--purple));
+      color: #fff !important; padding: 0.4rem 1rem !important;
+    }
+    .btn-nav:hover { opacity: 0.85; background: linear-gradient(135deg,var(--cyan),var(--purple)) !important; }
+    /* ── ALERTS ── */
+    .alerts { position: fixed; top: 72px; right: 1rem; z-index: 2000; width: 320px; }
+    .alert {
+      padding: 0.8rem 1rem; border-radius: 8px; margin-bottom: 0.5rem;
+      font-size: 0.9rem; border-left: 4px solid;
+      background: var(--card); animation: slideIn 0.3s ease;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .alert-success { border-color: var(--success); color: var(--success); }
+    .alert-danger  { border-color: var(--danger);  color: var(--danger);  }
+    .alert-warning { border-color: var(--warning); color: var(--warning); }
+    .alert-info    { border-color: var(--info);    color: var(--info);    }
+    .alert-close { cursor: pointer; opacity: 0.7; background: none; border: none; color: inherit; font-size: 1rem; }
+    @keyframes slideIn { from { transform: translateX(120%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    /* ── MAIN ── */
+    main { padding: 2rem; max-width: 1280px; margin: 0 auto; }
+    /* ── BUTTONS ── */
+    .btn {
+      display: inline-block; padding: 0.6rem 1.4rem; border-radius: 8px;
+      font-family: 'Exo 2', sans-serif; font-weight: 600; font-size: 0.9rem;
+      text-decoration: none; cursor: pointer; border: none; transition: all 0.2s;
+      letter-spacing: 0.5px;
+    }
+    .btn-primary { background: linear-gradient(135deg,var(--cyan),var(--purple)); color: #fff; }
+    .btn-primary:hover { opacity: 0.85; transform: translateY(-1px); }
+    .btn-secondary { background: var(--card); color: var(--text); border: 1px solid var(--card-border); }
+    .btn-secondary:hover { border-color: var(--cyan); color: var(--cyan); }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-danger:hover { opacity: 0.85; }
+    .btn-sm { padding: 0.35rem 0.8rem; font-size: 0.8rem; }
+    .btn-block { display: block; width: 100%; text-align: center; }
+    /* ── CARDS ── */
+    .card {
+      background: var(--card); border: 1px solid var(--card-border);
+      border-radius: 12px; padding: 1.5rem;
+    }
+    .card-glow { box-shadow: 0 0 20px rgba(0,245,255,0.08); }
+    /* ── FORMS ── */
+    .form-group { margin-bottom: 1.2rem; }
+    .form-group label { display: block; margin-bottom: 0.4rem; font-weight: 600; font-size: 0.85rem; color: var(--cyan); letter-spacing: 0.5px; }
+    .form-control {
+      width: 100%; padding: 0.7rem 1rem;
+      background: rgba(255,255,255,0.04); border: 1px solid var(--card-border);
+      border-radius: 8px; color: var(--text); font-family: 'Exo 2', sans-serif;
+      font-size: 0.95rem; transition: border-color 0.2s;
+    }
+    .form-control:focus { outline: none; border-color: var(--cyan); background: rgba(0,245,255,0.04); }
+    select.form-control option { background: var(--dark); }
+    /* ── TABLES ── */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th { background: rgba(0,245,255,0.07); color: var(--cyan); padding: 0.75rem 1rem; text-align: left; font-family: 'Orbitron', monospace; font-size: 0.75rem; letter-spacing: 1px; }
+    td { padding: 0.75rem 1rem; border-bottom: 1px solid var(--card-border); }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+    /* ── BADGES ── */
+    .badge { padding: 0.25rem 0.65rem; border-radius: 99px; font-size: 0.75rem; font-weight: 700; }
+    .badge-cyan   { background: rgba(0,245,255,0.15); color: var(--cyan); }
+    .badge-purple { background: rgba(123,47,255,0.2); color: #b77fff; }
+    .badge-green  { background: rgba(46,213,115,0.15); color: var(--success); }
+    .badge-red    { background: rgba(255,71,87,0.15); color: var(--danger); }
+    .badge-gold   { background: rgba(255,165,0,0.15); color: #ffa502; }
+    /* ── STAT BAR ── */
+    .stat-bar { height: 6px; background: var(--card-border); border-radius: 3px; overflow: hidden; }
+    .stat-bar-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg,var(--cyan),var(--purple)); }
+    /* ── UTILS ── */
+    .text-cyan   { color: var(--cyan); }
+    .text-purple { color: var(--purple); }
+    .text-muted  { color: var(--muted); }
+    .text-danger { color: var(--danger); }
+    .text-success{ color: var(--success); }
+    .text-center { text-align: center; }
+    .mt-1 { margin-top: 0.5rem; } .mt-2 { margin-top: 1rem; } .mt-3 { margin-top: 1.5rem; } .mt-4 { margin-top: 2rem; }
+    .mb-1 { margin-bottom: 0.5rem; } .mb-2 { margin-bottom: 1rem; } .mb-3 { margin-bottom: 1.5rem; } .mb-4 { margin-bottom: 2rem; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 1.5rem; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 1rem; }
+    @media(max-width:768px) { .grid-2,.grid-3,.grid-4 { grid-template-columns:1fr; } main { padding: 1rem; } }
+    .flex { display: flex; } .flex-between { justify-content: space-between; } .flex-center { align-items: center; } .gap-1 { gap: 0.5rem; } .gap-2 { gap: 1rem; }
+    h1,h2,h3 { font-family: 'Orbitron', monospace; }
+    h1 { font-size: 2rem; color: var(--cyan); }
+    h2 { font-size: 1.4rem; color: var(--text); }
+    h3 { font-size: 1rem; color: var(--cyan); }
+    .page-header { margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid var(--card-border); }
+    .cyber-line { height: 2px; background: linear-gradient(90deg,var(--cyan),var(--purple),transparent); margin: 1rem 0; }
+    /* ── FOOTER ── */
+    footer {
+      text-align: center; padding: 2rem; color: var(--muted);
+      font-size: 0.8rem; border-top: 1px solid var(--card-border); margin-top: 4rem;
+    }
+    footer span { color: var(--cyan); }
+  </style>
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  <nav>
+    <a href="{{ url_for('main.index') }}" class="nav-brand">⚽ FUTURE<span>SOCCER</span></a>
+    <div class="nav-links">
+      {% if current_user.is_authenticated %}
+        {% if current_user.is_superadmin %}
+          <a href="{{ url_for('admin.dashboard') }}">⚙️ Admin</a>
+        {% endif %}
+        <a href="{{ url_for('game.dashboard') }}">Dashboard</a>
+        <a href="{{ url_for('game.market') }}">Mercato</a>
+        <a href="{{ url_for('game.standings') }}">Classifica</a>
+        <a href="{{ url_for('game.profile') }}">{{ current_user.username }}</a>
+        <a href="{{ url_for('auth.logout') }}" class="btn-nav btn">Esci</a>
+      {% else %}
+        <a href="{{ url_for('auth.login') }}">Accedi</a>
+        <a href="{{ url_for('auth.register') }}" class="btn-nav btn">Registrati</a>
+      {% endif %}
+    </div>
+  </nav>
+
+  <div class="alerts">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">
+          <span>{{ message }}</span>
+          <button class="alert-close" onclick="this.parentElement.remove()">✕</button>
+        </div>
+      {% endfor %}
+    {% endwith %}
+  </div>
+
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer>
+    <p>© 2099 <span>FutureSoccer Corp.</span> — Il calcio del futuro è adesso.</p>
+  </footer>
+
+  <script>
+    setTimeout(() => {
+      document.querySelectorAll('.alert').forEach(a => a.remove());
+    }, 5000);
+  </script>
+  {% block extra_js %}{% endblock %}
+</body>
+</html>
