@@ -9,6 +9,11 @@ import random
 def get_goal_coeff():
     """Base probability multiplier per valore_goal (default 0.3)."""
     return float(os.environ.get('GOAL_COEFF', 0.3))
+
+
+def get_injury_base():
+    """Base injury probability per turn before resistenza/facility reduction (default 0.010)."""
+    return float(os.environ.get('INJURY_BASE', 0.010))
 from datetime import datetime
 
 _ENGAGEMENT_MODS = {
@@ -272,7 +277,7 @@ def roll_injuries(lineup_dict, facility_field_stars=0):
         return None
 
     def roll_for_player(p):
-        prob = max(0.0, 0.010 - p['resistenza'] / 2500 - 0.001 * facility_field_stars)
+        prob = max(0.0, get_injury_base() - p['resistenza'] / 2500 - 0.001 * facility_field_stars)
         return random.random() < prob
 
     # Goalkeeper
