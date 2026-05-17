@@ -107,12 +107,36 @@
       <thead>
         <tr>
           <th>GIOCATORE</th>
-          <th style="text-align:center;">FRESCHEZZA</th>
-          <th style="text-align:center;">P</th>
-          <th style="text-align:center;">D</th>
-          <th style="text-align:center;">A</th>
-          <th style="text-align:center;">R</th>
-          <th style="text-align:center;">MEDIA</th>
+          <th style="text-align:center;">
+            <a href="?sort=freshness" style="color:{% if sort_by=='freshness' %}var(--cyan){% else %}var(--muted){% endif %};text-decoration:none;">
+              FRESCHEZZA{% if sort_by=='freshness' %} ▼{% endif %}
+            </a>
+          </th>
+          <th style="text-align:center;">
+            <a href="?sort=porta" style="color:{% if sort_by=='porta' %}var(--cyan){% else %}var(--muted){% endif %};text-decoration:none;">
+              P{% if sort_by=='porta' %} ▼{% endif %}
+            </a>
+          </th>
+          <th style="text-align:center;">
+            <a href="?sort=difesa" style="color:{% if sort_by=='difesa' %}var(--cyan){% else %}var(--muted){% endif %};text-decoration:none;">
+              D{% if sort_by=='difesa' %} ▼{% endif %}
+            </a>
+          </th>
+          <th style="text-align:center;">
+            <a href="?sort=attacco" style="color:{% if sort_by=='attacco' %}var(--cyan){% else %}var(--muted){% endif %};text-decoration:none;">
+              A{% if sort_by=='attacco' %} ▼{% endif %}
+            </a>
+          </th>
+          <th style="text-align:center;">
+            <a href="?sort=resistenza" style="color:{% if sort_by=='resistenza' %}var(--cyan){% else %}var(--muted){% endif %};text-decoration:none;">
+              R{% if sort_by=='resistenza' %} ▼{% endif %}
+            </a>
+          </th>
+          <th style="text-align:center;">
+            <a href="?sort=avg" style="color:{% if sort_by=='avg' %}var(--cyan){% else %}var(--muted){% endif %};text-decoration:none;">
+              MEDIA{% if sort_by=='avg' %} ▼{% endif %}
+            </a>
+          </th>
           <th style="min-width:130px;">RUOLO</th>
         </tr>
       </thead>

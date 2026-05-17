@@ -205,7 +205,18 @@ def formation():
     team = current_user.team
     _process_team_freshness(team)
 
-    players = sorted(team.players.all(), key=lambda p: p.avg_skill, reverse=True)
+    _sort_keys = {
+        'avg':        lambda p: p.avg_skill,
+        'porta':      lambda p: p.porta,
+        'difesa':     lambda p: p.difesa,
+        'attacco':    lambda p: p.attacco,
+        'resistenza': lambda p: p.resistenza,
+        'freshness':  lambda p: p.freshness,
+    }
+    sort_by = request.args.get('sort', 'avg')
+    if sort_by not in _sort_keys:
+        sort_by = 'avg'
+    players = sorted(team.players.all(), key=_sort_keys[sort_by], reverse=True)
     players_by_id = {p.id: p for p in players}
 
     form_obj = team.formation
@@ -275,7 +286,8 @@ def formation():
                            formation=form_obj,
                            current_roles=current_roles,
                            strength=strength,
-                           engagement_options=ENGAGEMENT_OPTIONS)
+                           engagement_options=ENGAGEMENT_OPTIONS,
+                           sort_by=sort_by)
 
 
 @game_bp.route('/profile', methods=['GET', 'POST'])
