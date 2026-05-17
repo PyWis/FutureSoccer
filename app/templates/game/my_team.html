@@ -79,7 +79,7 @@
           <td>
             {% if players|length > 1 %}
             <form method="POST" action="{{ url_for('game.sell_player', player_id=p.id) }}"
-                  onsubmit="return confirm('Cedere {{ p.name }} per €{{ (p.avg_skill*400000)|round(-3)|int|format_number }}?')">
+                  onsubmit="return confirm('Cedere {{ p.name }} per €{{ '%.0f'|format(p.avg_skill*400000) }}?')">
               <button type="submit" class="btn btn-secondary btn-sm">Cedi</button>
             </form>
             {% endif %}
