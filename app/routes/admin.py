@@ -3,7 +3,11 @@ from flask_login import login_required, current_user
 from app import db
 from app.models.user import User
 from app.models.team import Team, Player
+from app.models.game import GameConfig
+from app.utils.gameclock import (get_clock_ratio, format_game_date, get_game_date,
+                                  WEEKDAY_IT, MONTH_IT)
 from functools import wraps
+from datetime import timedelta
 
 admin_bp = Blueprint('admin', __name__)
 
@@ -27,7 +31,33 @@ def dashboard():
     users = User.query.order_by(User.created_at.desc()).all()
     teams = Team.query.order_by(Team.name).all()
     players = Player.query.count()
-    return render_template('admin/dashboard.html', users=users, teams=teams, total_players=players)
+    game_date = format_game_date()
+    return render_template('admin/dashboard.html', users=users, teams=teams,
+                           total_players=players, game_date=game_date)
+
+
+@admin_bp.route('/clock/advance', methods=['POST'])
+@login_required
+@superadmin_required
+def clock_advance():
+    try:
+        days = int(request.form.get('days', 1))
+        if days < 1 or days > 365:
+            raise ValueError
+    except (ValueError, TypeError):
+        flash('Numero di giorni non valido (1–365).', 'danger')
+        return redirect(url_for('admin.dashboard'))
+
+    cfg = GameConfig.query.first()
+    if not cfg:
+        flash('GameConfig non trovato. Avvia prima il gioco.', 'danger')
+        return redirect(url_for('admin.dashboard'))
+
+    # Subtract days * ratio seconds from real_start → clock thinks more time has passed
+    cfg.real_start -= timedelta(seconds=days * get_clock_ratio())
+    db.session.commit()
+    flash(f'Data avanzata di {days} giorno/i. Nuova data: {format_game_date()}', 'success')
+    return redirect(url_for('admin.dashboard'))
 
 
 # ─── USERS ────────────────────────────────────────────────────────────────────
