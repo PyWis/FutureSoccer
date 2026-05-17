@@ -34,29 +34,39 @@ def create_app():
     from app.routes.auth import auth_bp
     from app.routes.admin import admin_bp
     from app.routes.game import game_bp
+    from app.routes.events import events_bp
 
     app.register_blueprint(main_bp)
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(admin_bp, url_prefix='/admin')
     app.register_blueprint(game_bp, url_prefix='/game')
+    app.register_blueprint(events_bp, url_prefix='/events')
 
     with app.app_context():
         db.create_all()
         _seed_admin()
+        _init_game_clock()
 
     return app
 
 
 def _seed_admin():
     from app.models.user import User
-    admin_email = os.environ.get('ADMIN_EMAIL', 'admin@futuresoccer.com')
     if not User.query.filter_by(role='superadmin').first():
         admin = User(
             username=os.environ.get('ADMIN_USERNAME', 'fusoccer'),
-            email=admin_email,
+            email=os.environ.get('ADMIN_EMAIL', 'admin@futuresoccer.com'),
             role='superadmin',
             is_verified=True,
         )
         admin.set_password(os.environ.get('ADMIN_PASSWORD', 'admin'))
         db.session.add(admin)
+        db.session.commit()
+
+
+def _init_game_clock():
+    from app.models.game import GameConfig
+    from datetime import datetime
+    if not GameConfig.query.first():
+        db.session.add(GameConfig(real_start=datetime.utcnow()))
         db.session.commit()

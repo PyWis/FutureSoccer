@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block title %}Sponsor — FutureSoccer{% endblock %}
+{% block extra_head %}
+<style>
+  .sponsor-card{background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:1.5rem;position:relative;overflow:hidden;}
+  .sponsor-card.main-sp{border-color:rgba(0,245,255,.4);}
+  .sponsor-card.main-sp::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--cyan),var(--purple));}
+  .sponsor-card.secondary-sp{border-color:rgba(123,47,255,.3);}
+  .sponsor-card.secondary-sp::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--purple);}
+  .offer-highlight{background:linear-gradient(135deg,rgba(123,47,255,.1),rgba(0,245,255,.05));border:1px solid rgba(123,47,255,.3);border-radius:16px;padding:2rem;}
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-header flex flex-between flex-center" style="flex-wrap:wrap;gap:1rem;">
+  <div>
+    <h1>💼 SPONSOR</h1>
+    <p class="text-muted">{{ game_date }}</p>
+  </div>
+  <div style="text-align:right;">
+    <div style="font-size:.75rem;color:var(--muted);">Budget squadra</div>
+    <div style="font-family:'Orbitron',monospace;font-size:1.3rem;color:var(--success);">€{{ "%.1f"|format(team.budget/1000000) }}M</div>
+  </div>
+</div>
+
+<!-- Friday offer -->
+{% if is_friday and offer %}
+<div class="offer-highlight mb-4">
+  <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:1rem;">
+    <span style="font-size:1.5rem;">📬</span>
+    <h2>NUOVA OFFERTA SPONSOR</h2>
+  </div>
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1.5rem;">
+    <div>
+      <div style="font-size:.72rem;color:var(--muted);letter-spacing:1px;">SPONSOR</div>
+      <div style="font-family:'Orbitron',monospace;font-size:1.4rem;font-weight:900;color:#b77fff;">{{ offer.sponsor_name }}</div>
+      <div style="margin-top:.75rem;display:flex;flex-direction:column;gap:.3rem;">
+        <div>💰 <strong style="color:var(--success);">€{{ "%.0f"|format(offer.weekly_amount) }}</strong>/settimana (main)</div>
+        <div>🔸 <strong style="color:var(--muted);">€{{ "%.0f"|format(offer.weekly_amount * 0.3) }}</strong>/settimana (secondario)</div>
+        <div>📅 Durata: <strong>{{ offer.duration_weeks }} settimane</strong></div>
+        <div>💵 Totale main: <strong style="color:var(--success);">€{{ "%.0f"|format(offer.weekly_amount * offer.duration_weeks) }}</strong></div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:.6rem;min-width:180px;">
+      {% if can_add_main %}
+      <form method="POST" action="{{ url_for('events.sponsor_accept', offer_id=offer.id, slot='main') }}">
+        <button type="submit" class="btn btn-primary btn-block">✓ Accetta come MAIN</button>
+      </form>
+      {% else %}
+      <button class="btn btn-secondary btn-block" disabled style="opacity:.4;">Main slot occupato</button>
+      {% endif %}
+      {% if can_add_secondary %}
+      <form method="POST" action="{{ url_for('events.sponsor_accept', offer_id=offer.id, slot='secondary') }}">
+        <button type="submit" class="btn btn-secondary btn-block">Accetta come Secondario (30%)</button>
+      </form>
+      {% else %}
+      <button class="btn btn-secondary btn-block" disabled style="opacity:.4;">Slot secondari pieni</button>
+      {% endif %}
+      <form method="POST" action="{{ url_for('events.sponsor_reject', offer_id=offer.id) }}">
+        <button type="submit" class="btn btn-danger btn-sm btn-block">✕ Rifiuta</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% elif is_friday %}
+<div class="card mb-4" style="text-align:center;padding:2rem;">
+  <p class="text-muted">Offerta in elaborazione...</p>
+</div>
+{% else %}
+<div class="card mb-4" style="padding:1rem 1.5rem;border-color:rgba(136,136,136,.2);">
+  <p style="font-size:.85rem;color:var(--muted);">📅 Le offerte sponsor arrivano ogni <strong>Venerdì</strong>. Oggi è {{ ['Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato','Domenica'][['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].index(game_date.split(' ')[0][:3])] if False else game_date.split(' ')[0] }}.</p>
+</div>
+{% endif %}
+
+<!-- Active sponsors -->
+<h2 class="mb-3">SPONSOR ATTIVI</h2>
+
+{% if main_sponsor %}
+<div class="sponsor-card main-sp mb-3">
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem;">
+    <div>
+      <div style="font-size:.7rem;color:var(--cyan);letter-spacing:1px;margin-bottom:.3rem;">SPONSOR PRINCIPALE</div>
+      <div style="font-family:'Orbitron',monospace;font-size:1.2rem;font-weight:900;">{{ main_sponsor.sponsor_name }}</div>
+      <div style="margin-top:.5rem;font-size:.85rem;color:var(--muted);">
+        💰 €{{ "%.0f"|format(main_sponsor.weekly_amount) }}/settimana ·
+        {{ main_sponsor.remaining_weeks }} settimane rimaste ·
+        Totale atteso: <strong style="color:var(--success);">€{{ "%.0f"|format(main_sponsor.weekly_amount * main_sponsor.remaining_weeks) }}</strong>
+      </div>
+    </div>
+    <div>
+      <form method="POST" action="{{ url_for('events.sponsor_remove', sponsor_id=main_sponsor.id) }}"
+            onsubmit="return confirm('Rimuovere {{ main_sponsor.sponsor_name }}? Perderai i pagamenti rimanenti.')">
+        <button type="submit" class="btn btn-danger btn-sm">Rimuovi</button>
+      </form>
+      <div style="font-size:.72rem;color:var(--muted);margin-top:.3rem;text-align:center;">Non si può declassare a secondario</div>
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="card mb-3" style="border-style:dashed;border-color:rgba(0,245,255,.2);text-align:center;padding:1.5rem;">
+  <p class="text-muted" style="font-size:.85rem;">Nessuno sponsor principale — accetta un'offerta venerdì</p>
+</div>
+{% endif %}
+
+{% for sp in secondary_sponsors %}
+<div class="sponsor-card secondary-sp mb-2">
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem;">
+    <div>
+      <div style="font-size:.7rem;color:#b77fff;letter-spacing:1px;margin-bottom:.3rem;">SPONSOR SECONDARIO · 30%</div>
+      <div style="font-weight:700;font-size:1rem;">{{ sp.sponsor_name }}</div>
+      <div style="margin-top:.3rem;font-size:.83rem;color:var(--muted);">
+        💰 €{{ "%.0f"|format(sp.weekly_amount * 0.3) }}/settimana ·
+        {{ sp.remaining_weeks }} settimane rimaste
+      </div>
+    </div>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;">
+      {% if not main_sponsor %}
+      <form method="POST" action="{{ url_for('events.sponsor_upgrade', sponsor_id=sp.id) }}">
+        <button type="submit" class="btn btn-primary btn-sm">↑ Promuovi a Main</button>
+      </form>
+      {% endif %}
+      <form method="POST" action="{{ url_for('events.sponsor_remove', sponsor_id=sp.id) }}"
+            onsubmit="return confirm('Rimuovere {{ sp.sponsor_name }}?')">
+        <button type="submit" class="btn btn-danger btn-sm">Rimuovi</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endfor %}
+
+<!-- Empty secondary slots -->
+{% for i in range(2 - secondary_sponsors|length) %}
+<div class="card mb-2" style="border-style:dashed;border-color:rgba(123,47,255,.2);text-align:center;padding:1rem;">
+  <p class="text-muted" style="font-size:.82rem;">Slot secondario {{ loop.index }} libero</p>
+</div>
+{% endfor %}
+
+<!-- Info box -->
+<div class="card mt-4" style="background:rgba(0,0,0,.2);border-color:rgba(136,136,136,.15);">
+  <h3 class="mb-2">ℹ️ REGOLE SPONSOR</h3>
+  <ul style="font-size:.82rem;color:var(--muted);line-height:1.8;padding-left:1.2rem;">
+    <li>Puoi avere 1 sponsor principale (100% del valore) e fino a 2 secondari (30% ciascuno)</li>
+    <li>Il pagamento avviene automaticamente ogni domenica</li>
+    <li>Puoi rimuovere sponsor in qualsiasi momento (perdi i pagamenti rimanenti)</li>
+    <li>Puoi promuovere un secondario a principale solo se lo slot main è libero</li>
+    <li>Non puoi declassare un main a secondario — devi prima rimuoverlo</li>
+    <li>Il valore offerto dipende dalla media skill dei tuoi migliori 7 giocatori</li>
+  </ul>
+</div>
+{% endblock %}

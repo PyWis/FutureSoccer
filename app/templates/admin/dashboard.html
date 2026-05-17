@@ -6,27 +6,27 @@
     <h1>⚙️ ADMIN PANEL</h1>
     <p class="text-muted">Pannello SuperAdmin — Controllo totale della Lega</p>
   </div>
-  <span class="badge badge-gold">SUPERADMIN</span>
+  <span class="badge badge-gold" style="font-size:.85rem;padding:.5rem 1rem;">SUPERADMIN</span>
 </div>
 
 <div class="grid-4 mb-4">
-  <div class="card card-glow" style="text-align:center;">
-    <div style="font-size:2.5rem;color:var(--cyan);font-family:'Orbitron',monospace;font-weight:900;">{{ users|length }}</div>
-    <div class="text-muted" style="font-size:0.8rem;letter-spacing:1px;margin-top:0.3rem;">UTENTI</div>
+  <div class="card" style="text-align:center;">
+    <div style="font-size:2.2rem;color:var(--cyan);font-family:'Orbitron',monospace;font-weight:900;">{{ users|length }}</div>
+    <div class="text-muted" style="font-size:.72rem;letter-spacing:1px;margin-top:.3rem;">UTENTI</div>
   </div>
   <div class="card" style="text-align:center;">
-    <div style="font-size:2.5rem;color:var(--purple);font-family:'Orbitron',monospace;font-weight:900;">{{ teams|length }}</div>
-    <div class="text-muted" style="font-size:0.8rem;letter-spacing:1px;margin-top:0.3rem;">SQUADRE</div>
+    <div style="font-size:2.2rem;color:var(--purple);font-family:'Orbitron',monospace;font-weight:900;">{{ teams|length }}</div>
+    <div class="text-muted" style="font-size:.72rem;letter-spacing:1px;margin-top:.3rem;">SQUADRE</div>
   </div>
   <div class="card" style="text-align:center;">
-    <div style="font-size:2.5rem;color:var(--success);font-family:'Orbitron',monospace;font-weight:900;">{{ total_players }}</div>
-    <div class="text-muted" style="font-size:0.8rem;letter-spacing:1px;margin-top:0.3rem;">GIOCATORI</div>
+    <div style="font-size:2.2rem;color:var(--success);font-family:'Orbitron',monospace;font-weight:900;">{{ total_players }}</div>
+    <div class="text-muted" style="font-size:.72rem;letter-spacing:1px;margin-top:.3rem;">GIOCATORI</div>
   </div>
   <div class="card" style="text-align:center;">
-    <div style="font-size:2.5rem;color:var(--warning);font-family:'Orbitron',monospace;font-weight:900;">
+    <div style="font-size:2.2rem;color:var(--warning);font-family:'Orbitron',monospace;font-weight:900;">
       {{ users|selectattr('is_verified','equalto',False)|list|length }}
     </div>
-    <div class="text-muted" style="font-size:0.8rem;letter-spacing:1px;margin-top:0.3rem;">IN ATTESA</div>
+    <div class="text-muted" style="font-size:.72rem;letter-spacing:1px;margin-top:.3rem;">IN ATTESA</div>
   </div>
 </div>
 
@@ -34,7 +34,7 @@
   <div>
     <div class="flex flex-between flex-center mb-2">
       <h2>Utenti Recenti</h2>
-      <a href="{{ url_for('admin.users_list') }}" class="btn btn-secondary btn-sm">Vedi tutti</a>
+      <a href="{{ url_for('admin.users_list') }}" class="btn btn-secondary btn-sm">Tutti</a>
     </div>
     <div class="card">
       <div class="table-wrap">
@@ -45,21 +45,15 @@
             <tr>
               <td>
                 <div style="font-weight:600;">{{ u.username }}</div>
-                <div style="font-size:0.75rem;color:var(--muted);">{{ u.email }}</div>
+                <div style="font-size:.72rem;color:var(--muted);">{{ u.email }}</div>
               </td>
               <td>
-                {% if u.is_superadmin %}
-                  <span class="badge badge-gold">ADMIN</span>
-                {% else %}
-                  <span class="badge badge-cyan">PLAYER</span>
-                {% endif %}
+                {% if u.is_superadmin %}<span class="badge badge-gold">ADMIN</span>
+                {% else %}<span class="badge badge-cyan">PLAYER</span>{% endif %}
               </td>
               <td>
-                {% if u.is_verified %}
-                  <span class="badge badge-green">✓ Attivo</span>
-                {% else %}
-                  <span class="badge badge-red">⏳ Attesa</span>
-                {% endif %}
+                {% if u.is_verified %}<span class="badge badge-green">✓</span>
+                {% else %}<span class="badge badge-red">⏳</span>{% endif %}
               </td>
             </tr>
             {% endfor %}
@@ -74,25 +68,24 @@
       <h2>Squadre</h2>
       <div class="flex gap-1">
         <a href="{{ url_for('admin.team_new') }}" class="btn btn-primary btn-sm">+ Nuova</a>
-        <a href="{{ url_for('admin.teams_list') }}" class="btn btn-secondary btn-sm">Vedi tutte</a>
+        <a href="{{ url_for('admin.teams_list') }}" class="btn btn-secondary btn-sm">Tutte</a>
       </div>
     </div>
     <div class="card">
       <div class="table-wrap">
         <table>
-          <thead><tr><th>SQUADRA</th><th>PRESTIGE</th><th>BUDGET</th></tr></thead>
+          <thead><tr><th>SQUADRA</th><th>ROSA</th><th>BUDGET</th></tr></thead>
           <tbody>
             {% for t in teams[:8] %}
             <tr>
               <td>
-                <div style="display:flex;align-items:center;gap:0.5rem;">
-                  <div style="width:12px;height:12px;border-radius:50%;background:{{ t.color_primary }};"></div>
-                  <span style="font-weight:600;">{{ t.name }}</span>
+                <div style="display:flex;align-items:center;gap:.5rem;">
+                  <div style="width:10px;height:10px;border-radius:50%;background:{{ t.color_primary }};"></div>
+                  <strong>{{ t.name }}</strong>
                 </div>
-                <div style="font-size:0.75rem;color:var(--muted);">{{ t.city }}</div>
               </td>
-              <td><span class="badge badge-purple">{{ t.prestige }}</span></td>
-              <td style="font-size:0.85rem;">€{{ "%.0f"|format(t.budget/1000000) }}M</td>
+              <td>{{ t.players.count() }}/12</td>
+              <td style="font-size:.82rem;">€{{ "%.1f"|format(t.budget/1000000) }}M</td>
             </tr>
             {% endfor %}
           </tbody>
@@ -103,9 +96,9 @@
 </div>
 
 <div class="flex gap-2 mt-4" style="flex-wrap:wrap;">
-  <a href="{{ url_for('admin.users_list') }}" class="btn btn-secondary">👥 Gestisci Utenti</a>
-  <a href="{{ url_for('admin.teams_list') }}" class="btn btn-secondary">🏟️ Gestisci Squadre</a>
-  <a href="{{ url_for('admin.players_list') }}" class="btn btn-secondary">⚽ Gestisci Giocatori</a>
-  <a href="{{ url_for('admin.player_new') }}" class="btn btn-primary">+ Nuovo Giocatore</a>
+  <a href="{{ url_for('admin.users_list') }}" class="btn btn-secondary">👥 Utenti</a>
+  <a href="{{ url_for('admin.teams_list') }}" class="btn btn-secondary">🏟️ Squadre</a>
+  <a href="{{ url_for('admin.players_list') }}" class="btn btn-secondary">⚽ Giocatori</a>
+  <a href="{{ url_for('admin.player_new') }}" class="btn btn-primary">+ Giocatore</a>
 </div>
 {% endblock %}

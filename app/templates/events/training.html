@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+{% block title %}Allenamento — FutureSoccer{% endblock %}
+{% block extra_head %}
+<style>
+  .player-train-row{background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:1.2rem;margin-bottom:1rem;transition:border-color .2s;}
+  .player-train-row.trained{opacity:.6;background:rgba(46,213,115,.03);border-color:rgba(46,213,115,.2);}
+  .skill-check-group{display:flex;gap:.5rem;flex-wrap:wrap;}
+  .skill-check{cursor:pointer;}
+  .skill-check input{display:none;}
+  .skill-check span{display:inline-block;padding:.35rem .75rem;border-radius:6px;font-size:.8rem;font-weight:700;
+    border:1px solid var(--card-border);color:var(--muted);transition:all .2s;user-select:none;}
+  .skill-check input:checked + span{border-color:var(--cyan);color:var(--cyan);background:rgba(0,245,255,.1);}
+  .prem-group{display:flex;gap:.4rem;flex-wrap:wrap;}
+  .prem-radio{cursor:pointer;}
+  .prem-radio input{display:none;}
+  .prem-radio span{display:inline-block;padding:.28rem .6rem;border-radius:6px;font-size:.75rem;font-weight:700;
+    border:1px solid var(--card-border);color:var(--muted);transition:all .2s;user-select:none;}
+  .prem-radio input:checked + span{border-color:var(--warning);color:var(--warning);background:rgba(255,165,0,.1);}
+  .result-improved{color:var(--success);font-weight:700;}
+  .result-none{color:var(--muted);}
+  .day-label{display:inline-block;padding:.2rem .6rem;border-radius:4px;font-size:.72rem;font-weight:700;letter-spacing:1px;}
+  .day-active{background:rgba(255,165,0,.15);color:var(--warning);}
+  .day-inactive{background:rgba(136,136,136,.1);color:var(--muted);}
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-header flex flex-between flex-center" style="flex-wrap:wrap;gap:1rem;">
+  <div>
+    <h1>💪 ALLENAMENTO</h1>
+    <p class="text-muted">{{ game_date }}</p>
+  </div>
+  <div>
+    {% if is_training %}
+      <span class="day-label day-active">GIORNATA DI ALLENAMENTO</span>
+    {% else %}
+      <span class="day-label day-inactive">PROSSIMO: MAR o GIO</span>
+    {% endif %}
+  </div>
+</div>
+
+{% if not is_training %}
+<div class="card" style="text-align:center;padding:3rem;">
+  <div style="font-size:3rem;margin-bottom:1rem;">📅</div>
+  <h2 style="color:var(--muted);margin-bottom:.5rem;">Nessun allenamento oggi</h2>
+  <p class="text-muted">Le sessioni si svolgono ogni <strong>Martedì</strong> e <strong>Giovedì</strong>.</p>
+</div>
+{% else %}
+
+<!-- Premium bulk option -->
+<div class="card mb-3" style="border-color:rgba(255,165,0,.3);">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;">
+    <div>
+      <h3>⚡ OPZIONE BULK</h3>
+      <p style="font-size:.83rem;color:var(--muted);margin-top:.3rem;">
+        Paga <strong style="color:var(--warning);">€500.000</strong> per portare tutti i giocatori al tier Premium 50k (50% di miglioramento).
+      </p>
+    </div>
+    <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;">
+      <input type="checkbox" id="bulk500k" onchange="toggleBulk(this)">
+      <span style="font-size:.85rem;color:var(--warning);font-weight:700;">Attiva Bulk €500k</span>
+    </label>
+  </div>
+</div>
+
+<!-- Legend -->
+<div class="card mb-3" style="padding:1rem 1.5rem;">
+  <div style="display:flex;gap:2rem;flex-wrap:wrap;font-size:.8rem;">
+    <div>🆓 <strong>Standard</strong> — 20% prob. +0.1</div>
+    <div>⚡ <strong>Premium 50k/pp</strong> — 50% prob. +0.1</div>
+    <div>💎 <strong>Premium 200k/pp</strong> — 100% +0.1, 30% +0.2</div>
+  </div>
+</div>
+
+{% if trainable %}
+<form method="POST" id="trainingForm">
+  <input type="hidden" name="bulk_500k" id="bulk500kInput" value="">
+
+  {% for p in trainable %}
+  <div class="player-train-row" id="row_{{ p.id }}">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem;">
+      <div style="flex:1;min-width:180px;">
+        <div style="font-weight:700;font-size:1rem;">{{ p.type_icon }} {{ p.name }}</div>
+        <div style="font-size:.75rem;color:var(--muted);">Età {{ p.age }} · Media <strong style="color:var(--cyan);">{{ "%.2f"|format(p.avg_skill) }}</strong></div>
+        <div style="font-size:.72rem;color:var(--muted);margin-top:.2rem;">
+          P:{{ "%.1f"|format(p.porta) }} D:{{ "%.1f"|format(p.difesa) }} A:{{ "%.1f"|format(p.attacco) }} R:{{ "%.1f"|format(p.resistenza) }}
+        </div>
+      </div>
+
+      <div style="flex:2;min-width:260px;">
+        <div style="font-size:.72rem;color:var(--muted);margin-bottom:.4rem;">SCEGLI 2 SKILL DA ALLENARE</div>
+        <div class="skill-check-group" data-player="{{ p.id }}">
+          {% for sk, lbl in skill_labels.items() %}
+          <label class="skill-check">
+            <input type="checkbox" name="skills_{{ p.id }}" value="{{ sk }}"
+                   onchange="limitSkills({{ p.id }}, this)">
+            <span>{{ lbl }}</span>
+          </label>
+          {% endfor %}
+        </div>
+        <div id="err_{{ p.id }}" style="font-size:.72rem;color:var(--danger);margin-top:.3rem;display:none;">
+          Seleziona esattamente 2 skill.
+        </div>
+      </div>
+
+      <div style="min-width:180px;">
+        <div style="font-size:.72rem;color:var(--muted);margin-bottom:.4rem;">PREMIUM</div>
+        <div class="prem-group" id="premGroup_{{ p.id }}">
+          <label class="prem-radio">
+            <input type="radio" name="prem_{{ p.id }}" value="standard" checked>
+            <span>🆓 Standard</span>
+          </label>
+          <label class="prem-radio">
+            <input type="radio" name="prem_{{ p.id }}" value="p50k">
+            <span>⚡ 50k</span>
+          </label>
+          <label class="prem-radio">
+            <input type="radio" name="prem_{{ p.id }}" value="p200k">
+            <span>💎 200k</span>
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-top:1.5rem;">
+    <div id="costPreview" style="font-size:.85rem;color:var(--muted);">Costo stimato: €0</div>
+    <button type="submit" class="btn btn-primary" style="padding:.8rem 2rem;">
+      💪 AVVIA ALLENAMENTO
+    </button>
+  </div>
+</form>
+{% endif %}
+
+<!-- Already trained today -->
+{% set trained_players = players|selectattr('id', 'in', today_records.keys())|list %}
+{% if trained_players %}
+<h3 class="mt-4 mb-2">ALLENATI OGGI</h3>
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>GIOCATORE</th><th>SKILL ALLENATE</th><th>PREMIUM</th><th>RISULTATO</th><th>COSTO</th></tr></thead>
+      <tbody>
+        {% for p in trained_players %}
+        {% set rec = today_records[p.id] %}
+        <tr>
+          <td><strong>{{ p.type_icon }} {{ p.name }}</strong></td>
+          <td><span class="badge badge-cyan">{{ skill_labels[rec.skill1] }}</span> <span class="badge badge-cyan">{{ skill_labels[rec.skill2] }}</span></td>
+          <td><span class="badge {% if rec.premium_type == 'p200k' %}badge-gold{% elif rec.premium_type == 'p50k' %}badge-purple{% else %}badge-cyan{% endif %}">{{ rec.premium_type }}</span></td>
+          <td>
+            {% if rec.skill_improved %}
+              <span class="result-improved">+{{ "%.1f"|format(rec.improvement) }} {{ skill_labels[rec.skill_improved] }} ✓</span>
+            {% else %}
+              <span class="result-none">Nessun miglioramento</span>
+            {% endif %}
+          </td>
+          <td style="font-size:.8rem;">{% if rec.cost > 0 %}€{{ "%.0f"|format(rec.cost) }}{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if not trainable and not trained_players %}
+<div class="card" style="text-align:center;padding:2rem;">
+  <p class="text-muted">Nessun giocatore disponibile. Crea la tua squadra prima.</p>
+</div>
+{% endif %}
+
+{% endif %}
+{% endblock %}
+{% block extra_js %}
+<script>
+const COSTS = {standard: 0, p50k: 50000, p200k: 200000};
+const BULK_COST = 500000;
+let bulkActive = false;
+
+function limitSkills(pid, cb) {
+  const group = document.querySelector(`[data-player="${pid}"]`);
+  const checked = group.querySelectorAll('input:checked');
+  if (checked.length > 2) { cb.checked = false; }
+  const err = document.getElementById(`err_${pid}`);
+  err.style.display = checked.length === 2 ? 'none' : 'block';
+  updateCost();
+}
+
+function toggleBulk(cb) {
+  bulkActive = cb.checked;
+  document.getElementById('bulk500kInput').value = bulkActive ? 'on' : '';
+  document.querySelectorAll('.prem-group').forEach(g => {
+    g.style.opacity = bulkActive ? '.4' : '1';
+    g.style.pointerEvents = bulkActive ? 'none' : '';
+  });
+  updateCost();
+}
+
+function updateCost() {
+  if (bulkActive) {
+    document.getElementById('costPreview').textContent = `Costo stimato: €500.000 (bulk)`;
+    return;
+  }
+  let total = 0;
+  document.querySelectorAll('[name^="prem_"]').forEach(r => {
+    if (r.checked) total += COSTS[r.value] || 0;
+  });
+  document.getElementById('costPreview').textContent =
+    total > 0 ? `Costo stimato: €${total.toLocaleString('it-IT')}` : 'Costo stimato: €0 (standard)';
+}
+
+document.querySelectorAll('[name^="prem_"]').forEach(r => r.addEventListener('change', updateCost));
+
+document.getElementById('trainingForm')?.addEventListener('submit', function(e) {
+  let valid = true;
+  {% for p in trainable %}
+  const g{{ p.id }} = document.querySelector('[data-player="{{ p.id }}"]');
+  if (g{{ p.id }} && g{{ p.id }}.querySelectorAll('input:checked').length !== 2) {
+    document.getElementById('err_{{ p.id }}').style.display = 'block';
+    valid = false;
+  }
+  {% endfor %}
+  if (!valid) { e.preventDefault(); alert('Seleziona esattamente 2 skill per ogni giocatore.'); }
+});
+</script>
+{% endblock %}
