@@ -1,5 +1,11 @@
 import random
-from app.utils.names import random_player_name, random_sponsor_name, PLAYER_TYPES
+from app.utils.names import random_player_name, random_sponsor_name
+
+# 70% uomo, 15% donna, 15% cyber
+_TYPE_POPULATION = ['uomo'] * 70 + ['donna'] * 15 + ['cyber'] * 15
+
+def _random_type():
+    return random.choice(_TYPE_POPULATION)
 
 SKILLS = ['porta', 'difesa', 'attacco', 'resistenza']
 MAX_SKILL_INITIAL = 4.5
@@ -18,7 +24,7 @@ def _generate_skills(target_avg, max_val=MAX_SKILL_INITIAL, min_val=0.5):
 def generate_new_team_player(team_id):
     """Player for auto-assignment on team creation (avg 3.0, age 18-21)."""
     from app.models.team import Player
-    ptype = random.choice(PLAYER_TYPES)
+    ptype = _random_type()
     skills = _generate_skills(3.0)
     return Player(
         name=random_player_name(ptype),
@@ -48,7 +54,7 @@ def generate_market_offer_data(scouted=False):
         else:
             avg = random.uniform(4.5, 5.0)
     avg = round(avg, 2)
-    ptype = random.choice(PLAYER_TYPES)
+    ptype = _random_type()
     skills = _generate_skills(avg, max_val=min(MAX_SKILL_ABSOLUTE, avg + 1.5))
     return {
         'name': random_player_name(ptype),
