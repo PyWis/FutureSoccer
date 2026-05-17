@@ -114,7 +114,6 @@ def market_buy():
         flash('Rosa al completo (massimo 12 giocatori).', 'danger')
         return redirect(url_for('events.market'))
 
-    # Market cost: avg_skill * 500k (rough valuation)
     cost = round(offer.offer_avg * 500_000, -3)
     if team.budget < cost:
         flash(f'Budget insufficiente. Costo: €{cost:,.0f}', 'danger')
@@ -135,7 +134,16 @@ def market_buy():
     team.budget -= cost
     offer.purchased = True
     db.session.commit()
-    flash(f'{offer.offer_name} acquistato per €{cost:,.0f}!', 'success')
+
+    type_icon = {'uomo': '👨', 'donna': '👩', 'cyber': '🤖'}.get(offer.offer_type, '')
+    if offer.is_scouted:
+        flash(
+            f'🔮 Giocatore scouting rivelato: {type_icon} {offer.offer_name} '
+            f'(media {offer.offer_avg:.2f}) acquistato per €{cost:,.0f}!',
+            'success'
+        )
+    else:
+        flash(f'{type_icon} {offer.offer_name} acquistato per €{cost:,.0f}!', 'success')
     return redirect(url_for('game.my_team'))
 
 
