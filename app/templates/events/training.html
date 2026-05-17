@@ -355,29 +355,25 @@ function updateCost() {
 document.querySelectorAll('[name^="prem_"]').forEach(r => r.addEventListener('change', updateCost));
 
 document.getElementById('trainingForm')?.addEventListener('submit', function(e) {
-  const isSaturday = {{ 'true' if (is_saturday_mode and not is_training) else 'false' }};
+  {% if is_saturday_mode and not is_training %}
+  // Saturday: server skips players with invalid selections — no client validation needed
+  return;
+  {% else %}
+  // Regular training: block only if user started selecting (≥1) but didn't pick exactly 2
   let valid = true;
   {% for p in trainable %}
-  const g{{ p.id }} = document.querySelector('[data-player="{{ p.id }}"]');
-  if (g{{ p.id }}) {
-    const cnt = g{{ p.id }}.querySelectorAll('input:checked').length;
-    if (isSaturday) {
-      // On Saturday only validate players the user opted into (SEL checkbox)
-      const sel = document.getElementById('sat_{{ p.id }}');
-      if (sel && sel.checked && cnt !== 2) {
-        document.getElementById('err_{{ p.id }}').style.display = 'block';
-        valid = false;
-      }
-    } else {
-      // Regular training: only error if user started selecting (≥1) but didn't finish
-      if (cnt > 0 && cnt !== 2) {
-        document.getElementById('err_{{ p.id }}').style.display = 'block';
-        valid = false;
-      }
+  (function() {
+    const g = document.querySelector('[data-player="{{ p.id }}"]');
+    if (!g) return;
+    const cnt = g.querySelectorAll('input:checked').length;
+    if (cnt > 0 && cnt !== 2) {
+      document.getElementById('err_{{ p.id }}').style.display = 'block';
+      valid = false;
     }
-  }
+  })();
   {% endfor %}
   if (!valid) { e.preventDefault(); alert('Seleziona esattamente 2 skill per ogni giocatore selezionato.'); }
+  {% endif %}
 });
 </script>
 {% endblock %}

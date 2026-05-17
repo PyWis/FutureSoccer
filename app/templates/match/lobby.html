@@ -1,6 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Partita — FutureSoccer{% endblock %}
 {% block extra_head %}
+{% if is_sunday and not sunday_unlocked %}
+<meta http-equiv="refresh" content="{{ sunday_countdown + 2 }}">
+{% endif %}
 <style>
   .lobby-header{text-align:center;margin-bottom:2rem;}
   .lobby-header h1{font-size:2rem;letter-spacing:2px;}
@@ -80,21 +83,39 @@
 
 {% if is_sunday %}
 
-<!-- ── ACCEPTED CHALLENGES READY TO PLAY ── -->
-{% if accepted_challenges %}
+<!-- ── COUNTDOWN or CONFIRMED MATCHES ── -->
+{% if not sunday_unlocked %}
+<div class="card mb-3" style="text-align:center;padding:1.5rem;border-color:rgba(123,47,255,.4);">
+  <div style="font-size:.75rem;color:var(--muted);letter-spacing:1px;margin-bottom:.4rem;">LE PARTITE INIZIANO TRA</div>
+  <div id="lobbyCountdown" style="font-family:'Orbitron',monospace;font-size:2.5rem;font-weight:900;color:var(--purple);">{{ sunday_countdown }}s</div>
+  <div style="font-size:.75rem;color:var(--muted);margin-top:.4rem;">La pagina si aggiorna automaticamente.</div>
+  {% if accepted_challenges %}
+  <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--card-border);">
+    <div style="font-size:.72rem;color:var(--muted);margin-bottom:.5rem;">PARTITE IN PROGRAMMA</div>
+    {% for ch in accepted_challenges %}
+    <div style="font-size:.85rem;padding:.3rem 0;">
+      <strong>{{ ch.challenger.name }}</strong>
+      <span style="color:var(--muted);margin:0 .3rem;">vs</span>
+      <strong>{{ ch.challenged.name }}</strong>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% elif accepted_challenges %}
 <div class="card mb-3" style="border-color:var(--cyan);">
-  <div class="section-title" style="color:var(--cyan);">✅ Partite Prenotate — Inizia Ora</div>
+  <div class="section-title" style="color:var(--cyan);">✅ Partite in Corso</div>
   {% for ch in accepted_challenges %}
+  {% if ch.match_id %}
   <div class="challenge-card">
     <div>
       <strong>{{ ch.challenger.name }}</strong>
       <span style="color:var(--muted);margin:0 .3rem;">vs</span>
       <strong>{{ ch.challenged.name }}</strong>
     </div>
-    <form method="POST" action="{{ url_for('match.start_challenge', challenge_id=ch.id) }}">
-      <button class="btn btn-sm" style="background:var(--cyan);color:#000;">▶ Inizia</button>
-    </form>
+    <a href="{{ url_for('match.view', match_id=ch.match_id) }}" class="btn btn-sm" style="background:var(--cyan);color:#000;">▶ Entra</a>
   </div>
+  {% endif %}
   {% endfor %}
 </div>
 {% endif %}
@@ -175,4 +196,20 @@
 
 {% endif %}
 
+{% endblock %}
+{% block extra_js %}
+{% if is_sunday and not sunday_unlocked %}
+<script>
+(function() {
+  let sec = {{ sunday_countdown }};
+  const el = document.getElementById('lobbyCountdown');
+  if (!el) return;
+  const iv = setInterval(() => {
+    sec--;
+    if (sec <= 0) { el.textContent = '…'; clearInterval(iv); }
+    else { el.textContent = sec + 's'; }
+  }, 1000);
+})();
+</script>
+{% endif %}
 {% endblock %}
