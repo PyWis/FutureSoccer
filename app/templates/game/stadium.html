@@ -95,7 +95,7 @@
           Upgrade → {{ stars + 1 }}⭐ — €{{ "%.0f"|format(upgrade_cost/1000) }}k
         </button>
       </form>
-      <p class="degrade-note">Costo upgrade: €{{ "%,.0f"|format(upgrade_cost) }}</p>
+      <p class="degrade-note">Costo upgrade: €{{ "{:,.0f}".format(upgrade_cost) }}</p>
     {% endif %}
   </div>
 </div>
