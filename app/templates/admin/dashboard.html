@@ -101,4 +101,27 @@
   <a href="{{ url_for('admin.players_list') }}" class="btn btn-secondary">⚽ Giocatori</a>
   <a href="{{ url_for('admin.player_new') }}" class="btn btn-primary">+ Giocatore</a>
 </div>
+
+<!-- ── GAME CLOCK CONTROL ── -->
+<div class="card mt-4" style="border-color:var(--warning);max-width:480px;">
+  <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.75rem;">
+    <span style="font-size:1.1rem;">🕹️</span>
+    <h3 style="margin:0;">Orologio di Gioco</h3>
+    <span class="badge badge-gold" style="font-size:.7rem;">DEV</span>
+  </div>
+  <div style="font-size:.82rem;color:var(--muted);margin-bottom:.75rem;">
+    Data attuale: <strong style="color:var(--cyan);">{{ game_date }}</strong>
+  </div>
+  <form method="POST" action="{{ url_for('admin.clock_advance') }}" style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
+    <div style="display:flex;gap:.4rem;">
+      <button type="submit" name="days" value="1" class="btn btn-outline btn-sm">+1 giorno</button>
+      <button type="submit" name="days" value="7" class="btn btn-outline btn-sm">+7 giorni</button>
+    </div>
+    <div style="display:flex;gap:.4rem;align-items:center;">
+      <input type="number" name="days" min="1" max="365" value="1"
+             style="width:64px;background:var(--card);color:var(--text);border:1px solid var(--card-border);border-radius:6px;padding:.3rem .5rem;font-size:.8rem;">
+      <button type="submit" class="btn btn-sm" style="background:var(--warning);color:#000;">Avanza</button>
+    </div>
+  </form>
+</div>
 {% endblock %}
