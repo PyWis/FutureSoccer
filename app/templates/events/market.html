@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}Mercato — FutureSoccer{% endblock %}
+{% block extra_head %}
+<style>
+  .offer-card{background:var(--card);border:2px solid var(--card-border);border-radius:16px;padding:2rem;position:relative;overflow:hidden;transition:border-color .3s;}
+  .offer-card.scouted{border-color:var(--purple);}
+  .offer-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--cyan),var(--purple));}
+  .offer-card.scouted::before{background:linear-gradient(90deg,var(--purple),#ff6bff);}
+  .skill-row{display:flex;align-items:center;gap:.75rem;margin-bottom:.6rem;}
+  .skill-label{width:80px;font-size:.8rem;color:var(--muted);}
+  .skill-val{font-weight:700;width:35px;font-family:'Orbitron',monospace;font-size:.9rem;}
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-header flex flex-between flex-center" style="flex-wrap:wrap;gap:1rem;">
+  <div>
+    <h1>🛒 MERCATO</h1>
+    <p class="text-muted">{{ game_date }}</p>
+  </div>
+  <div style="text-align:right;">
+    <div style="font-size:.75rem;color:var(--muted);">Budget squadra</div>
+    <div style="font-family:'Orbitron',monospace;font-size:1.3rem;color:var(--success);">€{{ "%.1f"|format(team.budget/1000000) }}M</div>
+  </div>
+</div>
+
+<!-- Scouting activation -->
+<div class="card mb-4" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;">
+  <div>
+    <h3>🔭 SCOUTING AVANZATO</h3>
+    <p style="font-size:.85rem;color:var(--muted);margin-top:.3rem;">
+      Paga 1M€/settimana per ricevere un giocatore con media fino a 5.0<br>
+      <span style="font-size:.75rem;">Probabilità: 40% (3.0-3.5) · 30% (3.5-4.0) · 20% (4.0-4.5) · 10% (4.5-5.0)</span>
+    </p>
+  </div>
+  {% if scouting_active %}
+    <span class="badge badge-green" style="font-size:.85rem;padding:.5rem 1rem;">✓ Scouting Attivo questa settimana</span>
+  {% else %}
+    <form method="POST" action="{{ url_for('events.activate_scouting') }}">
+      <button type="submit" class="btn btn-primary">🔭 Attiva Scouting — €1.000.000</button>
+    </form>
+  {% endif %}
+</div>
+
+<!-- Weekly offer -->
+<h2 class="mb-3">OFFERTA SETTIMANA {{ week_id % 100 }}</h2>
+
+{% if offer %}
+  {% if offer.purchased %}
+  <div class="card" style="text-align:center;padding:2rem;border-color:var(--success);">
+    <div style="font-size:2rem;margin-bottom:.5rem;">✅</div>
+    <p class="text-success" style="font-weight:700;">Giocatore acquistato questa settimana!</p>
+    <p class="text-muted" style="font-size:.85rem;margin-top:.3rem;">{{ offer.offer_name }} è nella tua rosa.</p>
+    <a href="{{ url_for('game.my_team') }}" class="btn btn-secondary btn-sm mt-2">Vedi Rosa</a>
+  </div>
+  {% else %}
+  <div class="offer-card {{ 'scouted' if offer.is_scouted else '' }}">
+    {% if offer.is_scouted %}
+    <div style="position:absolute;top:1rem;right:1rem;">
+      <span class="badge badge-purple">🔭 SCOUTING</span>
+    </div>
+    {% endif %}
+
+    <div style="display:flex;align-items:flex-start;gap:2rem;flex-wrap:wrap;">
+      <div style="flex:1;min-width:220px;">
+        <div style="font-size:.72rem;color:var(--muted);letter-spacing:1px;margin-bottom:.3rem;">GIOCATORE OFFERTO</div>
+        <div style="font-family:'Orbitron',monospace;font-size:1.4rem;font-weight:900;color:{% if offer.is_scouted %}#b77fff{% else %}var(--cyan){% endif %};">
+          {{ offer.offer_name }}
+        </div>
+        <div style="margin-top:.5rem;display:flex;gap:.5rem;flex-wrap:wrap;">
+          <span class="badge {% if offer.offer_type == 'uomo' %}badge-cyan{% elif offer.offer_type == 'donna' %}badge-purple{% else %}badge-gold{% endif %}">
+            {{ {'uomo':'👨','donna':'👩','cyber':'🤖'}[offer.offer_type] }} {{ offer.offer_type|upper }}
+          </span>
+          <span class="badge badge-cyan">{{ offer.offer_age }} anni</span>
+        </div>
+      </div>
+
+      <div style="flex:1;min-width:200px;">
+        <div style="font-size:.72rem;color:var(--muted);letter-spacing:1px;margin-bottom:.75rem;">STATISTICHE</div>
+        {% for sk, label in skill_labels.items() %}
+        {% set val = offer['offer_' + sk] %}
+        <div class="skill-row">
+          <span class="skill-label">{{ label }}</span>
+          <div class="stat-bar" style="flex:1;"><div class="stat-bar-fill" style="width:{{ (val/6.5*100)|round }}%"></div></div>
+          <span class="skill-val">{{ "%.1f"|format(val) }}</span>
+        </div>
+        {% endfor %}
+        <div style="margin-top:.75rem;padding-top:.75rem;border-top:1px solid var(--card-border);">
+          <span style="font-size:.8rem;color:var(--muted);">Media: </span>
+          <strong style="color:{% if offer.offer_avg >= 4.5 %}var(--warning){% elif offer.offer_avg >= 3.5 %}var(--cyan){% else %}var(--muted){% endif %};">
+            {{ "%.2f"|format(offer.offer_avg) }}
+          </strong>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;min-width:160px;">
+        {% set cost = (offer.offer_avg * 500000)|round(-3)|int %}
+        <div style="text-align:right;">
+          <div style="font-size:.72rem;color:var(--muted);">PREZZO ACQUISTO</div>
+          <div style="font-family:'Orbitron',monospace;font-size:1.5rem;color:var(--success);">€{{ "%.1f"|format(cost/1000000) }}M</div>
+        </div>
+        {% if team.players.count() >= 12 %}
+          <div style="text-align:center;padding:.5rem;">
+            <span class="badge badge-red">Rosa al completo</span>
+          </div>
+        {% elif team.budget >= cost %}
+          <form method="POST" action="{{ url_for('events.market_buy') }}" style="margin-top:1rem;">
+            <button type="submit" class="btn btn-primary">Acquista</button>
+          </form>
+        {% else %}
+          <span style="font-size:.8rem;color:var(--danger);">Budget insufficiente</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+{% else %}
+<div class="card" style="text-align:center;padding:3rem;">
+  <div style="font-size:3rem;margin-bottom:1rem;">📅</div>
+  <p class="text-muted">Nessuna offerta disponibile. Caricamento in corso...</p>
+  <p style="font-size:.8rem;color:var(--muted);margin-top:.5rem;">Le offerte vengono generate ogni settimana.</p>
+</div>
+{% endif %}
+{% endblock %}

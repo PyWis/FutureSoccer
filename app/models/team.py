@@ -11,8 +11,6 @@ class Team(db.Model):
     stadium = db.Column(db.String(100), nullable=False)
     logo = db.Column(db.String(200), default='default_team.png')
     budget = db.Column(db.Float, default=50_000_000.0)
-    prestige = db.Column(db.Integer, default=50)  # 0-100
-    founded_year = db.Column(db.Integer, default=2099)
     wins = db.Column(db.Integer, default=0)
     draws = db.Column(db.Integer, default=0)
     losses = db.Column(db.Integer, default=0)
@@ -21,6 +19,10 @@ class Team(db.Model):
     color_primary = db.Column(db.String(7), default='#00f5ff')
     color_secondary = db.Column(db.String(7), default='#7b2fff')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Game events tracking
+    scouting_paid_week_id = db.Column(db.Integer, default=-1)   # ISO week_id of paid scouting
+    last_processed_day = db.Column(db.Integer, default=-1)       # for daily event processing
 
     manager_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, unique=True)
     manager = db.relationship('User', back_populates='team')
@@ -35,6 +37,20 @@ class Team(db.Model):
     def goals_diff(self):
         return self.goals_for - self.goals_against
 
+    @property
+    def scouting_active(self):
+        from app.utils.gameclock import get_game_week_id
+        return self.scouting_paid_week_id >= get_game_week_id()
+
+    @property
+    def top7_avg_skill(self):
+        """Average skill of top-7 players by avg_skill (used for sponsor value)."""
+        sorted_players = sorted(self.players.all(), key=lambda p: p.avg_skill, reverse=True)
+        top = sorted_players[:7]
+        if not top:
+            return 0.0
+        return round(sum(p.avg_skill for p in top) / len(top), 2)
+
     def __repr__(self):
         return f'<Team {self.name}>'
 
@@ -44,26 +60,32 @@ class Player(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
-    position = db.Column(db.String(30), nullable=False)  # GK, DEF, MID, FWD
-    nationality = db.Column(db.String(50), nullable=False)
-    age = db.Column(db.Integer, nullable=False)
-    overall = db.Column(db.Integer, default=70)   # 1-99
-    potential = db.Column(db.Integer, default=75)  # 1-99
-    market_value = db.Column(db.Float, default=1_000_000.0)
-    salary = db.Column(db.Float, default=50_000.0)
-    speed = db.Column(db.Integer, default=70)
-    strength = db.Column(db.Integer, default=70)
-    technique = db.Column(db.Integer, default=70)
-    stamina = db.Column(db.Integer, default=70)
-    cyber_enhancement = db.Column(db.Integer, default=0)  # 0-5 livello impianti cybernetici
-    avatar = db.Column(db.String(200), default='default_player.png')
+    type = db.Column(db.String(10), default='uomo')   # uomo | donna | cyber
+    age = db.Column(db.Integer, default=19)
+
+    # Skills — range 0.5 to 6.5
+    porta = db.Column(db.Float, default=3.0)
+    difesa = db.Column(db.Float, default=3.0)
+    attacco = db.Column(db.Float, default=3.0)
+    resistenza = db.Column(db.Float, default=3.0)
+
     is_free_agent = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     team_id = db.Column(db.Integer, db.ForeignKey('teams.id'), nullable=True)
     team = db.relationship('Team', back_populates='players')
 
-    POSITIONS = ['GK', 'DEF', 'MID', 'FWD']
+    @property
+    def avg_skill(self):
+        return round((self.porta + self.difesa + self.attacco + self.resistenza) / 4, 2)
+
+    @property
+    def type_icon(self):
+        return {'uomo': '👨', 'donna': '👩', 'cyber': '🤖'}.get(self.type, '👤')
+
+    @property
+    def type_badge(self):
+        return {'uomo': 'badge-cyan', 'donna': 'badge-purple', 'cyber': 'badge-gold'}.get(self.type, 'badge-cyan')
 
     def __repr__(self):
-        return f'<Player {self.name} ({self.position})>'
+        return f'<Player {self.name}>'

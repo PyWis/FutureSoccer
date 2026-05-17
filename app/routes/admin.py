@@ -7,6 +7,9 @@ from functools import wraps
 
 admin_bp = Blueprint('admin', __name__)
 
+SKILLS = ['porta', 'difesa', 'attacco', 'resistenza']
+PLAYER_TYPES = ['uomo', 'donna', 'cyber']
+
 
 def superadmin_required(f):
     @wraps(f)
@@ -22,12 +25,12 @@ def superadmin_required(f):
 @superadmin_required
 def dashboard():
     users = User.query.order_by(User.created_at.desc()).all()
-    teams = Team.query.order_by(Team.prestige.desc()).all()
+    teams = Team.query.order_by(Team.name).all()
     players = Player.query.count()
     return render_template('admin/dashboard.html', users=users, teams=teams, total_players=players)
 
 
-# ─── USERS CRUD ───────────────────────────────────────────────────────────────
+# ─── USERS ────────────────────────────────────────────────────────────────────
 
 @admin_bp.route('/users')
 @login_required
@@ -69,7 +72,7 @@ def user_delete(user_id):
         return redirect(url_for('admin.users_list'))
     db.session.delete(user)
     db.session.commit()
-    flash(f'Utente eliminato.', 'success')
+    flash('Utente eliminato.', 'success')
     return redirect(url_for('admin.users_list'))
 
 
@@ -85,13 +88,13 @@ def user_toggle_verify(user_id):
     return redirect(url_for('admin.users_list'))
 
 
-# ─── TEAMS CRUD ───────────────────────────────────────────────────────────────
+# ─── TEAMS ────────────────────────────────────────────────────────────────────
 
 @admin_bp.route('/teams')
 @login_required
 @superadmin_required
 def teams_list():
-    teams = Team.query.order_by(Team.prestige.desc()).all()
+    teams = Team.query.order_by(Team.name).all()
     return render_template('admin/teams.html', teams=teams)
 
 
@@ -104,20 +107,16 @@ def team_new():
         city = request.form.get('city', '').strip()
         stadium = request.form.get('stadium', '').strip()
         budget = float(request.form.get('budget', 50_000_000))
-        prestige = int(request.form.get('prestige', 50))
         color_primary = request.form.get('color_primary', '#00f5ff')
         color_secondary = request.form.get('color_secondary', '#7b2fff')
-
         if not name or not city or not stadium:
             flash('Compila tutti i campi obbligatori.', 'danger')
             return render_template('admin/team_form.html', team=None)
-
         if Team.query.filter_by(name=name).first():
             flash('Squadra già esistente.', 'danger')
             return render_template('admin/team_form.html', team=None)
-
         team = Team(name=name, city=city, stadium=stadium, budget=budget,
-                    prestige=prestige, color_primary=color_primary, color_secondary=color_secondary)
+                    color_primary=color_primary, color_secondary=color_secondary)
         db.session.add(team)
         db.session.commit()
         flash(f'Squadra {name} creata!', 'success')
@@ -135,7 +134,6 @@ def team_edit(team_id):
         team.city = request.form.get('city', team.city).strip()
         team.stadium = request.form.get('stadium', team.stadium).strip()
         team.budget = float(request.form.get('budget', team.budget))
-        team.prestige = int(request.form.get('prestige', team.prestige))
         team.color_primary = request.form.get('color_primary', team.color_primary)
         team.color_secondary = request.form.get('color_secondary', team.color_secondary)
         db.session.commit()
@@ -155,13 +153,13 @@ def team_delete(team_id):
     return redirect(url_for('admin.teams_list'))
 
 
-# ─── PLAYERS CRUD ─────────────────────────────────────────────────────────────
+# ─── PLAYERS ──────────────────────────────────────────────────────────────────
 
 @admin_bp.route('/players')
 @login_required
 @superadmin_required
 def players_list():
-    players = Player.query.order_by(Player.overall.desc()).all()
+    players = Player.query.order_by(Player.team_id, Player.name).all()
     return render_template('admin/players.html', players=players)
 
 
@@ -173,18 +171,12 @@ def player_new():
     if request.method == 'POST':
         player = Player(
             name=request.form.get('name', '').strip(),
-            position=request.form.get('position', 'MID'),
-            nationality=request.form.get('nationality', '').strip(),
-            age=int(request.form.get('age', 25)),
-            overall=int(request.form.get('overall', 70)),
-            potential=int(request.form.get('potential', 75)),
-            market_value=float(request.form.get('market_value', 1_000_000)),
-            salary=float(request.form.get('salary', 50_000)),
-            speed=int(request.form.get('speed', 70)),
-            strength=int(request.form.get('strength', 70)),
-            technique=int(request.form.get('technique', 70)),
-            stamina=int(request.form.get('stamina', 70)),
-            cyber_enhancement=int(request.form.get('cyber_enhancement', 0)),
+            type=request.form.get('type', 'uomo'),
+            age=int(request.form.get('age', 20)),
+            porta=float(request.form.get('porta', 3.0)),
+            difesa=float(request.form.get('difesa', 3.0)),
+            attacco=float(request.form.get('attacco', 3.0)),
+            resistenza=float(request.form.get('resistenza', 3.0)),
         )
         team_id = request.form.get('team_id')
         if team_id:
@@ -194,7 +186,8 @@ def player_new():
         db.session.commit()
         flash(f'Giocatore {player.name} creato!', 'success')
         return redirect(url_for('admin.players_list'))
-    return render_template('admin/player_form.html', player=None, teams=teams)
+    return render_template('admin/player_form.html', player=None, teams=teams,
+                           types=PLAYER_TYPES)
 
 
 @admin_bp.route('/players/<int:player_id>/edit', methods=['GET', 'POST'])
@@ -205,18 +198,12 @@ def player_edit(player_id):
     teams = Team.query.order_by(Team.name).all()
     if request.method == 'POST':
         player.name = request.form.get('name', player.name).strip()
-        player.position = request.form.get('position', player.position)
-        player.nationality = request.form.get('nationality', player.nationality).strip()
+        player.type = request.form.get('type', player.type)
         player.age = int(request.form.get('age', player.age))
-        player.overall = int(request.form.get('overall', player.overall))
-        player.potential = int(request.form.get('potential', player.potential))
-        player.market_value = float(request.form.get('market_value', player.market_value))
-        player.salary = float(request.form.get('salary', player.salary))
-        player.speed = int(request.form.get('speed', player.speed))
-        player.strength = int(request.form.get('strength', player.strength))
-        player.technique = int(request.form.get('technique', player.technique))
-        player.stamina = int(request.form.get('stamina', player.stamina))
-        player.cyber_enhancement = int(request.form.get('cyber_enhancement', player.cyber_enhancement))
+        player.porta = float(request.form.get('porta', player.porta))
+        player.difesa = float(request.form.get('difesa', player.difesa))
+        player.attacco = float(request.form.get('attacco', player.attacco))
+        player.resistenza = float(request.form.get('resistenza', player.resistenza))
         team_id = request.form.get('team_id')
         if team_id:
             player.team_id = int(team_id)
@@ -227,7 +214,8 @@ def player_edit(player_id):
         db.session.commit()
         flash(f'Giocatore {player.name} aggiornato.', 'success')
         return redirect(url_for('admin.players_list'))
-    return render_template('admin/player_form.html', player=player, teams=teams)
+    return render_template('admin/player_form.html', player=player, teams=teams,
+                           types=PLAYER_TYPES)
 
 
 @admin_bp.route('/players/<int:player_id>/delete', methods=['POST'])
