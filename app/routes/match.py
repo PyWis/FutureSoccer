@@ -4,7 +4,7 @@ from flask_login import login_required, current_user
 from app import db
 from app.models.game import FriendlyMatch, MatchChallenge, TeamFormation
 from app.models.team import Team
-from app.utils.gameclock import get_game_day_number, get_game_weekday, format_game_date
+from app.utils.gameclock import get_game_day_number, get_game_weekday, format_game_date, get_game_week_id
 from datetime import datetime, timedelta
 
 match_bp = Blueprint('match', __name__)
@@ -24,6 +24,11 @@ def _require_sunday():
     return True
 
 
+def _week_monday_game_day():
+    """Returns the game_day of this week's Monday."""
+    return get_game_day_number() - get_game_weekday()
+
+
 @match_bp.route('/')
 @login_required
 def lobby():
@@ -34,6 +39,8 @@ def lobby():
     weekday = get_game_weekday()
     is_sunday = (weekday == 6)
     current_day = get_game_day_number()
+    week_id = get_game_week_id()
+    week_monday = _week_monday_game_day()
 
     # Check for active match
     active_match = FriendlyMatch.query.filter(
@@ -46,16 +53,29 @@ def lobby():
     if active_match:
         return redirect(url_for('match.view', match_id=active_match.id))
 
-    # Pending challenges received by this team today
-    pending_challenges = MatchChallenge.query.filter_by(
-        challenged_id=team.id,
-        game_day=current_day,
-        status='pending',
+    # Pending challenges received this week
+    pending_challenges = MatchChallenge.query.filter(
+        MatchChallenge.challenged_id == team.id,
+        MatchChallenge.game_day >= week_monday,
+        MatchChallenge.status == 'pending',
     ).all()
 
-    # Completed match today (for result display)
+    # Accepted challenges this week (ready to start on Sunday)
+    accepted_challenges = []
+    if is_sunday:
+        accepted_challenges = MatchChallenge.query.filter(
+            MatchChallenge.game_day >= week_monday,
+            MatchChallenge.match_id == None,
+            MatchChallenge.status == 'accepted',
+            db.or_(
+                MatchChallenge.challenger_id == team.id,
+                MatchChallenge.challenged_id == team.id,
+            )
+        ).all()
+
+    # Completed match this week (for result display)
     completed_match = FriendlyMatch.query.filter(
-        FriendlyMatch.game_day == current_day,
+        FriendlyMatch.game_day >= week_monday,
         FriendlyMatch.status == 'completed',
         db.or_(
             FriendlyMatch.home_team_id == team.id,
@@ -63,25 +83,30 @@ def lobby():
         )
     ).first()
 
-    # Teams already challenged today by this team
+    # Teams already challenged this week by this team
     already_challenged_ids = {
-        c.challenged_id for c in MatchChallenge.query.filter_by(
-            challenger_id=team.id,
-            game_day=current_day,
+        c.challenged_id for c in MatchChallenge.query.filter(
+            MatchChallenge.challenger_id == team.id,
+            MatchChallenge.game_day >= week_monday,
         ).all()
     }
 
-    # All other teams (exclude own, exclude already challenged)
-    other_teams = Team.query.filter(
-        Team.id != team.id,
-        ~Team.id.in_(already_challenged_ids),
-    ).all()
+    # All other teams (exclude own, exclude already challenged this week)
+    can_challenge = not is_sunday  # challenges only Mon-Sat
+    other_teams = []
+    if can_challenge:
+        other_teams = Team.query.filter(
+            Team.id != team.id,
+            ~Team.id.in_(already_challenged_ids),
+        ).all()
 
     return render_template(
         'match/lobby.html',
         team=team,
         is_sunday=is_sunday,
+        can_challenge=can_challenge,
         pending_challenges=pending_challenges,
+        accepted_challenges=accepted_challenges,
         completed_match=completed_match,
         other_teams=other_teams,
         current_day=current_day,
@@ -166,12 +191,18 @@ def send_challenge(team_id):
     if not _require_sunday():
         return redirect(url_for('match.lobby'))
 
+    if get_game_weekday() == 6:
+        flash('Le sfide si inviano da lunedì a sabato. La partita si giocherà domenica.', 'warning')
+        return redirect(url_for('match.lobby'))
+
     target = Team.query.get_or_404(team_id)
     current_day = get_game_day_number()
+    week_id = get_game_week_id()
+    week_monday = _week_monday_game_day()
 
-    # Check no existing challenge between these teams today
+    # Check no existing challenge between these teams this week
     existing = MatchChallenge.query.filter(
-        MatchChallenge.game_day == current_day,
+        MatchChallenge.game_day >= week_monday,
         db.or_(
             db.and_(MatchChallenge.challenger_id == team.id,
                     MatchChallenge.challenged_id == team_id),
@@ -180,18 +211,19 @@ def send_challenge(team_id):
         )
     ).first()
     if existing:
-        flash('Hai già sfidato questa squadra oggi.', 'warning')
+        flash('Hai già sfidato questa squadra questa settimana.', 'warning')
         return redirect(url_for('match.lobby'))
 
     challenge = MatchChallenge(
         challenger_id=team.id,
         challenged_id=team_id,
         game_day=current_day,
+        game_week_id=week_id,
         status='pending',
     )
     db.session.add(challenge)
     db.session.commit()
-    flash(f'Sfida inviata a {target.name}!', 'success')
+    flash(f'Sfida inviata a {target.name}! Potrete giocare domenica.', 'success')
     return redirect(url_for('match.lobby'))
 
 
@@ -206,29 +238,48 @@ def accept_challenge(challenge_id):
     if challenge.challenged_id != team.id or challenge.status != 'pending':
         abort(403)
 
-    current_day = get_game_day_number()
-    challenger_team = Team.query.get_or_404(challenge.challenger_id)
+    challenge.status = 'accepted'
+    db.session.commit()
+    flash('Sfida accettata! La partita si giocherà domenica.', 'success')
+    return redirect(url_for('match.lobby'))
 
-    # Check challenger has a formation
-    challenger_formation = TeamFormation.query.filter_by(team_id=challenger_team.id).first()
-    if not challenger_formation:
-        flash('La squadra sfidante non ha una formazione salvata.', 'danger')
+
+@match_bp.route('/challenge/<int:challenge_id>/start', methods=['POST'])
+@login_required
+def start_challenge(challenge_id):
+    """Sunday only: create and start a FriendlyMatch from an accepted challenge."""
+    team = _get_team_or_redirect()
+    if not team:
+        return redirect(url_for('game.create_team'))
+    if not _require_sunday():
         return redirect(url_for('match.lobby'))
 
-    # Check challenged team (current user) has a formation
-    my_formation = TeamFormation.query.filter_by(team_id=team.id).first()
-    if not my_formation:
-        flash('Devi salvare una formazione prima di accettare una sfida.', 'danger')
+    challenge = MatchChallenge.query.get_or_404(challenge_id)
+    if challenge.status != 'accepted' or challenge.match_id is not None:
+        flash('Sfida non disponibile.', 'warning')
+        return redirect(url_for('match.lobby'))
+    if challenge.challenger_id != team.id and challenge.challenged_id != team.id:
+        abort(403)
+
+    current_day = get_game_day_number()
+    challenger_team = Team.query.get_or_404(challenge.challenger_id)
+    challenged_team = Team.query.get_or_404(challenge.challenged_id)
+
+    challenger_formation = TeamFormation.query.filter_by(team_id=challenger_team.id).first()
+    challenged_formation = TeamFormation.query.filter_by(team_id=challenged_team.id).first()
+
+    if not challenger_formation or not challenged_formation:
+        flash('Una delle squadre non ha una formazione salvata.', 'danger')
         return redirect(url_for('match.lobby'))
 
     from app.utils.match_engine import build_home_lineup
 
     home_lineup = build_home_lineup(challenger_team, challenger_formation)
-    away_lineup = build_home_lineup(team, my_formation)
+    away_lineup = build_home_lineup(challenged_team, challenged_formation)
 
     match = FriendlyMatch(
         home_team_id=challenger_team.id,
-        away_team_id=team.id,
+        away_team_id=challenged_team.id,
         game_day=current_day,
         home_lineup_json=json.dumps(home_lineup),
         away_lineup_json=json.dumps(away_lineup),
@@ -239,7 +290,6 @@ def accept_challenge(challenge_id):
     db.session.add(match)
     db.session.flush()
 
-    challenge.status = 'accepted'
     challenge.match_id = match.id
     db.session.commit()
 
@@ -254,7 +304,7 @@ def reject_challenge(challenge_id):
         return redirect(url_for('game.create_team'))
 
     challenge = MatchChallenge.query.get_or_404(challenge_id)
-    if challenge.challenged_id != team.id or challenge.status != 'pending':
+    if challenge.challenged_id != team.id or challenge.status not in ('pending', 'accepted'):
         abort(403)
 
     challenge.status = 'rejected'

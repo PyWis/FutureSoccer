@@ -7,6 +7,7 @@ from app.models.game import TeamWeeklyOffer, TrainingRecord, SponsorOffer, Activ
 from app.utils.gameclock import (
     get_game_week_id, get_game_weekday, get_game_day_number,
     format_game_date, is_training_day, is_sponsor_day, get_game_month_id,
+    get_prev_game_week_id, get_next_game_week_id, get_training_session_day,
 )
 from app.utils.generators import (
     generate_market_offer_data, generate_sponsor_offer_data,
@@ -78,10 +79,12 @@ def market():
     week_id = get_game_week_id()
     weekday = get_game_weekday()
     scouting_active = team.scouting_active
+    scouting_next_week = team.scouting_pending_next_week
+    offer_expired = weekday >= 5   # Sat or Sun: offer no longer purchasable
 
-    # Generate offer once per week (available from Monday onwards)
+    # Generate offer once per week (available Mon–Fri only)
     offer = TeamWeeklyOffer.query.filter_by(team_id=team.id, game_week_id=week_id).first()
-    if not offer:
+    if not offer and not offer_expired:
         data = generate_market_offer_data(scouted=scouting_active)
         offer = TeamWeeklyOffer(
             team_id=team.id,
@@ -103,7 +106,9 @@ def market():
     return render_template('events/market.html',
                            team=team,
                            offer=offer,
+                           offer_expired=offer_expired,
                            scouting_active=scouting_active,
+                           scouting_next_week=scouting_next_week,
                            game_date=format_game_date(),
                            weekday=weekday,
                            week_id=week_id,
@@ -119,6 +124,10 @@ def market_buy():
     team = current_user.team
     week_id = get_game_week_id()
     offer = TeamWeeklyOffer.query.filter_by(team_id=team.id, game_week_id=week_id).first_or_404()
+
+    if get_game_weekday() >= 5:
+        flash('L\'offerta della settimana è scaduta. Torna lunedì per la nuova offerta.', 'warning')
+        return redirect(url_for('events.market'))
 
     if offer.purchased:
         flash('Hai già acquistato il giocatore di questa settimana.', 'warning')
@@ -168,28 +177,18 @@ def activate_scouting():
     if redir:
         return redir
     team = current_user.team
-    week_id = get_game_week_id()
+    next_week_id = get_next_game_week_id()
     cost = 1_000_000
+    if team.scouting_pending_next_week:
+        flash('Scouting già attivato per la prossima settimana.', 'warning')
+        return redirect(url_for('events.market'))
     if team.budget < cost:
         flash('Budget insufficiente per attivare lo scouting (1M€).', 'danger')
         return redirect(url_for('events.market'))
     team.budget -= cost
-    team.scouting_paid_week_id = week_id
-    # If offer already generated this week without scouting, regenerate it
-    offer = TeamWeeklyOffer.query.filter_by(team_id=team.id, game_week_id=week_id).first()
-    if offer and not offer.purchased and not offer.is_scouted:
-        data = generate_market_offer_data(scouted=True)
-        offer.offer_name = data['name']
-        offer.offer_type = data['type']
-        offer.offer_age = data['age']
-        offer.offer_porta = data['porta']
-        offer.offer_difesa = data['difesa']
-        offer.offer_attacco = data['attacco']
-        offer.offer_resistenza = data['resistenza']
-        offer.offer_avg = data['avg']
-        offer.is_scouted = True
+    team.scouting_paid_week_id = next_week_id
     db.session.commit()
-    flash('Scouting attivato per questa settimana! Giocatore aggiornato.', 'success')
+    flash('Scouting attivato per la prossima settimana! Lunedì riceverai un giocatore con media fino a 5.0.', 'success')
     return redirect(url_for('events.market'))
 
 
@@ -204,9 +203,11 @@ def training():
     team = current_user.team
     _process_sponsor_payments(team)
 
-    game_day = get_game_day_number()
+    actual_game_day = get_game_day_number()
+    session_day = get_training_session_day()   # canonical day for TrainingRecord
     weekday = get_game_weekday()
-    regular_training = is_training_day()
+    is_wednesday_makeup = (weekday == 2)       # Wed = makeup for Tuesday
+    regular_training = is_training_day()       # Tue, Wed, Thu
     saturday_slots = team.facility_training if weekday == 5 else 0
     is_saturday_mode = saturday_slots > 0
     training_ok = regular_training or is_saturday_mode
@@ -217,16 +218,18 @@ def training():
     players = team.players.all()
     trained_ids = {
         r.player_id for r in
-        TrainingRecord.query.filter_by(team_id=team.id, game_day=game_day).all()
+        TrainingRecord.query.filter_by(team_id=team.id, game_day=session_day).all()
     }
     today_records = {
         r.player_id: r for r in
-        TrainingRecord.query.filter_by(team_id=team.id, game_day=game_day).all()
+        TrainingRecord.query.filter_by(team_id=team.id, game_day=session_day).all()
     }
     trainable = [p for p in players if p.id not in trained_ids]
 
     # Formation roles for display
     formation_roles = team.formation.current_roles() if team.formation else {}
+
+    game_day = session_day  # alias used throughout the POST block below
 
     if request.method == 'POST' and training_ok:
         sessions = []
@@ -307,15 +310,15 @@ def training():
             db.session.add(rec)
             # Training reduces freshness
             p.freshness = max(0.0, round(p.freshness - 0.1, 1))
-            p.last_freshness_day = game_day
+            p.last_freshness_day = actual_game_day
             results.append({'player': p, 'improved': improved, 'delta': actual})
 
         db.session.commit()
         trained_ids = {r.player_id for r in
-                       TrainingRecord.query.filter_by(team_id=team.id, game_day=game_day).all()}
+                       TrainingRecord.query.filter_by(team_id=team.id, game_day=session_day).all()}
         today_records = {
             r.player_id: r for r in
-            TrainingRecord.query.filter_by(team_id=team.id, game_day=game_day).all()
+            TrainingRecord.query.filter_by(team_id=team.id, game_day=session_day).all()
         }
         trainable = [p for p in players if p.id not in trained_ids]
         improved_count = sum(1 for r in results if r['delta'] > 0)
@@ -331,11 +334,12 @@ def training():
                            formation_roles=formation_roles,
                            is_training=regular_training,
                            is_saturday_mode=is_saturday_mode,
+                           is_wednesday_makeup=is_wednesday_makeup,
                            saturday_slots=saturday_slots,
                            training_ok=training_ok,
                            game_date=format_game_date(),
                            weekday=weekday,
-                           game_day=game_day,
+                           game_day=session_day,
                            skill_labels=SKILL_LABELS)
 
 
@@ -353,25 +357,45 @@ def sponsors():
     week_id = get_game_week_id()
     weekday = get_game_weekday()
     is_friday = is_sponsor_day()
+    prev_week_id = get_prev_game_week_id()
 
     active = ActiveSponsor.query.filter_by(team_id=team.id).all()
     main_sponsor = next((s for s in active if s.type == 'main'), None)
     secondary_sponsors = [s for s in active if s.type == 'secondary']
 
+    # Sponsor offer window: generated Friday of week W, valid through Wednesday of week W+1.
+    # Mon/Tue/Wed → show previous week's offer; Fri/Sat/Sun → show this week's offer; Thu → none.
+    if weekday <= 2:      # Mon, Tue, Wed: previous week's offer still valid
+        offer_week = prev_week_id
+        offer_window_open = True
+    elif weekday == 4:    # Friday: generate and show this week's offer
+        offer_week = week_id
+        offer_window_open = True
+    elif weekday in (5, 6):  # Sat, Sun: this week's offer (generated yesterday/Fri)
+        offer_week = week_id
+        offer_window_open = True
+    else:                 # Thursday: no offer window
+        offer_week = None
+        offer_window_open = False
+
     # Generate Friday offer if not yet created
-    offer = SponsorOffer.query.filter_by(team_id=team.id, game_week_id=week_id,
-                                         status='pending').first() if is_friday else None
     if is_friday and not SponsorOffer.query.filter_by(team_id=team.id, game_week_id=week_id).first():
         existing_names = {s.sponsor_name for s in active}
         data = generate_sponsor_offer_data(team.top7_avg_skill, existing_names)
-        offer = SponsorOffer(
+        new_offer = SponsorOffer(
             team_id=team.id, game_week_id=week_id,
             sponsor_name=data['name'],
             weekly_amount=data['weekly_amount'],
             duration_weeks=data['duration_weeks'],
         )
-        db.session.add(offer)
+        db.session.add(new_offer)
         db.session.commit()
+
+    offer = None
+    if offer_week:
+        offer = SponsorOffer.query.filter_by(
+            team_id=team.id, game_week_id=offer_week, status='pending'
+        ).first()
 
     return render_template('events/sponsors.html',
                            team=team,
@@ -382,6 +406,7 @@ def sponsors():
                            can_add_main=main_sponsor is None,
                            can_add_secondary=len(secondary_sponsors) < MAX_SECONDARY,
                            is_friday=is_friday,
+                           offer_window_open=offer_window_open,
                            game_date=format_game_date(),
                            week_id=week_id)
 

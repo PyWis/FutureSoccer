@@ -34,17 +34,28 @@
   </div>
   {% if scouting_active %}
     <span class="badge badge-green" style="font-size:.85rem;padding:.5rem 1rem;">✓ Scouting Attivo questa settimana</span>
+  {% elif scouting_next_week %}
+    <span class="badge" style="font-size:.85rem;padding:.5rem 1rem;background:rgba(123,47,255,.15);color:var(--purple);border:1px solid var(--purple);">⏳ Scouting attivo dalla prossima settimana</span>
   {% else %}
     <form method="POST" action="{{ url_for('events.activate_scouting') }}">
-      <button type="submit" class="btn btn-primary">🔭 Attiva Scouting — €1.000.000</button>
+      <button type="submit" class="btn btn-primary">🔭 Attiva Scouting Settimana Prossima — €1.000.000</button>
     </form>
   {% endif %}
+  <p style="font-size:.73rem;color:var(--muted);margin-top:.3rem;">
+    Lo scouting si attiva per la settimana successiva: lunedì riceverai un giocatore con media fino a 5.0.
+  </p>
 </div>
 
 <!-- Weekly offer -->
 <h2 class="mb-3">OFFERTA SETTIMANA {{ week_id % 100 }}</h2>
 
-{% if offer %}
+{% if offer_expired %}
+<div class="card" style="text-align:center;padding:2rem;border-color:var(--muted);">
+  <div style="font-size:2rem;margin-bottom:.5rem;">⏰</div>
+  <p style="color:var(--muted);font-weight:700;">Offerta scaduta</p>
+  <p style="font-size:.83rem;color:var(--muted);margin-top:.3rem;">L'offerta settimanale è disponibile da lunedì a venerdì. Torna lunedì per la nuova offerta.</p>
+</div>
+{% elif offer %}
   {% if offer.purchased %}
   <div class="card" style="text-align:center;padding:2rem;border-color:var(--success);">
     <div style="font-size:2rem;margin-bottom:.5rem;">✅</div>
@@ -161,8 +172,9 @@
 {% else %}
 <div class="card" style="text-align:center;padding:3rem;">
   <div style="font-size:3rem;margin-bottom:1rem;">📅</div>
-  <p class="text-muted">Nessuna offerta disponibile. Caricamento in corso...</p>
-  <p style="font-size:.8rem;color:var(--muted);margin-top:.5rem;">Le offerte vengono generate ogni settimana.</p>
+  <p class="text-muted">Nessuna offerta disponibile questa settimana.</p>
+  <p style="font-size:.8rem;color:var(--muted);margin-top:.5rem;">Le offerte settimanali sono disponibili da lunedì a venerdì.</p>
 </div>
+{% endif %}
 {% endif %}
 {% endblock %}

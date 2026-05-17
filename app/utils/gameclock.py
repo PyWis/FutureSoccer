@@ -51,11 +51,41 @@ def format_game_date(d=None):
 
 
 def is_training_day():
-    return get_game_weekday() in (1, 3)   # Tue or Thu
+    """True on Tue (regular), Wed (makeup for Tue), Thu (regular)."""
+    return get_game_weekday() in (1, 2, 3)
+
+
+def get_training_session_day():
+    """
+    Returns the canonical game_day for the current training session.
+    Wednesday is a makeup for Tuesday: returns yesterday's game_day so the
+    unique TrainingRecord constraint prevents double training in one session.
+    """
+    wd = get_game_weekday()
+    gd = get_game_day_number()
+    if wd == 2:       # Wednesday = makeup for Tuesday
+        return gd - 1
+    return gd
 
 
 def is_sponsor_day():
     return get_game_weekday() == 4         # Fri
+
+
+def get_prev_game_week_id():
+    """ISO week_id of the previous game week."""
+    gd = get_game_date()
+    prev_monday = gd - timedelta(days=gd.weekday() + 7)
+    y, w, _ = prev_monday.isocalendar()
+    return y * 100 + w
+
+
+def get_next_game_week_id():
+    """ISO week_id of the next game week."""
+    gd = get_game_date()
+    next_monday = gd + timedelta(days=7 - gd.weekday())
+    y, w, _ = next_monday.isocalendar()
+    return y * 100 + w
 
 
 def get_game_month_id():

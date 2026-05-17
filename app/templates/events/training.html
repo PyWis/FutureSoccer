@@ -30,7 +30,9 @@
     <p class="text-muted">{{ game_date }}</p>
   </div>
   <div>
-    {% if is_training %}
+    {% if is_wednesday_makeup %}
+      <span class="day-label day-active" style="background:rgba(255,165,0,.12);color:orange;">🔄 RECUPERO MARTEDÌ</span>
+    {% elif is_training %}
       <span class="day-label day-active">GIORNATA DI ALLENAMENTO</span>
     {% elif is_saturday_mode %}
       <span class="day-label day-active" style="background:rgba(123,47,255,.15);color:var(--purple);">🏟️ SABATO — STADIO</span>
@@ -45,7 +47,7 @@
   <div style="font-size:3rem;margin-bottom:1rem;">📅</div>
   <h2 style="color:var(--muted);margin-bottom:.5rem;">Nessun allenamento oggi</h2>
   <p class="text-muted">
-    Le sessioni si svolgono ogni <strong>Martedì</strong> e <strong>Giovedì</strong>.
+    Le sessioni si svolgono ogni <strong>Martedì</strong> (recupero Mercoledì) e <strong>Giovedì</strong>.
     {% if saturday_slots > 0 %}<br>Con l'impianto di allenamento ({{ saturday_slots }}⭐) puoi allenarti anche di <strong>Sabato</strong>.{% endif %}
   </p>
 </div>
