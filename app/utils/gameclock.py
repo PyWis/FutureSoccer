@@ -56,3 +56,9 @@ def is_training_day():
 
 def is_sponsor_day():
     return get_game_weekday() == 4         # Fri
+
+
+def get_game_month_id():
+    """Unique int for the current game month: year*100 + month."""
+    gd = get_game_date()
+    return gd.year * 100 + gd.month

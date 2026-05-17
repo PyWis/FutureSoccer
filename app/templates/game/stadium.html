@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Stadio — FutureSoccer{% endblock %}
+{% block extra_head %}
+<style>
+  .facility-card{background:var(--card);border:2px solid var(--card-border);border-radius:16px;padding:1.5rem;position:relative;overflow:hidden;transition:border-color .3s;}
+  .facility-card.has-stars{border-color:rgba(123,47,255,.4);}
+  .facility-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--card-border);}
+  .facility-card.has-stars::before{background:linear-gradient(90deg,var(--purple),#ff6bff);}
+  .stars{display:flex;gap:.3rem;margin:.5rem 0;}
+  .star{font-size:1.4rem;line-height:1;}
+  .star.filled{filter:drop-shadow(0 0 4px gold);}
+  .star.empty{opacity:.25;}
+  .upgrade-prices{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.75rem;font-size:.75rem;}
+  .price-pip{padding:.2rem .5rem;border-radius:4px;background:var(--card-border);color:var(--muted);}
+  .price-pip.current{background:rgba(0,245,255,.15);color:var(--cyan);font-weight:700;}
+  .price-pip.next{background:rgba(46,213,115,.12);color:var(--success);font-weight:700;}
+  .degrade-note{font-size:.72rem;color:var(--muted);margin-top:.4rem;}
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-header flex flex-between flex-center" style="flex-wrap:wrap;gap:1rem;">
+  <div>
+    <h1>🏟️ STADIO</h1>
+    <p class="text-muted">{{ team.stadium }} — {{ team.city }}</p>
+  </div>
+  <div style="text-align:right;">
+    <div style="font-size:.75rem;color:var(--muted);">Budget</div>
+    <div style="font-family:'Orbitron',monospace;font-size:1.3rem;color:var(--success);">€{{ "%.1f"|format(team.budget/1000000) }}M</div>
+  </div>
+</div>
+
+<div class="card mb-4" style="background:rgba(255,165,0,.04);border-color:rgba(255,165,0,.2);">
+  <div style="display:flex;gap:1rem;align-items:flex-start;flex-wrap:wrap;">
+    <div style="font-size:1.5rem;">⚠️</div>
+    <div>
+      <strong style="color:var(--warning);">Manutenzione mensile</strong>
+      <p style="font-size:.82rem;color:var(--muted);margin-top:.3rem;">
+        Il primo di ogni mese di gioco, 2 strutture scelte casualmente perdono 1 stella.
+        Mantieni le strutture aggiornate per conservare i bonus.
+      </p>
+    </div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.5rem;">
+{% for ftype in facility_types %}
+{% set stars = team['facility_' + ftype] %}
+<div class="facility-card {% if stars > 0 %}has-stars{% endif %}">
+  <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.75rem;">
+    <span style="font-size:1.8rem;">{{ facility_icons[ftype] }}</span>
+    <div>
+      <div style="font-family:'Orbitron',monospace;font-size:.9rem;font-weight:700;color:var(--cyan);">
+        {{ facility_labels[ftype]|upper }}
+      </div>
+      <div style="font-size:.72rem;color:var(--muted);">{{ stars }} / 5 stelle</div>
+    </div>
+  </div>
+
+  <!-- Star display -->
+  <div class="stars">
+    {% for i in range(1, 6) %}
+      <span class="star {% if i <= stars %}filled{% else %}empty{% endif %}">★</span>
+    {% endfor %}
+  </div>
+
+  <!-- Effect -->
+  <p style="font-size:.8rem;color:{% if stars > 0 %}var(--success){% else %}var(--muted){% endif %};margin:.5rem 0;">
+    {% if stars > 0 %}
+      ✓ {{ facility_effects[ftype].replace('N giocatori', stars|string + ' giocatori') }}
+    {% else %}
+      {{ facility_effects[ftype] }}
+    {% endif %}
+  </p>
+
+  <!-- Price pips: show cumulative costs per level -->
+  <div class="upgrade-prices">
+    {% for lvl in range(1, 6) %}
+      <span class="price-pip
+        {% if lvl == stars %}current{% elif lvl == stars + 1 %}next{% endif %}">
+        {{ lvl }}★ €{{ "%.0fM"|format(facility_prices[lvl]/1000000) }}
+      </span>
+    {% endfor %}
+  </div>
+
+  <!-- Upgrade / max badge -->
+  <div style="margin-top:1rem;">
+    {% if stars >= 5 %}
+      <span class="badge badge-gold">★★★★★ MAX</span>
+    {% else %}
+      {% set upgrade_cost = facility_prices[stars + 1] - facility_prices[stars] %}
+      <form method="POST" action="{{ url_for('game.stadium_upgrade', facility=ftype) }}">
+        <button type="submit"
+                class="btn btn-primary btn-sm"
+                {% if team.budget < upgrade_cost %}disabled title="Budget insufficiente"{% endif %}>
+          Upgrade → {{ stars + 1 }}⭐ — €{{ "%.0f"|format(upgrade_cost/1000) }}k
+        </button>
+      </form>
+      <p class="degrade-note">Costo upgrade: €{{ "%,.0f"|format(upgrade_cost) }}</p>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+</div>
+{% endblock %}
