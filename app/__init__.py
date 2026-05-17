@@ -42,6 +42,23 @@ def create_app():
     app.register_blueprint(game_bp, url_prefix='/game')
     app.register_blueprint(events_bp, url_prefix='/events')
 
+    @app.context_processor
+    def inject_game_globals():
+        from app.utils.gameclock import (
+            get_game_date, format_game_date,
+            get_game_weekday, is_training_day, is_sponsor_day,
+        )
+        try:
+            gd = get_game_date()
+            return dict(
+                g_date=format_game_date(gd),
+                g_weekday=get_game_weekday(),
+                g_is_training=is_training_day(),
+                g_is_sponsor=is_sponsor_day(),
+            )
+        except Exception:
+            return dict(g_date='', g_weekday=0, g_is_training=False, g_is_sponsor=False)
+
     with app.app_context():
         db.create_all()
         _seed_admin()

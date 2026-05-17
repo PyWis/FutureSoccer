@@ -10,35 +10,194 @@
       --cyan:#00f5ff; --purple:#7b2fff; --dark:#0a0a1a; --darker:#060610;
       --card:#0f0f2a; --card-border:#1a1a4a; --text:#e0e0f0; --muted:#888;
       --danger:#ff4757; --success:#2ed573; --warning:#ffa502; --info:#1e90ff;
+      --sidebar-w:240px;
     }
     *{margin:0;padding:0;box-sizing:border-box;}
-    body{font-family:'Exo 2',sans-serif;background:var(--darker);color:var(--text);min-height:100vh;
-      background-image:radial-gradient(ellipse at 20% 20%,rgba(123,47,255,.08) 0%,transparent 50%),
-                       radial-gradient(ellipse at 80% 80%,rgba(0,245,255,.06) 0%,transparent 50%);}
-    nav{background:rgba(10,10,26,.95);backdrop-filter:blur(12px);border-bottom:1px solid var(--card-border);
-      padding:0 2rem;position:sticky;top:0;z-index:1000;display:flex;align-items:center;justify-content:space-between;height:64px;}
-    .nav-brand{font-family:'Orbitron',monospace;font-size:1.3rem;font-weight:900;text-decoration:none;color:var(--cyan);letter-spacing:2px;}
-    .nav-brand span{color:var(--purple);}
-    .nav-links{display:flex;gap:.4rem;align-items:center;flex-wrap:wrap;}
-    .nav-links a{color:var(--text);text-decoration:none;padding:.35rem .8rem;border-radius:6px;font-size:.85rem;font-weight:600;transition:all .2s;}
-    .nav-links a:hover{background:var(--card-border);color:var(--cyan);}
-    .btn-nav{background:linear-gradient(135deg,var(--cyan),var(--purple));color:#fff!important;padding:.35rem .9rem!important;}
-    .btn-nav:hover{opacity:.85;background:linear-gradient(135deg,var(--cyan),var(--purple))!important;}
-    .nav-event-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--warning);margin-left:4px;animation:blink 1.2s infinite;}
-    @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
-    .game-clock{font-family:'Orbitron',monospace;font-size:.7rem;color:var(--cyan);opacity:.7;white-space:nowrap;}
-    .alerts{position:fixed;top:72px;right:1rem;z-index:2000;width:320px;}
-    .alert{padding:.8rem 1rem;border-radius:8px;margin-bottom:.5rem;font-size:.9rem;border-left:4px solid;
-      background:var(--card);animation:slideIn .3s ease;display:flex;justify-content:space-between;align-items:center;}
+
+    body {
+      font-family:'Exo 2',sans-serif;
+      background:var(--darker);
+      color:var(--text);
+      min-height:100vh;
+      background-image:
+        radial-gradient(ellipse at 10% 10%,rgba(123,47,255,.07) 0%,transparent 50%),
+        radial-gradient(ellipse at 90% 90%,rgba(0,245,255,.05) 0%,transparent 50%);
+    }
+
+    /* ── LAYOUT ── */
+    .layout { display:flex; min-height:100vh; }
+
+    /* ── SIDEBAR ── */
+    .sidebar {
+      width: var(--sidebar-w);
+      background: rgba(10,10,26,.97);
+      border-right: 1px solid var(--card-border);
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      top: 0; left: 0; bottom: 0;
+      z-index: 200;
+      overflow-y: auto;
+      overflow-x: hidden;
+      transition: transform .25s ease;
+    }
+    .sidebar::-webkit-scrollbar { width:4px; }
+    .sidebar::-webkit-scrollbar-thumb { background:var(--card-border); border-radius:2px; }
+
+    .sidebar-brand {
+      padding: 1.2rem 1rem 1rem;
+      border-bottom: 1px solid var(--card-border);
+      flex-shrink: 0;
+    }
+    .brand-logo {
+      font-family:'Orbitron',monospace;
+      font-size:1.15rem; font-weight:900;
+      text-decoration:none; color:var(--cyan);
+      letter-spacing:2px; display:block;
+    }
+    .brand-logo span { color:var(--purple); }
+    .brand-tagline {
+      font-size:.65rem; color:var(--muted);
+      letter-spacing:1.5px; margin-top:.2rem;
+    }
+
+    /* game clock */
+    .sidebar-clock {
+      padding:.75rem 1rem;
+      background: rgba(0,245,255,.03);
+      border-bottom: 1px solid var(--card-border);
+      flex-shrink: 0;
+    }
+    .clock-label { font-size:.62rem; color:var(--muted); letter-spacing:1px; }
+    .clock-date  { font-family:'Orbitron',monospace; font-size:.72rem; color:var(--cyan); margin-top:.2rem; line-height:1.4; }
+
+    /* team card */
+    .sidebar-team {
+      padding:.75rem 1rem;
+      border-bottom:1px solid var(--card-border);
+      flex-shrink:0;
+    }
+    .team-mini {
+      display:flex; align-items:center; gap:.6rem;
+    }
+    .team-mini-badge {
+      width:32px; height:32px; border-radius:8px;
+      flex-shrink:0;
+    }
+    .team-mini-name { font-weight:700; font-size:.82rem; line-height:1.2; }
+    .team-mini-budget { font-size:.72rem; color:var(--success); }
+
+    /* nav sections */
+    .sidebar-nav { flex:1; padding:.5rem 0; }
+    .nav-section-label {
+      font-size:.6rem; color:var(--muted); letter-spacing:2px;
+      padding:.75rem 1rem .3rem; text-transform:uppercase;
+    }
+    .nav-item {
+      display:flex; align-items:center; gap:.65rem;
+      padding:.6rem 1rem;
+      text-decoration:none; color:var(--muted);
+      font-size:.85rem; font-weight:600;
+      transition:all .15s;
+      position:relative;
+      border-radius:0;
+    }
+    .nav-item:hover { background:rgba(255,255,255,.04); color:var(--text); }
+    .nav-item.active {
+      background: rgba(0,245,255,.08);
+      color: var(--cyan);
+      border-right: 2px solid var(--cyan);
+    }
+    .nav-item .nav-icon { font-size:1rem; width:20px; text-align:center; flex-shrink:0; }
+    .nav-item .nav-label { flex:1; }
+    .nav-dot {
+      width:7px; height:7px; border-radius:50%;
+      background:var(--warning); flex-shrink:0;
+      animation: blink 1.2s infinite;
+    }
+    .nav-dot.green { background:var(--success); animation:none; }
+    @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+
+    /* sidebar footer */
+    .sidebar-footer {
+      padding:.75rem 1rem;
+      border-top:1px solid var(--card-border);
+      flex-shrink:0;
+    }
+    .sidebar-footer a {
+      display:flex; align-items:center; gap:.6rem;
+      color:var(--muted); text-decoration:none; font-size:.83rem; font-weight:600;
+      padding:.4rem 0;
+      transition:color .15s;
+    }
+    .sidebar-footer a:hover { color:var(--danger); }
+
+    /* ── MAIN AREA ── */
+    .main-wrap {
+      flex:1;
+      margin-left: var(--sidebar-w);
+      display:flex; flex-direction:column;
+      min-height:100vh;
+    }
+
+    /* top bar (mobile toggle + breadcrumb) */
+    .topbar {
+      height:52px;
+      background:rgba(10,10,26,.9);
+      backdrop-filter:blur(10px);
+      border-bottom:1px solid var(--card-border);
+      display:flex; align-items:center;
+      padding:0 1.5rem;
+      gap:1rem;
+      position:sticky; top:0; z-index:100;
+    }
+    .topbar-toggle {
+      display:none;
+      background:none; border:none; cursor:pointer;
+      color:var(--cyan); font-size:1.3rem; padding:.2rem;
+    }
+    .topbar-title {
+      font-family:'Orbitron',monospace;
+      font-size:.75rem; color:var(--muted);
+      letter-spacing:1px;
+    }
+    .topbar-right { margin-left:auto; display:flex; align-items:center; gap:.75rem; }
+    .topbar-user {
+      font-size:.82rem; color:var(--text); font-weight:600;
+    }
+
+    /* ── CONTENT ── */
+    .page-content { padding:2rem; flex:1; max-width:1200px; width:100%; }
+
+    /* ── ALERTS ── */
+    .alerts {
+      position:fixed; top:60px; right:1rem;
+      z-index:2000; width:320px;
+    }
+    .alert {
+      padding:.75rem 1rem; border-radius:8px; margin-bottom:.5rem;
+      font-size:.88rem; border-left:4px solid;
+      background:var(--card); animation:slideIn .3s ease;
+      display:flex; justify-content:space-between; align-items:center;
+      box-shadow:0 4px 20px rgba(0,0,0,.4);
+    }
     .alert-success{border-color:var(--success);color:var(--success);}
-    .alert-danger{border-color:var(--danger);color:var(--danger);}
+    .alert-danger {border-color:var(--danger); color:var(--danger);}
     .alert-warning{border-color:var(--warning);color:var(--warning);}
-    .alert-info{border-color:var(--info);color:var(--info);}
-    .alert-close{cursor:pointer;opacity:.7;background:none;border:none;color:inherit;font-size:1rem;}
+    .alert-info   {border-color:var(--info);   color:var(--info);}
+    .alert-close{cursor:pointer;opacity:.7;background:none;border:none;color:inherit;font-size:1rem;flex-shrink:0;}
     @keyframes slideIn{from{transform:translateX(120%);opacity:0}to{transform:translateX(0);opacity:1}}
-    main{padding:2rem;max-width:1280px;margin:0 auto;}
-    .btn{display:inline-block;padding:.6rem 1.4rem;border-radius:8px;font-family:'Exo 2',sans-serif;
-      font-weight:600;font-size:.9rem;text-decoration:none;cursor:pointer;border:none;transition:all .2s;letter-spacing:.5px;}
+
+    /* ── OVERLAY (mobile) ── */
+    .sidebar-overlay {
+      display:none;
+      position:fixed; inset:0; background:rgba(0,0,0,.6);
+      z-index:190;
+    }
+
+    /* ── COMMON COMPONENTS ── */
+    .btn{display:inline-block;padding:.55rem 1.3rem;border-radius:8px;font-family:'Exo 2',sans-serif;
+      font-weight:600;font-size:.88rem;text-decoration:none;cursor:pointer;border:none;transition:all .2s;letter-spacing:.4px;}
     .btn-primary{background:linear-gradient(135deg,var(--cyan),var(--purple));color:#fff;}
     .btn-primary:hover{opacity:.85;transform:translateY(-1px);}
     .btn-secondary{background:var(--card);color:var(--text);border:1px solid var(--card-border);}
@@ -46,23 +205,23 @@
     .btn-danger{background:var(--danger);color:#fff;}
     .btn-danger:hover{opacity:.85;}
     .btn-warning{background:var(--warning);color:#000;}
-    .btn-sm{padding:.3rem .7rem;font-size:.78rem;}
+    .btn-sm{padding:.28rem .65rem;font-size:.76rem;}
     .btn-block{display:block;width:100%;text-align:center;}
     .card{background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:1.5rem;}
     .card-glow{box-shadow:0 0 20px rgba(0,245,255,.08);}
     .form-group{margin-bottom:1.2rem;}
-    .form-group label{display:block;margin-bottom:.4rem;font-weight:600;font-size:.85rem;color:var(--cyan);letter-spacing:.5px;}
-    .form-control{width:100%;padding:.7rem 1rem;background:rgba(255,255,255,.04);border:1px solid var(--card-border);
-      border-radius:8px;color:var(--text);font-family:'Exo 2',sans-serif;font-size:.95rem;transition:border-color .2s;}
+    .form-group label{display:block;margin-bottom:.4rem;font-weight:600;font-size:.82rem;color:var(--cyan);letter-spacing:.5px;}
+    .form-control{width:100%;padding:.65rem 1rem;background:rgba(255,255,255,.04);border:1px solid var(--card-border);
+      border-radius:8px;color:var(--text);font-family:'Exo 2',sans-serif;font-size:.92rem;transition:border-color .2s;}
     .form-control:focus{outline:none;border-color:var(--cyan);background:rgba(0,245,255,.04);}
     select.form-control option{background:var(--dark);}
     .table-wrap{overflow-x:auto;}
-    table{width:100%;border-collapse:collapse;font-size:.9rem;}
-    th{background:rgba(0,245,255,.07);color:var(--cyan);padding:.75rem 1rem;text-align:left;
-      font-family:'Orbitron',monospace;font-size:.72rem;letter-spacing:1px;}
-    td{padding:.75rem 1rem;border-bottom:1px solid var(--card-border);}
+    table{width:100%;border-collapse:collapse;font-size:.88rem;}
+    th{background:rgba(0,245,255,.07);color:var(--cyan);padding:.7rem 1rem;text-align:left;
+      font-family:'Orbitron',monospace;font-size:.68rem;letter-spacing:1px;}
+    td{padding:.7rem 1rem;border-bottom:1px solid var(--card-border);}
     tr:hover td{background:rgba(255,255,255,.02);}
-    .badge{padding:.22rem .6rem;border-radius:99px;font-size:.72rem;font-weight:700;}
+    .badge{padding:.22rem .6rem;border-radius:99px;font-size:.7rem;font-weight:700;}
     .badge-cyan{background:rgba(0,245,255,.15);color:var(--cyan);}
     .badge-purple{background:rgba(123,47,255,.2);color:#b77fff;}
     .badge-green{background:rgba(46,213,115,.15);color:var(--success);}
@@ -78,59 +237,211 @@
     .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;}
     .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:1.5rem;}
     .grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;}
-    @media(max-width:768px){.grid-2,.grid-3,.grid-4{grid-template-columns:1fr;}main{padding:1rem;}}
     .flex{display:flex;} .flex-between{justify-content:space-between;} .flex-center{align-items:center;}
     .gap-1{gap:.5rem;} .gap-2{gap:1rem;}
     h1,h2,h3{font-family:'Orbitron',monospace;}
-    h1{font-size:2rem;color:var(--cyan);} h2{font-size:1.4rem;color:var(--text);} h3{font-size:1rem;color:var(--cyan);}
+    h1{font-size:1.8rem;color:var(--cyan);} h2{font-size:1.3rem;color:var(--text);} h3{font-size:.95rem;color:var(--cyan);}
     .page-header{margin-bottom:2rem;padding-bottom:1rem;border-bottom:1px solid var(--card-border);}
     .cyber-line{height:2px;background:linear-gradient(90deg,var(--cyan),var(--purple),transparent);margin:1rem 0;}
-    .event-pill{display:inline-flex;align-items:center;gap:.4rem;padding:.3rem .8rem;border-radius:99px;
-      font-size:.78rem;font-weight:700;background:rgba(255,165,0,.15);color:var(--warning);border:1px solid rgba(255,165,0,.3);}
-    footer{text-align:center;padding:2rem;color:var(--muted);font-size:.8rem;border-top:1px solid var(--card-border);margin-top:4rem;}
+    .event-pill{display:inline-flex;align-items:center;gap:.4rem;padding:.25rem .7rem;border-radius:99px;
+      font-size:.72rem;font-weight:700;background:rgba(255,165,0,.15);color:var(--warning);border:1px solid rgba(255,165,0,.3);}
+
+    /* ── NO SIDEBAR (logged out) ── */
+    body.no-sidebar .main-wrap { margin-left:0; }
+    body.no-sidebar .sidebar  { display:none; }
+    body.no-sidebar .topbar   { justify-content:space-between; }
+    .topbar-brand {
+      font-family:'Orbitron',monospace; font-size:1.1rem; font-weight:900;
+      text-decoration:none; color:var(--cyan); letter-spacing:2px;
+    }
+    .topbar-brand span { color:var(--purple); }
+
+    /* ── MOBILE ── */
+    @media(max-width:768px){
+      .sidebar{ transform:translateX(-100%); }
+      .sidebar.open{ transform:translateX(0); }
+      .sidebar-overlay.open{ display:block; }
+      .main-wrap{ margin-left:0; }
+      .topbar-toggle{ display:block; }
+      .page-content{ padding:1rem; }
+      .grid-2,.grid-3,.grid-4{ grid-template-columns:1fr; }
+    }
+
+    footer{text-align:center;padding:1.5rem;color:var(--muted);font-size:.75rem;
+      border-top:1px solid var(--card-border);margin-top:3rem;}
     footer span{color:var(--cyan);}
   </style>
   {% block extra_head %}{% endblock %}
 </head>
-<body>
-<nav>
-  <a href="{{ url_for('main.index') }}" class="nav-brand">⚽ FUTURE<span>SOCCER</span></a>
-  <div class="nav-links">
-    {% if current_user.is_authenticated %}
-      {% if current_user.is_superadmin %}
-        <a href="{{ url_for('admin.dashboard') }}">⚙️ Admin</a>
-      {% else %}
-        <a href="{{ url_for('game.dashboard') }}">Dashboard</a>
-        <a href="{{ url_for('game.my_team') }}">Rosa</a>
-        <a href="{{ url_for('events.market') }}">🛒 Mercato</a>
-        <a href="{{ url_for('events.training') }}">💪 Allenamento</a>
-        <a href="{{ url_for('events.sponsors') }}">💼 Sponsor</a>
-        <a href="{{ url_for('game.standings') }}">📋 Classifica</a>
-      {% endif %}
-      <a href="{{ url_for('auth.logout') }}" class="btn-nav btn">Esci</a>
-    {% else %}
-      <a href="{{ url_for('auth.login') }}">Accedi</a>
-      <a href="{{ url_for('auth.register') }}" class="btn-nav btn">Registrati</a>
-    {% endif %}
+<body class="{% if not current_user.is_authenticated %}no-sidebar{% endif %}">
+
+{% if current_user.is_authenticated %}
+<!-- ── SIDEBAR ── -->
+<aside class="sidebar" id="sidebar">
+
+  <div class="sidebar-brand">
+    <a href="{{ url_for('main.index') }}" class="brand-logo">⚽ FUTURE<span>SOCCER</span></a>
+    <div class="brand-tagline">ANNO 2099 · LEGA GALATTICA</div>
   </div>
-</nav>
 
-<div class="alerts">
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% for category, message in messages %}
-      <div class="alert alert-{{ category }}">
-        <span>{{ message }}</span>
-        <button class="alert-close" onclick="this.parentElement.remove()">✕</button>
+  <!-- Game clock -->
+  <div class="sidebar-clock">
+    <div class="clock-label">DATA DI GIOCO</div>
+    <div class="clock-date">{{ g_date }}</div>
+  </div>
+
+  <!-- Team mini-card -->
+  {% if not current_user.is_superadmin and current_user.team %}
+  <div class="sidebar-team">
+    <div class="team-mini">
+      <div class="team-mini-badge"
+           style="background:linear-gradient(135deg,{{ current_user.team.color_primary }},{{ current_user.team.color_secondary }});"></div>
+      <div>
+        <div class="team-mini-name">{{ current_user.team.name }}</div>
+        <div class="team-mini-budget">€{{ "%.1f"|format(current_user.team.budget/1000000) }}M</div>
       </div>
-    {% endfor %}
-  {% endwith %}
-</div>
+    </div>
+  </div>
+  {% endif %}
 
-<main>{% block content %}{% endblock %}</main>
+  <nav class="sidebar-nav">
 
-<footer><p>© 2099 <span>FutureSoccer Corp.</span> — Il calcio del futuro è adesso.</p></footer>
+    {% if current_user.is_superadmin %}
+    <!-- ADMIN NAV -->
+    <div class="nav-section-label">Amministrazione</div>
+    <a href="{{ url_for('admin.dashboard') }}"
+       class="nav-item {% if request.endpoint == 'admin.dashboard' %}active{% endif %}">
+      <span class="nav-icon">⚙️</span><span class="nav-label">Dashboard Admin</span>
+    </a>
+    <a href="{{ url_for('admin.users_list') }}"
+       class="nav-item {% if request.endpoint and 'admin.user' in request.endpoint %}active{% endif %}">
+      <span class="nav-icon">👥</span><span class="nav-label">Gestione Utenti</span>
+    </a>
+    <a href="{{ url_for('admin.teams_list') }}"
+       class="nav-item {% if request.endpoint and 'admin.team' in request.endpoint %}active{% endif %}">
+      <span class="nav-icon">🏟️</span><span class="nav-label">Gestione Squadre</span>
+    </a>
+    <a href="{{ url_for('admin.players_list') }}"
+       class="nav-item {% if request.endpoint and 'admin.player' in request.endpoint %}active{% endif %}">
+      <span class="nav-icon">⚽</span><span class="nav-label">Gestione Giocatori</span>
+    </a>
 
-<script>setTimeout(()=>{document.querySelectorAll('.alert').forEach(a=>a.remove());},5000);</script>
+    {% else %}
+    <!-- PLAYER NAV -->
+    <div class="nav-section-label">Panoramica</div>
+    <a href="{{ url_for('game.dashboard') }}"
+       class="nav-item {% if request.endpoint == 'game.dashboard' %}active{% endif %}">
+      <span class="nav-icon">📊</span><span class="nav-label">Dashboard</span>
+    </a>
+    <a href="{{ url_for('game.my_team') }}"
+       class="nav-item {% if request.endpoint == 'game.my_team' %}active{% endif %}">
+      <span class="nav-icon">🏟️</span><span class="nav-label">La mia Squadra</span>
+    </a>
+    <a href="{{ url_for('game.standings') }}"
+       class="nav-item {% if request.endpoint == 'game.standings' %}active{% endif %}">
+      <span class="nav-icon">📋</span><span class="nav-label">Classifica</span>
+    </a>
+
+    <div class="nav-section-label" style="margin-top:.5rem;">Attività Settimanali</div>
+    <a href="{{ url_for('events.market') }}"
+       class="nav-item {% if request.endpoint and 'events.market' in request.endpoint %}active{% endif %}">
+      <span class="nav-icon">🛒</span>
+      <span class="nav-label">Mercato</span>
+      <span style="font-size:.62rem;color:var(--muted);">Lun</span>
+    </a>
+    <a href="{{ url_for('events.training') }}"
+       class="nav-item {% if request.endpoint == 'events.training' %}active{% endif %}">
+      <span class="nav-icon">💪</span>
+      <span class="nav-label">Allenamento</span>
+      {% if g_is_training %}<span class="nav-dot"></span>{% else %}<span style="font-size:.62rem;color:var(--muted);">Mar·Gio</span>{% endif %}
+    </a>
+    <a href="{{ url_for('events.sponsors') }}"
+       class="nav-item {% if request.endpoint and 'events.sponsor' in request.endpoint %}active{% endif %}">
+      <span class="nav-icon">💼</span>
+      <span class="nav-label">Sponsor</span>
+      {% if g_is_sponsor %}<span class="nav-dot"></span>{% else %}<span style="font-size:.62rem;color:var(--muted);">Ven</span>{% endif %}
+    </a>
+
+    <div class="nav-section-label" style="margin-top:.5rem;">Account</div>
+    <a href="{{ url_for('game.profile') }}"
+       class="nav-item {% if request.endpoint == 'game.profile' %}active{% endif %}">
+      <span class="nav-icon">👤</span><span class="nav-label">Profilo</span>
+    </a>
+    {% endif %}
+
+  </nav>
+
+  <div class="sidebar-footer">
+    <a href="{{ url_for('auth.logout') }}">
+      <span style="font-size:1rem;">🚪</span> Esci
+    </a>
+  </div>
+</aside>
+
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+{% endif %}
+
+<!-- ── MAIN WRAP ── -->
+<div class="main-wrap">
+
+  <!-- Top bar -->
+  <header class="topbar">
+    {% if current_user.is_authenticated %}
+      <button class="topbar-toggle" onclick="toggleSidebar()" aria-label="Menu">☰</button>
+      <span class="topbar-title">
+        {% block topbar_title %}{% endblock %}
+      </span>
+      <div class="topbar-right">
+        {% if g_is_training and not current_user.is_superadmin %}
+          <a href="{{ url_for('events.training') }}" class="event-pill">💪 Allena</a>
+        {% elif g_is_sponsor and not current_user.is_superadmin %}
+          <a href="{{ url_for('events.sponsors') }}" class="event-pill">💼 Sponsor</a>
+        {% endif %}
+        <span class="topbar-user">{{ current_user.username }}</span>
+      </div>
+    {% else %}
+      <a href="{{ url_for('main.index') }}" class="topbar-brand">⚽ FUTURE<span>SOCCER</span></a>
+      <div style="margin-left:auto;display:flex;gap:.5rem;">
+        <a href="{{ url_for('auth.login') }}" class="btn btn-secondary btn-sm">Accedi</a>
+        <a href="{{ url_for('auth.register') }}" class="btn btn-primary btn-sm">Registrati</a>
+      </div>
+    {% endif %}
+  </header>
+
+  <!-- Flash alerts -->
+  <div class="alerts">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">
+          <span>{{ message }}</span>
+          <button class="alert-close" onclick="this.parentElement.remove()">✕</button>
+        </div>
+      {% endfor %}
+    {% endwith %}
+  </div>
+
+  <!-- Page content -->
+  <div class="page-content">
+    {% block content %}{% endblock %}
+  </div>
+
+  <footer>
+    <p>© 2099 <span>FutureSoccer Corp.</span> — Il calcio del futuro è adesso.</p>
+  </footer>
+
+</div><!-- /.main-wrap -->
+
+<script>
+  function toggleSidebar(){
+    document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('sidebarOverlay').classList.toggle('open');
+  }
+  function closeSidebar(){
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebarOverlay').classList.remove('open');
+  }
+  setTimeout(()=>{ document.querySelectorAll('.alert').forEach(a=>a.remove()); }, 5500);
+</script>
 {% block extra_js %}{% endblock %}
 </body>
 </html>
