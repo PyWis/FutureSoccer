@@ -273,7 +273,7 @@ def roll_injuries(lineup_dict, facility_field_stars=0):
     gk = lineup_dict.get('goalkeeper')
     if gk and roll_for_player(gk):
         replacement = get_fresh_reserve()
-        malus = round(random.uniform(-10, -5), 1)
+        malus = round(random.uniform(-15, -5), 1)
         event = {
             'player_name': gk['name'],
             'player_id': gk['player_id'],
@@ -288,7 +288,7 @@ def roll_injuries(lineup_dict, facility_field_stars=0):
     for p in list(lineup_dict.get('defenders') or []):
         if roll_for_player(p):
             replacement = get_fresh_reserve()
-            malus = round(random.uniform(-10, -5), 1)
+            malus = round(random.uniform(-15, -5), 1)
             event = {
                 'player_name': p['name'],
                 'player_id': p['player_id'],
@@ -307,7 +307,7 @@ def roll_injuries(lineup_dict, facility_field_stars=0):
     for p in list(lineup_dict.get('attackers') or []):
         if roll_for_player(p):
             replacement = get_fresh_reserve()
-            malus = round(random.uniform(-10, -5), 1)
+            malus = round(random.uniform(-15, -5), 1)
             event = {
                 'player_name': p['name'],
                 'player_id': p['player_id'],
@@ -598,7 +598,7 @@ def finalize_match(match):
         if isinstance(pid, int):
             player = Player.query.get(pid)
             if player:
-                player.freshness = round(max(0.0, player.freshness + malus), 1)
+                player.freshness = round(player.freshness + malus, 1)
 
     # Update freshness of all home players from their lineup snapshot
     home_lineup = json.loads(match.home_lineup_json or '{}')
