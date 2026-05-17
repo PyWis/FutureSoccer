@@ -45,6 +45,11 @@ def users_list():
 @superadmin_required
 def user_edit(user_id):
     user = User.query.get_or_404(user_id)
+    # Teams with no manager OR already managed by this user
+    free_teams = Team.query.filter(
+        (Team.manager_id == None) | (Team.manager_id == user.id)
+    ).order_by(Team.name).all()
+
     if request.method == 'POST':
         user.username = request.form.get('username', user.username).strip()
         user.email = request.form.get('email', user.email).strip().lower()
@@ -54,12 +59,54 @@ def user_edit(user_id):
         if new_pw:
             if len(new_pw) < 8:
                 flash('La nuova password deve avere almeno 8 caratteri.', 'danger')
-                return render_template('admin/user_edit.html', user=user)
+                return render_template('admin/user_edit.html', user=user, free_teams=free_teams)
             user.set_password(new_pw)
         db.session.commit()
         flash(f'Utente {user.username} aggiornato.', 'success')
         return redirect(url_for('admin.users_list'))
-    return render_template('admin/user_edit.html', user=user)
+    return render_template('admin/user_edit.html', user=user, free_teams=free_teams)
+
+
+@admin_bp.route('/users/<int:user_id>/assign-team', methods=['POST'])
+@login_required
+@superadmin_required
+def user_assign_team(user_id):
+    user = User.query.get_or_404(user_id)
+    team_id = request.form.get('team_id', '').strip()
+
+    if not team_id:
+        flash('Seleziona una squadra.', 'warning')
+        return redirect(url_for('admin.user_edit', user_id=user_id))
+
+    team = Team.query.get_or_404(int(team_id))
+
+    # Unassign from previous manager if different
+    if team.manager_id and team.manager_id != user_id:
+        flash(f'La squadra {team.name} era già gestita da un altro manager: assegnazione aggiornata.', 'warning')
+
+    # Remove old team from this user (one team per user)
+    if user.team and user.team.id != team.id:
+        user.team.manager_id = None
+
+    team.manager_id = user.id
+    db.session.commit()
+    flash(f'Squadra "{team.name}" assegnata a {user.username}.', 'success')
+    return redirect(url_for('admin.user_edit', user_id=user_id))
+
+
+@admin_bp.route('/users/<int:user_id>/unassign-team', methods=['POST'])
+@login_required
+@superadmin_required
+def user_unassign_team(user_id):
+    user = User.query.get_or_404(user_id)
+    if user.team:
+        team_name = user.team.name
+        user.team.manager_id = None
+        db.session.commit()
+        flash(f'Squadra "{team_name}" rimossa da {user.username}.', 'info')
+    else:
+        flash('Questo utente non ha una squadra assegnata.', 'warning')
+    return redirect(url_for('admin.user_edit', user_id=user_id))
 
 
 @admin_bp.route('/users/<int:user_id>/delete', methods=['POST'])

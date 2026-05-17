@@ -95,6 +95,9 @@ def login():
         next_page = request.args.get('next')
         if user.is_superadmin:
             return redirect(next_page or url_for('admin.dashboard'))
+        # First-time player without a team → go directly to team creation
+        if not next_page and not user.team:
+            return redirect(url_for('game.create_team'))
         return redirect(next_page or url_for('game.dashboard'))
 
     return render_template('auth/login.html')

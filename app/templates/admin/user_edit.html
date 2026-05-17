@@ -1,13 +1,19 @@
 {% extends "base.html" %}
 {% block title %}Modifica Utente — Admin{% endblock %}
 {% block content %}
-<div class="page-header">
-  <h1>✏️ MODIFICA UTENTE</h1>
-  <p class="text-muted">ID: {{ user.id }} — {{ user.email }}</p>
+<div class="page-header flex flex-between flex-center">
+  <div>
+    <h1>✏️ MODIFICA UTENTE</h1>
+    <p class="text-muted">ID: {{ user.id }} — {{ user.email }}</p>
+  </div>
+  <a href="{{ url_for('admin.users_list') }}" class="btn btn-secondary btn-sm">← Utenti</a>
 </div>
 
-<div style="max-width:540px;">
+<div class="grid-2" style="max-width:900px;">
+
+  <!-- Dati account -->
   <div class="card">
+    <h3 class="mb-3">DATI ACCOUNT</h3>
     <form method="POST">
       <div class="form-group">
         <label>NOME UTENTE</label>
@@ -25,20 +31,78 @@
         </select>
       </div>
       <div class="form-group">
-        <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
+        <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;">
           <input type="checkbox" name="is_verified" {{ 'checked' if user.is_verified }}>
           Account verificato
         </label>
       </div>
       <div class="form-group">
-        <label>NUOVA PASSWORD <span style="color:var(--muted);font-size:0.75rem;">(lascia vuoto per non cambiare)</span></label>
+        <label>NUOVA PASSWORD <span style="color:var(--muted);font-size:.72rem;">(lascia vuoto per non cambiare)</span></label>
         <input type="password" name="new_password" class="form-control" placeholder="••••••••" minlength="8">
       </div>
-      <div class="flex gap-2 mt-3">
-        <button type="submit" class="btn btn-primary">Salva Modifiche</button>
-        <a href="{{ url_for('admin.users_list') }}" class="btn btn-secondary">Annulla</a>
-      </div>
+      <button type="submit" class="btn btn-primary">Salva Modifiche</button>
     </form>
   </div>
+
+  <!-- Assegnazione squadra -->
+  <div class="card">
+    <h3 class="mb-3">🏟️ SQUADRA ASSEGNATA</h3>
+
+    {% if user.team %}
+    <div style="background:rgba(0,245,255,.05);border:1px solid rgba(0,245,255,.2);border-radius:10px;padding:1rem;margin-bottom:1.2rem;">
+      <div style="display:flex;align-items:center;gap:.75rem;">
+        <div style="width:40px;height:40px;border-radius:10px;
+                    background:linear-gradient(135deg,{{ user.team.color_primary }},{{ user.team.color_secondary }});
+                    flex-shrink:0;"></div>
+        <div style="flex:1;">
+          <div style="font-weight:700;">{{ user.team.name }}</div>
+          <div style="font-size:.78rem;color:var(--muted);">{{ user.team.city }} · {{ user.team.players.count() }}/12 giocatori</div>
+        </div>
+        <span class="badge badge-green">ASSEGNATA</span>
+      </div>
+    </div>
+    <form method="POST" action="{{ url_for('admin.user_unassign_team', user_id=user.id) }}"
+          onsubmit="return confirm('Rimuovere la squadra da {{ user.username }}?')">
+      <button type="submit" class="btn btn-danger btn-sm">✕ Rimuovi squadra</button>
+    </form>
+    {% else %}
+    <div style="background:rgba(136,136,136,.05);border:1px dashed var(--card-border);border-radius:10px;
+                padding:1rem;text-align:center;margin-bottom:1.2rem;">
+      <p class="text-muted" style="font-size:.85rem;">Nessuna squadra assegnata</p>
+    </div>
+    {% endif %}
+
+    <div class="cyber-line"></div>
+    <div style="font-size:.8rem;color:var(--muted);font-weight:700;margin-bottom:.75rem;letter-spacing:.5px;">
+      ASSEGNA NUOVA SQUADRA
+    </div>
+
+    {% if free_teams %}
+    <form method="POST" action="{{ url_for('admin.user_assign_team', user_id=user.id) }}">
+      <div class="form-group">
+        <label>SQUADRA DISPONIBILE</label>
+        <select name="team_id" class="form-control">
+          <option value="">— Seleziona —</option>
+          {% for t in free_teams %}
+          {% if not user.team or t.id != user.team.id %}
+          <option value="{{ t.id }}">
+            {{ t.name }} ({{ t.city }})
+            {% if t.manager_id %} · già gestita{% endif %}
+          </option>
+          {% endif %}
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm">Assegna Squadra</button>
+    </form>
+    <p style="font-size:.75rem;color:var(--muted);margin-top:.75rem;">
+      Sono mostrate solo le squadre senza manager. Assegnare una squadra che ha già un manager la riassegna a questo utente.
+    </p>
+    {% else %}
+    <p style="font-size:.83rem;color:var(--muted);">Nessuna squadra libera disponibile.</p>
+    <a href="{{ url_for('admin.team_new') }}" class="btn btn-secondary btn-sm mt-2">+ Crea nuova squadra</a>
+    {% endif %}
+  </div>
+
 </div>
 {% endblock %}
