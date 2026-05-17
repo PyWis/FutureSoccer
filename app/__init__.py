@@ -50,14 +50,13 @@ def create_app():
 def _seed_admin():
     from app.models.user import User
     admin_email = os.environ.get('ADMIN_EMAIL', 'admin@futuresoccer.com')
-    if not User.query.filter_by(email=admin_email).first():
-        admin_pw = os.environ.get('ADMIN_PASSWORD', 'Admin@2099!')
+    if not User.query.filter_by(role='superadmin').first():
         admin = User(
-            username='SuperAdmin',
+            username=os.environ.get('ADMIN_USERNAME', 'fusoccer'),
             email=admin_email,
             role='superadmin',
             is_verified=True,
         )
-        admin.set_password(admin_pw)
+        admin.set_password(os.environ.get('ADMIN_PASSWORD', 'admin'))
         db.session.add(admin)
         db.session.commit()
