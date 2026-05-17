@@ -341,6 +341,10 @@
        class="nav-item {% if request.endpoint and 'game.stadium' in request.endpoint %}active{% endif %}">
       <span class="nav-icon">🏗️</span><span class="nav-label">Stadio</span>
     </a>
+    <a href="{{ url_for('game.formation') }}"
+       class="nav-item {% if request.endpoint == 'game.formation' %}active{% endif %}">
+      <span class="nav-icon">📋</span><span class="nav-label">Formazione</span>
+    </a>
     <a href="{{ url_for('game.standings') }}"
        class="nav-item {% if request.endpoint == 'game.standings' %}active{% endif %}">
       <span class="nav-icon">📋</span><span class="nav-label">Classifica</span>

@@ -211,6 +211,9 @@ def training():
     is_saturday_mode = saturday_slots > 0
     training_ok = regular_training or is_saturday_mode
 
+    from app.routes.game import _process_team_freshness
+    _process_team_freshness(team)
+
     players = team.players.all()
     trained_ids = {
         r.player_id for r in
@@ -302,6 +305,9 @@ def training():
                 improvement=actual, cost=player_cost,
             )
             db.session.add(rec)
+            # Training reduces freshness
+            p.freshness = max(0.0, round(p.freshness - 0.1, 1))
+            p.last_freshness_day = game_day
             results.append({'player': p, 'improved': improved, 'delta': actual})
 
         db.session.commit()

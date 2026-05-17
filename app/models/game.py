@@ -1,5 +1,6 @@
 from app import db
 from datetime import datetime
+import json
 
 
 class GameConfig(db.Model):
@@ -86,6 +87,103 @@ class ActiveSponsor(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     team = db.relationship('Team', foreign_keys=[team_id], backref='active_sponsors')
+
+
+_ENGAGEMENT_MODS = {
+    'basso': 0.75, 'moderato': 0.90, 'normale': 1.00,
+    'aggressivo': 1.10, 'super_aggressivo': 1.15,
+}
+ENGAGEMENT_OPTIONS = [
+    ('basso',           'Basso',           '-25%'),
+    ('moderato',        'Moderato',        '-10%'),
+    ('normale',         'Normale',         '±0%'),
+    ('aggressivo',      'Aggressivo',      '+10%'),
+    ('super_aggressivo','Super aggressivo','+15%'),
+]
+
+
+class TeamFormation(db.Model):
+    """Saved formation and engagement for a team."""
+    __tablename__ = 'team_formations'
+
+    id = db.Column(db.Integer, primary_key=True)
+    team_id = db.Column(db.Integer, db.ForeignKey('teams.id'), unique=True, nullable=False)
+    engagement = db.Column(db.String(20), default='normale')
+    # Raw player IDs — no FK constraints to avoid cascade complexity
+    goalkeeper_id   = db.Column(db.Integer, nullable=True)
+    defender_ids_json = db.Column(db.Text, default='[]')   # JSON list[int]
+    attacker_ids_json = db.Column(db.Text, default='[]')
+    reserve_ids_json  = db.Column(db.Text, default='[]')
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    team = db.relationship('Team', backref=db.backref('formation', uselist=False))
+
+    # ── helpers ──────────────────────────────────────────────────────────────
+
+    @property
+    def defender_ids(self):
+        return json.loads(self.defender_ids_json or '[]')
+
+    @property
+    def attacker_ids(self):
+        return json.loads(self.attacker_ids_json or '[]')
+
+    @property
+    def reserve_ids(self):
+        return json.loads(self.reserve_ids_json or '[]')
+
+    def all_starter_ids(self):
+        ids = []
+        if self.goalkeeper_id:
+            ids.append(self.goalkeeper_id)
+        ids.extend(self.defender_ids)
+        ids.extend(self.attacker_ids)
+        return ids
+
+    def current_roles(self):
+        """Returns {player_id: role_str} for all assigned players."""
+        roles = {}
+        if self.goalkeeper_id:
+            roles[self.goalkeeper_id] = 'goalkeeper'
+        for pid in self.defender_ids:
+            roles[pid] = 'defender'
+        for pid in self.attacker_ids:
+            roles[pid] = 'attacker'
+        for pid in self.reserve_ids:
+            roles[pid] = 'reserve'
+        return roles
+
+    def compute_strength(self, players_by_id):
+        """
+        players_by_id: dict {player_id: Player}.
+        Returns {'porta', 'difesa', 'attacco', 'total', 'mod', 'engagement'}.
+        """
+        gk = players_by_id.get(self.goalkeeper_id)
+        defenders = [players_by_id[i] for i in self.defender_ids if i in players_by_id]
+        attackers = [players_by_id[i] for i in self.attacker_ids if i in players_by_id]
+
+        starters = ([gk] if gk else []) + defenders + attackers
+
+        # Porta
+        porta = gk.porta if gk else 2.0
+
+        # Difesa: defenders' difesa + 50% from every other starter's difesa
+        others_for_def = [p for p in starters if p not in defenders]
+        difesa = sum(p.difesa for p in defenders) + 0.5 * sum(p.difesa for p in others_for_def)
+
+        # Attacco: attackers' attacco + 50% from every other starter's attacco
+        others_for_att = [p for p in starters if p not in attackers]
+        attacco = sum(p.attacco for p in attackers) + 0.5 * sum(p.attacco for p in others_for_att)
+
+        mod = _ENGAGEMENT_MODS.get(self.engagement, 1.00)
+        return {
+            'porta':   round(porta * mod, 2),
+            'difesa':  round(difesa * mod, 2),
+            'attacco': round(attacco * mod, 2),
+            'total':   round((porta + difesa + attacco) * mod, 2),
+            'mod':     mod,
+            'engagement': self.engagement,
+        }
 
 
 class FreeAgentListing(db.Model):
