@@ -225,15 +225,15 @@ def training():
     }
     trainable = [p for p in players if p.id not in trained_ids]
 
+    # Formation roles for display
+    formation_roles = team.formation.current_roles() if team.formation else {}
+
     if request.method == 'POST' and training_ok:
         sessions = []
 
         if is_saturday_mode and not regular_training:
-            # Saturday stadium training: free p200k for up to saturday_slots players
-            count = 0
+            # Saturday: collect all players with valid 2-skill selection, cap at saturday_slots
             for p in trainable:
-                if count >= saturday_slots:
-                    break
                 raw = request.form.getlist(f'skills_{p.id}')
                 if len(raw) != 2:
                     continue
@@ -241,7 +241,7 @@ def training():
                 if skill1 not in SKILLS or skill2 not in SKILLS or skill1 == skill2:
                     continue
                 sessions.append((p, skill1, skill2, 'p200k'))
-                count += 1
+            sessions = sessions[:saturday_slots]  # server-side cap
             total_cost = 0.0
         else:
             # Regular Tue/Thu training
@@ -328,6 +328,7 @@ def training():
                            players=players,
                            trainable=trainable,
                            today_records=today_records,
+                           formation_roles=formation_roles,
                            is_training=regular_training,
                            is_saturday_mode=is_saturday_mode,
                            saturday_slots=saturday_slots,
