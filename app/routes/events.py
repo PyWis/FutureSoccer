@@ -267,6 +267,8 @@ def training():
                 )
 
         if not sessions:
+            if is_saturday_mode and not regular_training:
+                return redirect(url_for('events.training'))   # Saturday: no selection is fine
             flash('Seleziona esattamente 2 skill per almeno un giocatore.', 'warning')
             return redirect(url_for('events.training'))
 
