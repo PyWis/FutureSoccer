@@ -24,6 +24,13 @@ class Team(db.Model):
     scouting_paid_week_id = db.Column(db.Integer, default=-1)   # ISO week_id of paid scouting
     last_processed_day = db.Column(db.Integer, default=-1)       # for daily event processing
 
+    # Stadium facilities (0 = not built, 1-5 = stars)
+    facility_training = db.Column(db.Integer, default=0)   # Impianto di allenamento
+    facility_stream   = db.Column(db.Integer, default=0)   # Servizi stream
+    facility_locker   = db.Column(db.Integer, default=0)   # Spogliatoi
+    facility_ground   = db.Column(db.Integer, default=0)   # Ground
+    last_degraded_month = db.Column(db.Integer, default=0) # year*100+month last degradation applied
+
     manager_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, unique=True)
     manager = db.relationship('User', back_populates='team')
 

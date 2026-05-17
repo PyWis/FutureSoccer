@@ -32,18 +32,98 @@
   <div>
     {% if is_training %}
       <span class="day-label day-active">GIORNATA DI ALLENAMENTO</span>
+    {% elif is_saturday_mode %}
+      <span class="day-label day-active" style="background:rgba(123,47,255,.15);color:var(--purple);">🏟️ SABATO — STADIO</span>
     {% else %}
-      <span class="day-label day-inactive">PROSSIMO: MAR o GIO</span>
+      <span class="day-label day-inactive">PROSSIMO: MAR · GIO{% if saturday_slots > 0 %} · SAB (Stadio){% endif %}</span>
     {% endif %}
   </div>
 </div>
 
-{% if not is_training %}
+{% if not training_ok %}
 <div class="card" style="text-align:center;padding:3rem;">
   <div style="font-size:3rem;margin-bottom:1rem;">📅</div>
   <h2 style="color:var(--muted);margin-bottom:.5rem;">Nessun allenamento oggi</h2>
-  <p class="text-muted">Le sessioni si svolgono ogni <strong>Martedì</strong> e <strong>Giovedì</strong>.</p>
+  <p class="text-muted">
+    Le sessioni si svolgono ogni <strong>Martedì</strong> e <strong>Giovedì</strong>.
+    {% if saturday_slots > 0 %}<br>Con l'impianto di allenamento ({{ saturday_slots }}⭐) puoi allenarti anche di <strong>Sabato</strong>.{% endif %}
+  </p>
 </div>
+{% elif is_saturday_mode and not is_training %}
+<!-- ── SATURDAY STADIUM TRAINING ── -->
+<div class="card mb-3" style="border-color:rgba(123,47,255,.4);background:rgba(123,47,255,.05);">
+  <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+    <div style="font-size:2rem;">🏟️</div>
+    <div>
+      <h3 style="color:var(--purple);">ALLENAMENTO STADIO — SABATO</h3>
+      <p style="font-size:.83rem;color:var(--muted);margin-top:.3rem;">
+        L'impianto di allenamento ({{ saturday_slots }}⭐) ti garantisce <strong style="color:var(--purple);">{{ saturday_slots }} slot gratuiti</strong> al tier <strong>💎 p200k</strong> ogni Sabato.
+      </p>
+    </div>
+  </div>
+</div>
+
+{% if trainable %}
+<form method="POST" id="trainingForm">
+  {% for p in trainable[:saturday_slots] %}
+  <div class="player-train-row" id="row_{{ p.id }}">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem;">
+      <div style="flex:1;min-width:180px;">
+        <div style="font-weight:700;font-size:1rem;">{{ p.type_icon }} {{ p.name }}</div>
+        <div style="font-size:.75rem;color:var(--muted);">Età {{ p.age }} · Media <strong style="color:var(--cyan);">{{ "%.2f"|format(p.avg_skill) }}</strong></div>
+        <div style="font-size:.72rem;color:var(--muted);margin-top:.2rem;">
+          P:{{ "%.1f"|format(p.porta) }} D:{{ "%.1f"|format(p.difesa) }} A:{{ "%.1f"|format(p.attacco) }} R:{{ "%.1f"|format(p.resistenza) }}
+        </div>
+      </div>
+      <div style="flex:2;min-width:260px;">
+        <div style="font-size:.72rem;color:var(--muted);margin-bottom:.4rem;">SCEGLI 2 SKILL DA ALLENARE</div>
+        <div class="skill-check-group" data-player="{{ p.id }}">
+          {% for sk, lbl in skill_labels.items() %}
+          <label class="skill-check">
+            <input type="checkbox" name="skills_{{ p.id }}" value="{{ sk }}"
+                   onchange="limitSkills({{ p.id }}, this)">
+            <span>{{ lbl }}</span>
+          </label>
+          {% endfor %}
+        </div>
+        <div id="err_{{ p.id }}" style="font-size:.72rem;color:var(--danger);margin-top:.3rem;display:none;">Seleziona esattamente 2 skill.</div>
+      </div>
+      <div style="min-width:160px;display:flex;align-items:center;">
+        <span style="background:rgba(123,47,255,.15);color:var(--purple);padding:.4rem .9rem;border-radius:8px;font-size:.8rem;font-weight:700;">💎 p200k — GRATUITO</span>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+  <div style="display:flex;align-items:center;justify-content:flex-end;margin-top:1.5rem;">
+    <button type="submit" class="btn btn-primary" style="padding:.8rem 2rem;background:linear-gradient(135deg,var(--purple),#ff6bff);">
+      🏟️ ALLENA (GRATUITO)
+    </button>
+  </div>
+</form>
+{% endif %}
+
+{% set trained_players = players|selectattr('id', 'in', today_records.keys())|list %}
+{% if trained_players %}
+<h3 class="mt-4 mb-2">ALLENATI OGGI</h3>
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>GIOCATORE</th><th>SKILL ALLENATE</th><th>RISULTATO</th></tr></thead>
+      <tbody>
+        {% for p in trained_players %}
+        {% set rec = today_records[p.id] %}
+        <tr>
+          <td><strong>{{ p.type_icon }} {{ p.name }}</strong></td>
+          <td><span class="badge badge-purple">{{ skill_labels[rec.skill1] }}</span> <span class="badge badge-purple">{{ skill_labels[rec.skill2] }}</span></td>
+          <td>{% if rec.skill_improved %}<span class="result-improved">+{{ "%.1f"|format(rec.improvement) }} {{ skill_labels[rec.skill_improved] }} ✓</span>{% else %}<span class="result-none">Nessun miglioramento</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
 {% else %}
 
 <!-- Premium bulk option -->

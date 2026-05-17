@@ -6,7 +6,7 @@ from app.models.team import Team, Player
 from app.models.game import TeamWeeklyOffer, TrainingRecord, SponsorOffer, ActiveSponsor, FreeAgentListing, FreeAgentBid
 from app.utils.gameclock import (
     get_game_week_id, get_game_weekday, get_game_day_number,
-    format_game_date, is_training_day, is_sponsor_day,
+    format_game_date, is_training_day, is_sponsor_day, get_game_month_id,
 )
 from app.utils.generators import (
     generate_market_offer_data, generate_sponsor_offer_data,
@@ -17,6 +17,7 @@ events_bp = Blueprint('events', __name__)
 SKILLS = ['porta', 'difesa', 'attacco', 'resistenza']
 SKILL_LABELS = {'porta': 'Porta', 'difesa': 'Difesa', 'attacco': 'Attacco', 'resistenza': 'Resistenza'}
 MAX_SECONDARY = 2
+_FACILITY_ATTRS = ['facility_training', 'facility_stream', 'facility_locker', 'facility_ground']
 
 
 def _require_team():
@@ -48,6 +49,19 @@ def _process_sponsor_payments(team):
                 db.session.delete(sp)
     if paid_any:
         db.session.commit()
+
+
+def _process_stadium_degradation(team):
+    """On first visit of a new game month, randomly reduce 2 facilities by 1 star."""
+    current_month = get_game_month_id()
+    if team.last_degraded_month >= current_month:
+        return
+    eligible = [f for f in _FACILITY_ATTRS if getattr(team, f) > 0]
+    if eligible:
+        for f in random.sample(eligible, min(2, len(eligible))):
+            setattr(team, f, getattr(team, f) - 1)
+    team.last_degraded_month = current_month
+    db.session.commit()
 
 
 # ─── MARKET ────────────────────────────────────────────────────────────────────
@@ -192,7 +206,10 @@ def training():
 
     game_day = get_game_day_number()
     weekday = get_game_weekday()
-    training_ok = is_training_day()
+    regular_training = is_training_day()
+    saturday_slots = team.facility_training if weekday == 5 else 0
+    is_saturday_mode = saturday_slots > 0
+    training_ok = regular_training or is_saturday_mode
 
     players = team.players.all()
     trained_ids = {
@@ -206,33 +223,46 @@ def training():
     trainable = [p for p in players if p.id not in trained_ids]
 
     if request.method == 'POST' and training_ok:
-        bulk_500k = request.form.get('bulk_500k') == 'on'
         sessions = []
 
-        for p in trainable:
-            raw = request.form.getlist(f'skills_{p.id}')
-            if len(raw) != 2:
-                continue
-            skill1, skill2 = raw[0], raw[1]
-            if skill1 not in SKILLS or skill2 not in SKILLS or skill1 == skill2:
-                continue
-            prem = 'standard' if not bulk_500k else 'p50k'
-            if not bulk_500k:
-                prem = request.form.get(f'prem_{p.id}', 'standard')
-            sessions.append((p, skill1, skill2, prem))
+        if is_saturday_mode and not regular_training:
+            # Saturday stadium training: free p200k for up to saturday_slots players
+            count = 0
+            for p in trainable:
+                if count >= saturday_slots:
+                    break
+                raw = request.form.getlist(f'skills_{p.id}')
+                if len(raw) != 2:
+                    continue
+                skill1, skill2 = raw[0], raw[1]
+                if skill1 not in SKILLS or skill2 not in SKILLS or skill1 == skill2:
+                    continue
+                sessions.append((p, skill1, skill2, 'p200k'))
+                count += 1
+            total_cost = 0.0
+        else:
+            # Regular Tue/Thu training
+            bulk_500k = request.form.get('bulk_500k') == 'on'
+            for p in trainable:
+                raw = request.form.getlist(f'skills_{p.id}')
+                if len(raw) != 2:
+                    continue
+                skill1, skill2 = raw[0], raw[1]
+                if skill1 not in SKILLS or skill2 not in SKILLS or skill1 == skill2:
+                    continue
+                prem = 'p50k' if bulk_500k else request.form.get(f'prem_{p.id}', 'standard')
+                sessions.append((p, skill1, skill2, prem))
+            if bulk_500k and sessions:
+                total_cost = 500_000.0
+            else:
+                total_cost = sum(
+                    200_000 if prem == 'p200k' else (50_000 if prem == 'p50k' else 0)
+                    for _, _, _, prem in sessions
+                )
 
         if not sessions:
             flash('Seleziona esattamente 2 skill per almeno un giocatore.', 'warning')
             return redirect(url_for('events.training'))
-
-        # Calculate cost
-        if bulk_500k and sessions:
-            total_cost = 500_000.0
-        else:
-            total_cost = sum(
-                200_000 if prem == 'p200k' else (50_000 if prem == 'p50k' else 0)
-                for _, _, _, prem in sessions
-            )
 
         if team.budget < total_cost:
             flash(f'Budget insufficiente. Costo sessione: €{total_cost:,.0f}', 'danger')
@@ -240,6 +270,7 @@ def training():
 
         team.budget -= total_cost
         results = []
+        is_saturday_post = is_saturday_mode and not regular_training
         for p, skill1, skill2, prem in sessions:
             if prem == 'p200k':
                 improved = random.choice([skill1, skill2])
@@ -261,8 +292,9 @@ def training():
             else:
                 actual = 0.0
 
-            player_cost = (200_000 if prem == 'p200k' else
-                           (50_000 if prem == 'p50k' else 0)) if not bulk_500k else 0
+            player_cost = 0 if is_saturday_post else (
+                200_000 if prem == 'p200k' else (50_000 if prem == 'p50k' else 0)
+            )
             rec = TrainingRecord(
                 team_id=team.id, player_id=p.id, game_day=game_day,
                 skill1=skill1, skill2=skill2, premium_type=prem,
@@ -281,15 +313,19 @@ def training():
         }
         trainable = [p for p in players if p.id not in trained_ids]
         improved_count = sum(1 for r in results if r['delta'] > 0)
+        cost_str = 'GRATUITO (Stadio)' if is_saturday_post else f'€{total_cost:,.0f}'
         flash(f'Allenamento completato! {improved_count}/{len(results)} giocatori migliorati. '
-              f'Costo: €{total_cost:,.0f}', 'success')
+              f'Costo: {cost_str}', 'success')
 
     return render_template('events/training.html',
                            team=team,
                            players=players,
                            trainable=trainable,
                            today_records=today_records,
-                           is_training=training_ok,
+                           is_training=regular_training,
+                           is_saturday_mode=is_saturday_mode,
+                           saturday_slots=saturday_slots,
+                           training_ok=training_ok,
                            game_date=format_game_date(),
                            weekday=weekday,
                            game_day=game_day,

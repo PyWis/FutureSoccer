@@ -10,13 +10,36 @@ game_bp = Blueprint('game', __name__)
 
 MAX_ROSTER = 12
 
+FACILITY_TYPES = ['training', 'stream', 'locker', 'ground']
+FACILITY_LABELS = {
+    'training': 'Impianto di allenamento',
+    'stream':   'Servizi stream',
+    'locker':   'Spogliatoi',
+    'ground':   'Ground',
+}
+FACILITY_ICONS = {
+    'training': '🏋️',
+    'stream':   '📡',
+    'locker':   '🚿',
+    'ground':   '🌱',
+}
+FACILITY_EFFECTS = {
+    'training': 'Allenamento gratuito al Sabato (p200k) per N giocatori pari alle stelle',
+    'stream':   '— Effetto in arrivo',
+    'locker':   '— Effetto in arrivo',
+    'ground':   '— Effetto in arrivo',
+}
+# Index = star level (0 = unbuilt). Upgrade cost = FACILITY_PRICES[n+1] - FACILITY_PRICES[n]
+FACILITY_PRICES = [0, 1_000_000, 3_000_000, 5_000_000, 10_000_000, 25_000_000]
+
 
 @game_bp.route('/dashboard')
 @login_required
 def dashboard():
-    from app.routes.events import _process_sponsor_payments
+    from app.routes.events import _process_sponsor_payments, _process_stadium_degradation
     if current_user.team:
         _process_sponsor_payments(current_user.team)
+        _process_stadium_degradation(current_user.team)
     team = current_user.team
     weekday = get_game_weekday()
     return render_template('game/dashboard.html',
@@ -113,6 +136,48 @@ def standings():
         Team.wins.desc(), Team.draws.desc(), Team.goals_for.desc()
     ).all()
     return render_template('game/standings.html', teams=teams)
+
+
+@game_bp.route('/stadium')
+@login_required
+def stadium():
+    if not current_user.team:
+        return redirect(url_for('game.create_team'))
+    team = current_user.team
+    from app.routes.events import _process_stadium_degradation
+    _process_stadium_degradation(team)
+    return render_template('game/stadium.html',
+                           team=team,
+                           facility_types=FACILITY_TYPES,
+                           facility_labels=FACILITY_LABELS,
+                           facility_icons=FACILITY_ICONS,
+                           facility_effects=FACILITY_EFFECTS,
+                           facility_prices=FACILITY_PRICES)
+
+
+@game_bp.route('/stadium/upgrade/<facility>', methods=['POST'])
+@login_required
+def stadium_upgrade(facility):
+    if facility not in FACILITY_TYPES:
+        flash('Struttura non valida.', 'danger')
+        return redirect(url_for('game.stadium'))
+    team = current_user.team
+    if not team:
+        return redirect(url_for('game.create_team'))
+    attr = f'facility_{facility}'
+    current_stars = getattr(team, attr)
+    if current_stars >= 5:
+        flash('Struttura già al massimo (5 stelle).', 'warning')
+        return redirect(url_for('game.stadium'))
+    upgrade_cost = FACILITY_PRICES[current_stars + 1] - FACILITY_PRICES[current_stars]
+    if team.budget < upgrade_cost:
+        flash(f'Budget insufficiente. Costo upgrade: €{upgrade_cost:,.0f}', 'danger')
+        return redirect(url_for('game.stadium'))
+    team.budget -= upgrade_cost
+    setattr(team, attr, current_stars + 1)
+    db.session.commit()
+    flash(f'{FACILITY_LABELS[facility]} portato a {current_stars + 1} ⭐!', 'success')
+    return redirect(url_for('game.stadium'))
 
 
 @game_bp.route('/profile', methods=['GET', 'POST'])
