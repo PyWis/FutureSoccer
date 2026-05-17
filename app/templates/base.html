@@ -362,6 +362,12 @@
       {% if g_is_sponsor %}<span class="nav-dot"></span>{% else %}<span style="font-size:.62rem;color:var(--muted);">Ven</span>{% endif %}
     </a>
 
+    <div class="nav-section-label" style="margin-top:.5rem;">Mercato</div>
+    <a href="{{ url_for('events.free_agents') }}"
+       class="nav-item {% if request.endpoint == 'events.free_agents' %}active{% endif %}">
+      <span class="nav-icon">🔓</span><span class="nav-label">Svincolati</span>
+    </a>
+
     <div class="nav-section-label" style="margin-top:.5rem;">Account</div>
     <a href="{{ url_for('game.profile') }}"
        class="nav-item {% if request.endpoint == 'game.profile' %}active{% endif %}">

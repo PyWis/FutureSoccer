@@ -2,8 +2,9 @@ from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
 from app import db
 from app.models.team import Team, Player
+from app.models.game import FreeAgentListing
 from app.utils.generators import generate_new_team_player
-from app.utils.gameclock import format_game_date, get_game_weekday, is_training_day, is_sponsor_day
+from app.utils.gameclock import format_game_date, get_game_weekday, is_training_day, is_sponsor_day, get_game_day_number
 
 game_bp = Blueprint('game', __name__)
 
@@ -80,12 +81,28 @@ def sell_player(player_id):
     if not team or player.team_id != team.id:
         flash('Operazione non autorizzata.', 'danger')
         return redirect(url_for('game.my_team'))
-    proceeds = round(player.avg_skill * 400_000, -3)
-    team.budget += proceeds
+    list_game_day = get_game_day_number()
+    base_price = round(player.avg_skill * 1_000_000, -3)
+    listing = FreeAgentListing(
+        player_id=player.id,
+        seller_team_id=team.id,
+        player_name=player.name,
+        player_type=player.type,
+        player_age=player.age,
+        player_porta=player.porta,
+        player_difesa=player.difesa,
+        player_attacco=player.attacco,
+        player_resistenza=player.resistenza,
+        player_avg=player.avg_skill,
+        list_game_day=list_game_day,
+        base_price=base_price,
+        expires_game_day=list_game_day + 90,
+    )
     player.team_id = None
     player.is_free_agent = True
+    db.session.add(listing)
     db.session.commit()
-    flash(f'{player.name} ceduto per €{proceeds:,.0f}.', 'info')
+    flash('Giocatore messo sul mercato degli svincolati! Guadagnerai il 75% del prezzo se venduto entro 60 giorni, il 50% successivamente.', 'info')
     return redirect(url_for('game.my_team'))
 
 

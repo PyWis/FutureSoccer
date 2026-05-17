@@ -3,7 +3,7 @@ from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
 from app import db
 from app.models.team import Team, Player
-from app.models.game import TeamWeeklyOffer, TrainingRecord, SponsorOffer, ActiveSponsor
+from app.models.game import TeamWeeklyOffer, TrainingRecord, SponsorOffer, ActiveSponsor, FreeAgentListing, FreeAgentBid
 from app.utils.gameclock import (
     get_game_week_id, get_game_weekday, get_game_day_number,
     format_game_date, is_training_day, is_sponsor_day,
@@ -436,3 +436,200 @@ def sponsor_upgrade(sponsor_id):
     db.session.commit()
     flash(f'{sp.sponsor_name} promosso a sponsor principale!', 'success')
     return redirect(url_for('events.sponsors'))
+
+
+# ─── FREE AGENTS ───────────────────────────────────────────────────────────────
+
+def _listing_current_price(listing, current_day):
+    days = max(0, current_day - listing.list_game_day)
+    periods = days // 7
+    price = listing.base_price * (0.7 ** periods)
+    return max(200_000, round(price, -3))
+
+
+def _process_free_agent_auctions():
+    """Resolve closed auction windows and expire listings with no bids."""
+    current_day = get_game_day_number()
+    changed = False
+
+    # 1. Resolve closed auction windows
+    closed_listings = FreeAgentListing.query.filter(
+        FreeAgentListing.status == 'active',
+        FreeAgentListing.bid_window_end != None,
+        FreeAgentListing.bid_window_end < current_day,
+    ).all()
+
+    for listing in closed_listings:
+        bids = FreeAgentBid.query.filter_by(listing_id=listing.id).order_by(
+            FreeAgentBid.amount.desc(), FreeAgentBid.bid_timestamp.asc()
+        ).all()
+
+        winner_bid = None
+        for bid in bids:
+            bidding_team = Team.query.get(bid.team_id)
+            if bidding_team and bidding_team.budget >= bid.amount:
+                winner_bid = bid
+                break
+
+        if winner_bid:
+            winner_team = Team.query.get(winner_bid.team_id)
+            winner_team.budget -= winner_bid.amount
+            # Credit seller
+            days_listed = current_day - listing.list_game_day
+            seller_pct = 0.75 if days_listed <= 60 else 0.50
+            if listing.seller_team_id:
+                seller_team = Team.query.get(listing.seller_team_id)
+                if seller_team:
+                    seller_team.budget += round(winner_bid.amount * seller_pct, -3)
+            # Transfer player
+            if listing.player_id:
+                player = Player.query.get(listing.player_id)
+                if player:
+                    player.team_id = winner_team.id
+                    player.is_free_agent = False
+            listing.status = 'sold'
+            for bid in bids:
+                bid.status = 'won' if bid.id == winner_bid.id else 'lost'
+        else:
+            # No valid winner — expire and delete player
+            if listing.player_id:
+                player = Player.query.get(listing.player_id)
+                if player:
+                    db.session.delete(player)
+            listing.player_id = None
+            listing.status = 'expired'
+            for bid in bids:
+                bid.status = 'lost'
+        changed = True
+
+    # 2. Expire listings with no bids that have passed their expiry
+    expired_listings = FreeAgentListing.query.filter(
+        FreeAgentListing.status == 'active',
+        FreeAgentListing.expires_game_day <= current_day,
+        FreeAgentListing.bid_window_start == None,
+    ).all()
+
+    for listing in expired_listings:
+        if listing.player_id:
+            player = Player.query.get(listing.player_id)
+            if player:
+                db.session.delete(player)
+        listing.player_id = None
+        listing.status = 'expired'
+        changed = True
+
+    if changed:
+        db.session.commit()
+
+
+@events_bp.route('/free-agents')
+@login_required
+def free_agents():
+    redir = _require_team()
+    if redir:
+        return redir
+    team = current_user.team
+    _process_free_agent_auctions()
+    _process_sponsor_payments(team)
+
+    current_day = get_game_day_number()
+    listings = FreeAgentListing.query.filter_by(status='active').all()
+
+    enriched = {}
+    for listing in listings:
+        days = max(0, current_day - listing.list_game_day)
+        current_price = _listing_current_price(listing, current_day)
+        days_to_next_reduction = 7 - (days % 7)
+        days_remaining = listing.expires_game_day - current_day
+
+        if listing.bid_window_end is not None and listing.bid_window_end < current_day:
+            auction_status = 'closed'
+        elif listing.bid_window_start is not None:
+            auction_status = 'open'
+        else:
+            auction_status = 'no_bids'
+
+        enriched[listing.id] = {
+            'current_price': current_price,
+            'days_to_next_reduction': days_to_next_reduction,
+            'days_remaining': days_remaining,
+            'auction_status': auction_status,
+        }
+
+    my_bids = {}
+    for bid in FreeAgentBid.query.filter_by(team_id=team.id).all():
+        my_bids[bid.listing_id] = bid
+
+    return render_template(
+        'events/free_agents.html',
+        team=team,
+        listings=listings,
+        enriched=enriched,
+        my_bids=my_bids,
+        current_day=current_day,
+        game_date=format_game_date(),
+    )
+
+
+@events_bp.route('/free-agents/<int:listing_id>/bid', methods=['POST'])
+@login_required
+def free_agent_bid(listing_id):
+    redir = _require_team()
+    if redir:
+        return redir
+    team = current_user.team
+    listing = FreeAgentListing.query.get_or_404(listing_id)
+
+    if listing.status != 'active':
+        flash('Questo annuncio non è più attivo.', 'danger')
+        return redirect(url_for('events.free_agents'))
+
+    if listing.seller_team_id == team.id:
+        flash('Non puoi fare un\'offerta sul tuo stesso giocatore.', 'danger')
+        return redirect(url_for('events.free_agents'))
+
+    if team.players.count() >= 12:
+        flash('Rosa al completo (massimo 12 giocatori).', 'danger')
+        return redirect(url_for('events.free_agents'))
+
+    current_day = get_game_day_number()
+
+    if listing.bid_window_end is not None and listing.bid_window_end < current_day:
+        flash('La finestra d\'asta per questo giocatore è già chiusa.', 'danger')
+        return redirect(url_for('events.free_agents'))
+
+    existing_bid = FreeAgentBid.query.filter_by(listing_id=listing_id, team_id=team.id).first()
+    if existing_bid:
+        flash('Hai già fatto un\'offerta per questo giocatore.', 'warning')
+        return redirect(url_for('events.free_agents'))
+
+    try:
+        amount = float(request.form.get('amount', 0))
+    except (ValueError, TypeError):
+        flash('Importo non valido.', 'danger')
+        return redirect(url_for('events.free_agents'))
+
+    min_price = _listing_current_price(listing, current_day)
+    if amount < min_price:
+        flash(f'L\'offerta deve essere almeno €{min_price:,.0f}.', 'danger')
+        return redirect(url_for('events.free_agents'))
+
+    if amount > team.budget:
+        flash('Budget insufficiente per questa offerta.', 'danger')
+        return redirect(url_for('events.free_agents'))
+
+    bid = FreeAgentBid(
+        listing_id=listing_id,
+        team_id=team.id,
+        amount=amount,
+        bid_game_day=current_day,
+    )
+    db.session.add(bid)
+
+    if listing.bid_window_start is None:
+        listing.bid_window_start = current_day
+        listing.bid_window_end = current_day + 7
+
+    db.session.commit()
+    flash(f'Offerta di €{amount:,.0f} inviata con successo!', 'success')
+    return redirect(url_for('events.free_agents'))

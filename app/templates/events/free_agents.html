@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+{% block title %}Svincolati — FutureSoccer{% endblock %}
+{% block extra_head %}
+<style>
+  .fa-card {
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 1rem;
+  }
+  .fa-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--cyan), var(--purple));
+  }
+  .fa-type-badge {
+    position: absolute;
+    top: 1rem; right: 1rem;
+    background: rgba(0,0,0,.4);
+    border: 1px solid var(--card-border);
+    border-radius: 20px;
+    padding: .25rem .7rem;
+    font-size: .72rem;
+    display: flex;
+    align-items: center;
+    gap: .3rem;
+  }
+  .fa-player-name {
+    font-family: 'Orbitron', monospace;
+    font-size: 1.2rem;
+    font-weight: 900;
+    color: var(--cyan);
+    margin-bottom: .15rem;
+  }
+  .fa-player-age {
+    font-size: .8rem;
+    color: var(--muted);
+  }
+  .skill-bars {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .4rem .8rem;
+    margin: .8rem 0;
+  }
+  .skill-bar-row {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+  }
+  .skill-bar-label {
+    font-size: .68rem;
+    color: var(--muted);
+    width: 4.5rem;
+    flex-shrink: 0;
+  }
+  .skill-bar-track {
+    flex: 1;
+    background: rgba(255,255,255,.07);
+    border-radius: 4px;
+    height: 5px;
+    overflow: hidden;
+  }
+  .skill-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    background: linear-gradient(90deg, var(--cyan), var(--purple));
+  }
+  .skill-bar-val {
+    font-size: .68rem;
+    color: var(--text);
+    width: 2rem;
+    text-align: right;
+  }
+  .fa-price {
+    font-family: 'Orbitron', monospace;
+    font-size: 1.3rem;
+    font-weight: 900;
+    color: var(--success);
+  }
+  .auction-badge {
+    display: inline-block;
+    border-radius: 6px;
+    padding: .2rem .6rem;
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .5px;
+  }
+  .auction-badge.no-bids { background: rgba(136,136,136,.2); color: var(--muted); }
+  .auction-badge.open    { background: rgba(0,245,255,.15);  color: var(--cyan); }
+  .auction-badge.closed  { background: rgba(255,165,0,.15);  color: #ffa500; }
+  .bid-form-row {
+    display: flex;
+    gap: .5rem;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: .75rem;
+  }
+  .bid-form-row input[type=number] {
+    background: var(--input-bg, rgba(255,255,255,.07));
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    padding: .45rem .7rem;
+    color: var(--text);
+    font-size: .9rem;
+    width: 160px;
+  }
+  .info-box {
+    background: linear-gradient(135deg, rgba(123,47,255,.08), rgba(0,245,255,.04));
+    border: 1px solid rgba(123,47,255,.25);
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 2rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header flex flex-between flex-center" style="flex-wrap:wrap;gap:1rem;">
+  <div>
+    <h1>🔓 SVINCOLATI</h1>
+    <p class="text-muted">{{ game_date }}</p>
+  </div>
+  <div style="text-align:right;">
+    <div style="font-size:.75rem;color:var(--muted);">Budget squadra</div>
+    <div style="font-family:'Orbitron',monospace;font-size:1.3rem;color:var(--success);">€{{ "%.1f"|format(team.budget/1000000) }}M</div>
+  </div>
+</div>
+
+<!-- Info box -->
+<div class="info-box">
+  <h3 class="mb-2">ℹ️ COME FUNZIONA IL MERCATO SVINCOLATI</h3>
+  <ul style="font-size:.82rem;color:var(--muted);line-height:1.9;padding-left:1.2rem;">
+    <li>I giocatori restano disponibili per <strong>90 giorni</strong> di gioco. Se nessuno offre, vengono rilasciati definitivamente.</li>
+    <li>Appena arriva la prima offerta, si apre una <strong>finestra d'asta di 7 giorni</strong> (offerta sigillata): vince chi offre di più, a parità di importo vince l'offerta più vecchia.</li>
+    <li>Il prezzo base scende del <strong>30% ogni 7 giorni</strong> (minimo €200.000).</li>
+    <li>Il venditore guadagna il <strong>75%</strong> del prezzo se il giocatore viene venduto entro 60 giorni, il <strong>50%</strong> successivamente.</li>
+    <li>L'offerta vincente deve essere coperta dal tuo budget al momento della risoluzione.</li>
+  </ul>
+</div>
+
+{% if not listings %}
+<div class="card" style="text-align:center;padding:3rem;">
+  <div style="font-size:3rem;margin-bottom:1rem;">🏖️</div>
+  <h2 style="color:var(--muted);">Nessun giocatore svincolato</h2>
+  <p class="text-muted" style="margin-top:.5rem;">Non ci sono giocatori disponibili al momento. Torna più tardi!</p>
+</div>
+{% else %}
+
+<div style="margin-bottom:1rem;font-size:.82rem;color:var(--muted);">
+  {{ listings|length }} giocator{{ 'e' if listings|length == 1 else 'i' }} disponibil{{ 'e' if listings|length == 1 else 'i' }}
+</div>
+
+{% for listing in listings %}
+{% set info = enriched[listing.id] %}
+{% set my_bid = my_bids.get(listing.id) %}
+{% set type_icon = {'uomo': '👨', 'donna': '👩', 'cyber': '🤖'}.get(listing.player_type, '⚽') %}
+{% set is_seller = (listing.seller_team_id == team.id) %}
+{% set roster_full = (team.players.count() >= 12) %}
+
+<div class="fa-card">
+  <!-- Type badge -->
+  <div class="fa-type-badge">
+    <span>{{ type_icon }}</span>
+    <span>{{ listing.player_type | capitalize }}</span>
+  </div>
+
+  <!-- Player info -->
+  <div class="fa-player-name">{{ listing.player_name }}</div>
+  <div class="fa-player-age">Età: {{ listing.player_age }} anni</div>
+
+  <!-- Skill bars -->
+  <div class="skill-bars">
+    {% set skills = [
+      ('Porta',      listing.player_porta),
+      ('Difesa',     listing.player_difesa),
+      ('Attacco',    listing.player_attacco),
+      ('Resistenza', listing.player_resistenza),
+    ] %}
+    {% for label, val in skills %}
+    <div class="skill-bar-row">
+      <div class="skill-bar-label">{{ label }}</div>
+      <div class="skill-bar-track">
+        <div class="skill-bar-fill" style="width:{{ [(val / 6.5 * 100)|round(1), 100]|min }}%"></div>
+      </div>
+      <div class="skill-bar-val">{{ "%.1f"|format(val) }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div style="font-size:.8rem;color:var(--muted);margin-bottom:.75rem;">
+    Media: <strong style="color:var(--text);">{{ "%.2f"|format(listing.player_avg) }}</strong>
+  </div>
+
+  <!-- Price and meta row -->
+  <div style="display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-bottom:.75rem;">
+    <div>
+      <div style="font-size:.7rem;color:var(--muted);letter-spacing:1px;margin-bottom:.2rem;">PREZZO ATTUALE</div>
+      <div class="fa-price">€{{ "{:,.0f}".format(info.current_price) }}</div>
+      <div style="font-size:.72rem;color:var(--muted);margin-top:.2rem;">
+        prossima riduzione tra {{ info.days_to_next_reduction }} giorn{{ 'o' if info.days_to_next_reduction == 1 else 'i' }}
+      </div>
+    </div>
+    <div style="text-align:right;">
+      <div style="font-size:.72rem;color:var(--muted);">
+        Venditore: <strong style="color:var(--text);">{{ listing.seller_team.name if listing.seller_team else 'Svincolato' }}</strong>
+      </div>
+      <div style="font-size:.72rem;color:var(--muted);margin-top:.2rem;">
+        Scade tra {{ info.days_remaining }} giorn{{ 'o' if info.days_remaining == 1 else 'i' }}
+      </div>
+    </div>
+  </div>
+
+  <!-- Auction status -->
+  {% if info.auction_status == 'no_bids' %}
+    <span class="auction-badge no-bids">Nessuna offerta</span>
+    <span style="font-size:.78rem;color:var(--muted);margin-left:.5rem;">Sii il primo!</span>
+  {% elif info.auction_status == 'open' %}
+    <span class="auction-badge open">⏳ Asta in corso</span>
+    <span style="font-size:.78rem;color:var(--muted);margin-left:.5rem;">
+      chiude tra {{ listing.bid_window_end - current_day }} giorn{{ 'o' if (listing.bid_window_end - current_day) == 1 else 'i' }}
+    </span>
+  {% else %}
+    <span class="auction-badge closed">⌛ Asta chiusa</span>
+    <span style="font-size:.78rem;color:var(--muted);margin-left:.5rem;">in attesa di risoluzione</span>
+  {% endif %}
+
+  <!-- Bid area -->
+  {% if is_seller %}
+    <div style="margin-top:.75rem;font-size:.8rem;color:var(--muted);font-style:italic;">Questo è il tuo giocatore</div>
+  {% elif my_bid %}
+    <div style="margin-top:.75rem;font-size:.85rem;color:var(--cyan);">
+      ✓ Offerta inviata: <strong style="font-family:'Orbitron',monospace;">€{{ "{:,.0f}".format(my_bid.amount) }}</strong>
+    </div>
+  {% elif info.auction_status == 'closed' %}
+    {# No bid form — auction already closed #}
+  {% elif roster_full %}
+    <div style="margin-top:.75rem;font-size:.8rem;color:var(--danger);">Rosa al completo — libera un posto per fare offerte</div>
+  {% else %}
+    <form method="POST" action="{{ url_for('events.free_agent_bid', listing_id=listing.id) }}" class="bid-form-row">
+      <input
+        type="number"
+        name="amount"
+        min="{{ info.current_price|int }}"
+        max="{{ team.budget|int }}"
+        step="1000"
+        placeholder="€{{ "{:,.0f}".format(info.current_price) }}"
+        required
+      >
+      <button type="submit" class="btn btn-primary btn-sm">Fai un'offerta</button>
+    </form>
+  {% endif %}
+</div>
+{% endfor %}
+
+{% endif %}
+{% endblock %}
