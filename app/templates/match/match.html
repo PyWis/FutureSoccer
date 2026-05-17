@@ -31,6 +31,12 @@
   .fresh-bar{height:4px;border-radius:2px;background:var(--card-border);width:50px;flex-shrink:0;}
   .fresh-fill{height:100%;border-radius:2px;}
   .fresh-num{font-size:.68rem;color:var(--muted);width:22px;text-align:right;flex-shrink:0;}
+  .skill-pills{display:flex;gap:.25rem;flex-shrink:0;}
+  .skill-pill{font-size:.58rem;font-family:'Orbitron',monospace;color:var(--muted);white-space:nowrap;}
+  .skill-pill.porta{color:#ffc800;}
+  .skill-pill.difesa{color:var(--success);}
+  .skill-pill.attacco{color:var(--danger);}
+  .role-select{background:var(--card);color:var(--text);border:1px solid var(--card-border);border-radius:4px;padding:.15rem .25rem;font-size:.65rem;flex-shrink:0;}
   .event-log{background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:.9rem;max-height:280px;overflow-y:auto;}
   .event-item{display:flex;align-items:flex-start;gap:.5rem;padding:.3rem 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:.8rem;}
   .event-item:last-child{border-bottom:none;}
@@ -140,11 +146,20 @@
       — {{ my_lineup.get('engagement', 'normale')|capitalize }}
     </div>
 
+    {% macro skill_pills(p) %}
+    <div class="skill-pills">
+      <span class="skill-pill porta">P:{{ "%.1f"|format(p.porta) }}</span>
+      <span class="skill-pill difesa">D:{{ "%.1f"|format(p.difesa) }}</span>
+      <span class="skill-pill attacco">A:{{ "%.1f"|format(p.attacco) }}</span>
+    </div>
+    {% endmacro %}
+
     {% if my_lineup.get('goalkeeper') %}
     {% set p = my_lineup.goalkeeper %}
     <div class="player-row">
       <div class="player-role role-gk">PO</div>
       <div class="player-name">{{ p.name }}</div>
+      {{ skill_pills(p) }}
       <div class="fresh-bar"><div class="fresh-fill" style="width:{{ (p.freshness / 10 * 100)|int }}%;background:{% if p.freshness >= 7 %}var(--success){% elif p.freshness >= 4 %}#ffa500{% else %}var(--danger){% endif %};"></div></div>
       <div class="fresh-num">{{ "%.1f"|format(p.freshness) }}</div>
     </div>
@@ -154,6 +169,7 @@
     <div class="player-row">
       <div class="player-role role-def">DF</div>
       <div class="player-name">{{ p.name }}</div>
+      {{ skill_pills(p) }}
       <div class="fresh-bar"><div class="fresh-fill" style="width:{{ (p.freshness / 10 * 100)|int }}%;background:{% if p.freshness >= 7 %}var(--success){% elif p.freshness >= 4 %}#ffa500{% else %}var(--danger){% endif %};"></div></div>
       <div class="fresh-num">{{ "%.1f"|format(p.freshness) }}</div>
     </div>
@@ -163,6 +179,7 @@
     <div class="player-row">
       <div class="player-role role-att">AT</div>
       <div class="player-name">{{ p.name }}</div>
+      {{ skill_pills(p) }}
       <div class="fresh-bar"><div class="fresh-fill" style="width:{{ (p.freshness / 10 * 100)|int }}%;background:{% if p.freshness >= 7 %}var(--success){% elif p.freshness >= 4 %}#ffa500{% else %}var(--danger){% endif %};"></div></div>
       <div class="fresh-num">{{ "%.1f"|format(p.freshness) }}</div>
     </div>
@@ -174,14 +191,57 @@
     <div class="player-row" style="opacity:.65;">
       <div class="player-role role-res">RS</div>
       <div class="player-name">{{ p.name }}</div>
+      {{ skill_pills(p) }}
       <div class="fresh-bar"><div class="fresh-fill" style="width:{{ (p.freshness / 10 * 100)|int }}%;background:var(--muted);"></div></div>
       <div class="fresh-num">{{ "%.1f"|format(p.freshness) }}</div>
     </div>
     {% endfor %}
     {% endif %}
 
-    <!-- SUBSTITUTION FORM (only for home team while active) -->
-    {% if is_home and match.status == 'active' and my_lineup.get('reserves') %}
+    {% if is_home and match.status == 'active' %}
+    <!-- ROLE CHANGE FORM -->
+    <div class="sub-form">
+      <div style="font-size:.7rem;color:var(--muted);margin-bottom:.4rem;letter-spacing:1px;">CAMBIA RUOLO</div>
+      <form method="POST" action="{{ url_for('match.change_roles', match_id=match.id) }}">
+        {% if my_lineup.get('goalkeeper') %}
+        {% set p = my_lineup.goalkeeper %}
+        <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.3rem;">
+          <span style="font-size:.72rem;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ p.name }}</span>
+          <select name="role_{{ p.player_id }}" class="role-select">
+            <option value="goalkeeper" selected>PO</option>
+            <option value="defender">DF</option>
+            <option value="attacker">AT</option>
+          </select>
+        </div>
+        {% endif %}
+        {% for p in my_lineup.get('defenders') or [] %}
+        <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.3rem;">
+          <span style="font-size:.72rem;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ p.name }}</span>
+          <select name="role_{{ p.player_id }}" class="role-select">
+            <option value="goalkeeper">PO</option>
+            <option value="defender" selected>DF</option>
+            <option value="attacker">AT</option>
+          </select>
+        </div>
+        {% endfor %}
+        {% for p in my_lineup.get('attackers') or [] %}
+        <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.3rem;">
+          <span style="font-size:.72rem;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ p.name }}</span>
+          <select name="role_{{ p.player_id }}" class="role-select">
+            <option value="goalkeeper">PO</option>
+            <option value="defender">DF</option>
+            <option value="attacker" selected>AT</option>
+          </select>
+        </div>
+        {% endfor %}
+        <button class="btn btn-outline" style="width:100%;font-size:.75rem;padding:.3rem;margin-top:.3rem;">
+          Applica Ruoli
+        </button>
+      </form>
+    </div>
+
+    <!-- SUBSTITUTION FORM -->
+    {% if my_lineup.get('reserves') %}
     <div class="sub-form">
       <div style="font-size:.7rem;color:var(--muted);margin-bottom:.4rem;letter-spacing:1px;">SOSTITUZIONE</div>
       <form method="POST" action="{{ url_for('match.substitute', match_id=match.id) }}">
@@ -213,6 +273,7 @@
       </form>
     </div>
     {% endif %}
+    {% endif %}
   </div>
 
   <!-- OPPONENT LINEUP -->
@@ -221,11 +282,20 @@
       {{ opp_name }} — {{ opp_lineup.get('engagement', 'normale')|capitalize }}
     </div>
 
+    {% macro opp_skill_pills(p) %}
+    <div class="skill-pills">
+      <span class="skill-pill porta">P:{{ "%.1f"|format(p.porta) }}</span>
+      <span class="skill-pill difesa">D:{{ "%.1f"|format(p.difesa) }}</span>
+      <span class="skill-pill attacco">A:{{ "%.1f"|format(p.attacco) }}</span>
+    </div>
+    {% endmacro %}
+
     {% if opp_lineup.get('goalkeeper') %}
     {% set p = opp_lineup.goalkeeper %}
     <div class="player-row">
       <div class="player-role role-gk">PO</div>
       <div class="player-name">{{ p.name }}</div>
+      {{ opp_skill_pills(p) }}
       <div class="fresh-bar"><div class="fresh-fill" style="width:{{ (p.freshness / 10 * 100)|int }}%;background:{% if p.freshness >= 7 %}var(--success){% elif p.freshness >= 4 %}#ffa500{% else %}var(--danger){% endif %};"></div></div>
       <div class="fresh-num">{{ "%.1f"|format(p.freshness) }}</div>
     </div>
@@ -235,6 +305,7 @@
     <div class="player-row">
       <div class="player-role role-def">DF</div>
       <div class="player-name">{{ p.name }}</div>
+      {{ opp_skill_pills(p) }}
       <div class="fresh-bar"><div class="fresh-fill" style="width:{{ (p.freshness / 10 * 100)|int }}%;background:{% if p.freshness >= 7 %}var(--success){% elif p.freshness >= 4 %}#ffa500{% else %}var(--danger){% endif %};"></div></div>
       <div class="fresh-num">{{ "%.1f"|format(p.freshness) }}</div>
     </div>
@@ -244,6 +315,7 @@
     <div class="player-row">
       <div class="player-role role-att">AT</div>
       <div class="player-name">{{ p.name }}</div>
+      {{ opp_skill_pills(p) }}
       <div class="fresh-bar"><div class="fresh-fill" style="width:{{ (p.freshness / 10 * 100)|int }}%;background:{% if p.freshness >= 7 %}var(--success){% elif p.freshness >= 4 %}#ffa500{% else %}var(--danger){% endif %};"></div></div>
       <div class="fresh-num">{{ "%.1f"|format(p.freshness) }}</div>
     </div>
@@ -255,6 +327,7 @@
     <div class="player-row" style="opacity:.65;">
       <div class="player-role role-res">RS</div>
       <div class="player-name">{{ p.name }}</div>
+      {{ opp_skill_pills(p) }}
       <div class="fresh-bar"><div class="fresh-fill" style="width:{{ (p.freshness / 10 * 100)|int }}%;background:var(--muted);"></div></div>
       <div class="fresh-num">{{ "%.1f"|format(p.freshness) }}</div>
     </div>

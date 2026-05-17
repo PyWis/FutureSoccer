@@ -467,3 +467,35 @@ def substitute(match_id):
 
     flash('Sostituzione programmata per il prossimo turno.', 'success')
     return redirect(url_for('match.view', match_id=match.id))
+
+
+@match_bp.route('/<int:match_id>/roles', methods=['POST'])
+@login_required
+def change_roles(match_id):
+    team = _get_team_or_redirect()
+    if not team:
+        return redirect(url_for('game.create_team'))
+
+    match = FriendlyMatch.query.get_or_404(match_id)
+
+    if match.home_team_id != team.id:
+        abort(403)
+    if match.status != 'active':
+        flash('La partita non è in corso.', 'warning')
+        return redirect(url_for('match.view', match_id=match.id))
+
+    valid_roles = {'goalkeeper', 'defender', 'attacker'}
+    role_changes = {}
+    for key, value in request.form.items():
+        if key.startswith('role_') and value in valid_roles:
+            pid_str = key[len('role_'):]
+            role_changes[pid_str] = value
+
+    if role_changes:
+        subs = json.loads(match.home_pending_subs_json or '{}')
+        subs['role_changes'] = role_changes
+        match.home_pending_subs_json = json.dumps(subs)
+        db.session.commit()
+        flash('Cambi di ruolo programmati per il prossimo turno.', 'success')
+
+    return redirect(url_for('match.view', match_id=match.id))
