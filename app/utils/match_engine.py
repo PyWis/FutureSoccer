@@ -2,7 +2,13 @@
 match_engine.py — Sunday Friendly Match simulation logic.
 """
 import json
+import os
 import random
+
+
+def get_goal_coeff():
+    """Base probability multiplier per valore_goal (default 0.3)."""
+    return float(os.environ.get('GOAL_COEFF', 0.3))
 from datetime import datetime
 
 _ENGAGEMENT_MODS = {
@@ -506,8 +512,9 @@ def process_turn(match, facility_field_stars=0):
     away_vg = away_str['attacco'] / away_denom if away_denom > 0 else 2.0
 
     # 8. Roll goals
-    home_scores = (random.random() < min(0.3 * home_vg, 0.95)) and (home_vg < 2.0)
-    away_scores = (random.random() < min(0.3 * away_vg, 0.95)) and (away_vg < 2.0)
+    gc = get_goal_coeff()
+    home_scores = (random.random() < min(gc * home_vg, 0.95)) and (home_vg < 2.0)
+    away_scores = (random.random() < min(gc * away_vg, 0.95)) and (away_vg < 2.0)
 
     if home_scores:
         match.home_score += 1
