@@ -47,7 +47,12 @@ class Team(db.Model):
     @property
     def scouting_active(self):
         from app.utils.gameclock import get_game_week_id
-        return self.scouting_paid_week_id >= get_game_week_id()
+        return self.scouting_paid_week_id == get_game_week_id()
+
+    @property
+    def scouting_pending_next_week(self):
+        from app.utils.gameclock import get_next_game_week_id
+        return self.scouting_paid_week_id == get_next_game_week_id()
 
     @property
     def top7_avg_skill(self):

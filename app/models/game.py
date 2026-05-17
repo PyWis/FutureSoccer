@@ -269,6 +269,7 @@ class MatchChallenge(db.Model):
     challenger_id = db.Column(db.Integer, db.ForeignKey('teams.id'), nullable=False)
     challenged_id = db.Column(db.Integer, db.ForeignKey('teams.id'), nullable=False)
     game_day = db.Column(db.Integer, nullable=False)
+    game_week_id = db.Column(db.Integer, nullable=True)   # ISO week the match is scheduled for
     status = db.Column(db.String(20), default='pending')  # pending | accepted | rejected
     match_id = db.Column(db.Integer, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
