@@ -273,7 +273,7 @@ def roll_injuries(lineup_dict, facility_field_stars=0):
     gk = lineup_dict.get('goalkeeper')
     if gk and roll_for_player(gk):
         replacement = get_fresh_reserve()
-        malus = round(random.uniform(-10, -5), 1)
+        malus = round(random.uniform(-15, -5), 1)
         event = {
             'player_name': gk['name'],
             'player_id': gk['player_id'],
@@ -288,7 +288,7 @@ def roll_injuries(lineup_dict, facility_field_stars=0):
     for p in list(lineup_dict.get('defenders') or []):
         if roll_for_player(p):
             replacement = get_fresh_reserve()
-            malus = round(random.uniform(-10, -5), 1)
+            malus = round(random.uniform(-15, -5), 1)
             event = {
                 'player_name': p['name'],
                 'player_id': p['player_id'],
@@ -307,7 +307,7 @@ def roll_injuries(lineup_dict, facility_field_stars=0):
     for p in list(lineup_dict.get('attackers') or []):
         if roll_for_player(p):
             replacement = get_fresh_reserve()
-            malus = round(random.uniform(-10, -5), 1)
+            malus = round(random.uniform(-15, -5), 1)
             event = {
                 'player_name': p['name'],
                 'player_id': p['player_id'],
@@ -589,32 +589,14 @@ def finalize_match(match):
     from app import db
     from app.models.team import Player
 
-    # Apply injury maluses
+    # Apply injury maluses (can go negative)
     injuries = json.loads(match.injuries_json or '[]')
     for inj in injuries:
         pid = inj.get('player_id')
         malus = inj.get('malus', 0)
-        # Only apply to real (integer) player IDs
         if isinstance(pid, int):
             player = Player.query.get(pid)
             if player:
-                player.freshness = round(max(0.0, player.freshness + malus), 1)
-
-    # Update freshness of all home players from their lineup snapshot
-    home_lineup = json.loads(match.home_lineup_json or '{}')
-    all_home_players = []
-    gk = home_lineup.get('goalkeeper')
-    if gk:
-        all_home_players.append(gk)
-    all_home_players.extend(home_lineup.get('defenders') or [])
-    all_home_players.extend(home_lineup.get('attackers') or [])
-    all_home_players.extend(home_lineup.get('reserves') or [])
-
-    for p_dict in all_home_players:
-        pid = p_dict.get('player_id')
-        if isinstance(pid, int):
-            player = Player.query.get(pid)
-            if player and player.team_id == match.home_team_id:
-                player.freshness = round(max(0.0, p_dict['freshness']), 1)
+                player.freshness = round(player.freshness + malus, 1)
 
     db.session.commit()
