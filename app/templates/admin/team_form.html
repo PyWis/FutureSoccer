@@ -27,10 +27,6 @@
           <label>BUDGET (€)</label>
           <input type="number" name="budget" class="form-control" value="{{ team.budget if team else 50000000 }}" min="0" step="1000000">
         </div>
-        <div class="form-group">
-          <label>PRESTIGE (0-100)</label>
-          <input type="number" name="prestige" class="form-control" value="{{ team.prestige if team else 50 }}" min="0" max="100">
-        </div>
       </div>
       <div class="grid-2">
         <div class="form-group">
