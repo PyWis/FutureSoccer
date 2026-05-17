@@ -86,3 +86,52 @@ class ActiveSponsor(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     team = db.relationship('Team', foreign_keys=[team_id], backref='active_sponsors')
+
+
+class FreeAgentListing(db.Model):
+    __tablename__ = 'free_agent_listings'
+    id = db.Column(db.Integer, primary_key=True)
+    player_id = db.Column(db.Integer, db.ForeignKey('players.id', ondelete='SET NULL'), nullable=True)
+    seller_team_id = db.Column(db.Integer, db.ForeignKey('teams.id', ondelete='SET NULL'), nullable=True)
+
+    # Snapshot columns
+    player_name = db.Column(db.String(100), nullable=False)
+    player_type = db.Column(db.String(10), nullable=False)
+    player_age = db.Column(db.Integer, nullable=False)
+    player_porta = db.Column(db.Float, nullable=False)
+    player_difesa = db.Column(db.Float, nullable=False)
+    player_attacco = db.Column(db.Float, nullable=False)
+    player_resistenza = db.Column(db.Float, nullable=False)
+    player_avg = db.Column(db.Float, nullable=False)
+
+    list_game_day = db.Column(db.Integer, nullable=False)
+    base_price = db.Column(db.Float, nullable=False)
+    expires_game_day = db.Column(db.Integer, nullable=False)
+
+    bid_window_start = db.Column(db.Integer, nullable=True)
+    bid_window_end = db.Column(db.Integer, nullable=True)
+
+    status = db.Column(db.String(20), default='active')  # active | sold | expired
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    seller_team = db.relationship('Team', foreign_keys=[seller_team_id], backref='free_agent_listings')
+    player = db.relationship('Player', foreign_keys=[player_id], backref='free_agent_listing')
+    bids = db.relationship('FreeAgentBid', back_populates='listing', cascade='all, delete-orphan')
+
+
+class FreeAgentBid(db.Model):
+    __tablename__ = 'free_agent_bids'
+    id = db.Column(db.Integer, primary_key=True)
+    listing_id = db.Column(db.Integer, db.ForeignKey('free_agent_listings.id'), nullable=False)
+    team_id = db.Column(db.Integer, db.ForeignKey('teams.id'), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    bid_game_day = db.Column(db.Integer, nullable=False)
+    bid_timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    status = db.Column(db.String(20), default='pending')  # pending | won | lost
+
+    __table_args__ = (
+        db.UniqueConstraint('listing_id', 'team_id', name='uq_listing_team_bid'),
+    )
+
+    listing = db.relationship('FreeAgentListing', back_populates='bids')
+    team = db.relationship('Team', foreign_keys=[team_id], backref='free_agent_bids')
