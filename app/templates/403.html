@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Accesso Negato — FutureSoccer{% endblock %}
+{% block content %}
+<div style="text-align:center;padding:6rem 2rem;">
+  <div style="font-size:5rem;margin-bottom:1rem;">🚫</div>
+  <h1 style="color:var(--danger);margin-bottom:1rem;">ACCESSO NEGATO</h1>
+  <p class="text-muted">Non hai i permessi per accedere a questa area.</p>
+  <a href="{{ url_for('main.index') }}" class="btn btn-primary mt-3">Torna alla Home</a>
+</div>
+{% endblock %}

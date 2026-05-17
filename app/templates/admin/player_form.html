@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Modifica' if player else 'Nuovo' }} Giocatore — Admin{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>{{ '✏️ MODIFICA GIOCATORE' if player else '➕ NUOVO GIOCATORE' }}</h1>
+</div>
+
+<div style="max-width:700px;">
+  <div class="card">
+    <form method="POST">
+      <div class="grid-2">
+        <div class="form-group">
+          <label>NOME COMPLETO *</label>
+          <input type="text" name="name" class="form-control" value="{{ player.name if player else '' }}" required>
+        </div>
+        <div class="form-group">
+          <label>NAZIONALITÀ</label>
+          <input type="text" name="nationality" class="form-control" value="{{ player.nationality if player else '' }}" placeholder="Es: Italiana">
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label>POSIZIONE</label>
+          <select name="position" class="form-control">
+            {% for pos in ['GK','DEF','MID','FWD'] %}
+            <option value="{{ pos }}" {{ 'selected' if player and player.position == pos }}>{{ pos }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>ETÀ</label>
+          <input type="number" name="age" class="form-control" value="{{ player.age if player else 25 }}" min="16" max="45">
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label>OVERALL (1-99)</label>
+          <input type="number" name="overall" class="form-control" value="{{ player.overall if player else 70 }}" min="1" max="99">
+        </div>
+        <div class="form-group">
+          <label>POTENZIALE (1-99)</label>
+          <input type="number" name="potential" class="form-control" value="{{ player.potential if player else 75 }}" min="1" max="99">
+        </div>
+      </div>
+      <h3 class="mt-3 mb-2">STATISTICHE</h3>
+      <div class="grid-4">
+        <div class="form-group">
+          <label>VELOCITÀ</label>
+          <input type="number" name="speed" class="form-control" value="{{ player.speed if player else 70 }}" min="1" max="99">
+        </div>
+        <div class="form-group">
+          <label>FORZA</label>
+          <input type="number" name="strength" class="form-control" value="{{ player.strength if player else 70 }}" min="1" max="99">
+        </div>
+        <div class="form-group">
+          <label>TECNICA</label>
+          <input type="number" name="technique" class="form-control" value="{{ player.technique if player else 70 }}" min="1" max="99">
+        </div>
+        <div class="form-group">
+          <label>RESISTENZA</label>
+          <input type="number" name="stamina" class="form-control" value="{{ player.stamina if player else 70 }}" min="1" max="99">
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label>VALORE DI MERCATO (€)</label>
+          <input type="number" name="market_value" class="form-control" value="{{ player.market_value if player else 1000000 }}" min="0" step="100000">
+        </div>
+        <div class="form-group">
+          <label>STIPENDIO MENSILE (€)</label>
+          <input type="number" name="salary" class="form-control" value="{{ player.salary if player else 50000 }}" min="0" step="1000">
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label>POTENZIAMENTO CYBERNETICO (0-5)</label>
+          <input type="number" name="cyber_enhancement" class="form-control" value="{{ player.cyber_enhancement if player else 0 }}" min="0" max="5">
+        </div>
+        <div class="form-group">
+          <label>SQUADRA</label>
+          <select name="team_id" class="form-control">
+            <option value="">— Free Agent —</option>
+            {% for t in teams %}
+            <option value="{{ t.id }}" {{ 'selected' if player and player.team_id == t.id }}>{{ t.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="flex gap-2 mt-3">
+        <button type="submit" class="btn btn-primary">{{ 'Salva Modifiche' if player else 'Crea Giocatore' }}</button>
+        <a href="{{ url_for('admin.players_list') }}" class="btn btn-secondary">Annulla</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

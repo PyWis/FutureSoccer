@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block title %}FutureSoccer 2099 — Home{% endblock %}
+
+{% block extra_head %}
+<style>
+  .hero {
+    text-align: center;
+    padding: 6rem 2rem 4rem;
+    position: relative;
+  }
+  .hero-title {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(2.5rem, 6vw, 5rem);
+    font-weight: 900;
+    line-height: 1.1;
+    margin-bottom: 1.5rem;
+    background: linear-gradient(135deg, #00f5ff, #7b2fff, #00f5ff);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: shimmer 3s linear infinite;
+  }
+  @keyframes shimmer { to { background-position: 200% center; } }
+  .hero-sub {
+    font-size: 1.2rem; color: var(--muted); max-width: 600px; margin: 0 auto 2.5rem;
+    line-height: 1.7;
+  }
+  .hero-btns { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+  .btn-hero-primary {
+    padding: 0.9rem 2.5rem; font-size: 1.1rem; font-weight: 700;
+    background: linear-gradient(135deg,var(--cyan),var(--purple));
+    color: #fff; border-radius: 10px; text-decoration: none;
+    border: none; cursor: pointer; transition: all 0.2s;
+    font-family: 'Orbitron', monospace; letter-spacing: 1px;
+    box-shadow: 0 0 30px rgba(0,245,255,0.3);
+  }
+  .btn-hero-primary:hover { transform: translateY(-3px); box-shadow: 0 0 50px rgba(0,245,255,0.5); }
+  .btn-hero-secondary {
+    padding: 0.9rem 2.5rem; font-size: 1.1rem; font-weight: 700;
+    background: transparent; color: var(--cyan);
+    border: 2px solid var(--cyan); border-radius: 10px;
+    text-decoration: none; cursor: pointer; transition: all 0.2s;
+    font-family: 'Orbitron', monospace; letter-spacing: 1px;
+  }
+  .btn-hero-secondary:hover { background: rgba(0,245,255,0.08); transform: translateY(-3px); }
+  .stats-bar {
+    display: flex; justify-content: center; gap: 3rem; margin: 4rem 0;
+    flex-wrap: wrap;
+  }
+  .stat-item { text-align: center; }
+  .stat-num { font-family: 'Orbitron', monospace; font-size: 2.5rem; font-weight: 900; color: var(--cyan); }
+  .stat-label { font-size: 0.85rem; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+  .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px,1fr)); gap: 1.5rem; margin: 3rem 0; }
+  .feature-card {
+    background: var(--card); border: 1px solid var(--card-border);
+    border-radius: 16px; padding: 2rem; transition: all 0.3s; position: relative; overflow: hidden;
+  }
+  .feature-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg,var(--cyan),var(--purple));
+  }
+  .feature-card:hover { transform: translateY(-4px); border-color: var(--cyan); box-shadow: 0 8px 32px rgba(0,245,255,0.1); }
+  .feature-icon { font-size: 2.5rem; margin-bottom: 1rem; }
+  .feature-title { font-family: 'Orbitron', monospace; font-size: 1rem; color: var(--cyan); margin-bottom: 0.75rem; }
+  .feature-text { color: var(--muted); font-size: 0.9rem; line-height: 1.6; }
+  .section-title { font-family: 'Orbitron', monospace; font-size: 1.5rem; color: var(--text); margin-bottom: 1.5rem; }
+  .section-title span { color: var(--cyan); }
+  .top-team-card {
+    background: var(--card); border: 1px solid var(--card-border); border-radius: 12px;
+    padding: 1.2rem; display: flex; align-items: center; gap: 1rem; transition: all 0.2s;
+  }
+  .top-team-card:hover { border-color: var(--purple); }
+  .team-rank { font-family: 'Orbitron', monospace; font-size: 1.5rem; color: var(--purple); min-width: 2.5rem; }
+  .team-color-dot { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; border: 2px solid rgba(255,255,255,0.1); }
+  .team-info { flex: 1; }
+  .team-name { font-weight: 700; font-size: 1rem; }
+  .team-city { font-size: 0.8rem; color: var(--muted); }
+  .team-pts { font-family: 'Orbitron', monospace; font-size: 1rem; color: var(--cyan); }
+  .glitch {
+    position: absolute; top: 30%; left: 5%; font-size: 0.7rem; color: rgba(0,245,255,0.15);
+    font-family: monospace; pointer-events: none; user-select: none;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <div class="glitch">01001111 01110010 01100010 00110110<br>11001111 00110011 01101111<br>SYSTEM: ONLINE // YEAR: 2099</div>
+  <h1 class="hero-title">IL CALCIO<br>DEL FUTURO</h1>
+  <p class="hero-sub">
+    Gestisci la tua squadra nell'anno 2099. Potenzia i giocatori con impianti cybernetici,
+    negozia nel mercato interstellare e conquista la Lega Galattica.
+  </p>
+  <div class="hero-btns">
+    {% if current_user.is_authenticated %}
+      <a href="{{ url_for('game.dashboard') }}" class="btn-hero-primary">ENTRA NEL GIOCO</a>
+    {% else %}
+      <a href="{{ url_for('auth.register') }}" class="btn-hero-primary">INIZIA ORA</a>
+      <a href="{{ url_for('auth.login') }}" class="btn-hero-secondary">ACCEDI</a>
+    {% endif %}
+  </div>
+
+  <div class="stats-bar">
+    <div class="stat-item">
+      <div class="stat-num">{{ total_teams }}</div>
+      <div class="stat-label">Squadre attive</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">{{ total_players }}</div>
+      <div class="stat-label">Giocatori</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">2099</div>
+      <div class="stat-label">Anno di gioco</div>
+    </div>
+  </div>
+</section>
+
+<div class="cyber-line"></div>
+
+<section class="features">
+  <div class="feature-card">
+    <div class="feature-icon">🤖</div>
+    <div class="feature-title">GIOCATORI CYBORG</div>
+    <div class="feature-text">Potenzia i tuoi atleti con impianti neurali, esoscheletri e nanobiotecnologie per massimizzare le prestazioni.</div>
+  </div>
+  <div class="feature-card">
+    <div class="feature-icon">🌐</div>
+    <div class="feature-title">MERCATO GLOBALE</div>
+    <div class="feature-text">Negozia con manager di tutto il mondo. Acquista, vendi e presta giocatori nel mercato interplanetario.</div>
+  </div>
+  <div class="feature-card">
+    <div class="feature-icon">🏟️</div>
+    <div class="feature-title">STADI DEL FUTURO</div>
+    <div class="feature-text">Gioca in arene con campi olografici, tifosi virtuali e tecnologie di trasmissione quantistica.</div>
+  </div>
+  <div class="feature-card">
+    <div class="feature-icon">🏆</div>
+    <div class="feature-title">LEGA GALATTICA</div>
+    <div class="feature-text">Scala la classifica della Lega Galattica. Il campionato più prestigioso dell'universo ti aspetta.</div>
+  </div>
+</section>
+
+{% if top_teams %}
+<div class="cyber-line"></div>
+<h2 class="section-title mt-4">TOP SQUADRE <span>//</span> CLASSIFICA PRESTIGE</h2>
+<div style="display:flex;flex-direction:column;gap:0.75rem;">
+  {% for team in top_teams %}
+  <div class="top-team-card">
+    <div class="team-rank">#{{ loop.index }}</div>
+    <div class="team-color-dot" style="background:linear-gradient(135deg,{{ team.color_primary }},{{ team.color_secondary }})"></div>
+    <div class="team-info">
+      <div class="team-name">{{ team.name }}</div>
+      <div class="team-city">{{ team.city }} · {{ team.stadium }}</div>
+    </div>
+    <div class="team-pts">{{ team.prestige }} <span style="font-size:0.7rem;color:var(--muted)">PRESTIGE</span></div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

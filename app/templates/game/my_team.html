@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}{{ team.name }} — FutureSoccer{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+    <div style="width:64px;height:64px;border-radius:16px;background:linear-gradient(135deg,{{ team.color_primary }},{{ team.color_secondary }});flex-shrink:0;"></div>
+    <div>
+      <h1 style="color:{{ team.color_primary }};">{{ team.name }}</h1>
+      <p class="text-muted">{{ team.city }} · {{ team.stadium }}</p>
+    </div>
+  </div>
+</div>
+
+<div class="grid-4 mb-4">
+  <div class="card" style="text-align:center;">
+    <div style="font-family:'Orbitron',monospace;font-size:1.6rem;font-weight:900;color:var(--success);">€{{ "%.1f"|format(team.budget/1000000) }}M</div>
+    <div class="text-muted" style="font-size:0.75rem;">BUDGET</div>
+  </div>
+  <div class="card" style="text-align:center;">
+    <div style="font-family:'Orbitron',monospace;font-size:1.6rem;font-weight:900;color:var(--cyan);">{{ players|length }}</div>
+    <div class="text-muted" style="font-size:0.75rem;">ROSA</div>
+  </div>
+  <div class="card" style="text-align:center;">
+    <div style="font-family:'Orbitron',monospace;font-size:1.6rem;font-weight:900;color:var(--purple);">{{ team.prestige }}</div>
+    <div class="text-muted" style="font-size:0.75rem;">PRESTIGE</div>
+  </div>
+  <div class="card" style="text-align:center;">
+    <div style="font-family:'Orbitron',monospace;font-size:1.6rem;font-weight:900;color:var(--warning);">{{ team.wins }}-{{ team.draws }}-{{ team.losses }}</div>
+    <div class="text-muted" style="font-size:0.75rem;">V-P-S</div>
+  </div>
+</div>
+
+{% if players %}
+<div class="card">
+  <div class="flex flex-between flex-center mb-3">
+    <h2>Rosa Giocatori</h2>
+    <a href="{{ url_for('game.market') }}" class="btn btn-primary btn-sm">+ Acquista</a>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>GIOCATORE</th><th>POS</th><th>OVR</th><th>VELOCITÀ</th><th>TECNICA</th><th>CYBER</th><th>VALORE</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for p in players %}
+        <tr>
+          <td>
+            <div style="font-weight:700;">{{ p.name }}</div>
+            <div style="font-size:0.75rem;color:var(--muted);">{{ p.nationality }} · {{ p.age }} anni</div>
+          </td>
+          <td>
+            <span class="badge {% if p.position == 'GK' %}badge-purple{% elif p.position == 'DEF' %}badge-cyan{% elif p.position == 'MID' %}badge-green{% else %}badge-gold{% endif %}">
+              {{ p.position }}
+            </span>
+          </td>
+          <td>
+            <strong style="color:{% if p.overall >= 85 %}var(--success){% elif p.overall >= 70 %}var(--cyan){% else %}var(--muted){% endif %}">
+              {{ p.overall }}
+            </strong>
+          </td>
+          <td>
+            <div style="display:flex;align-items:center;gap:0.4rem;">
+              <div class="stat-bar" style="width:50px;"><div class="stat-bar-fill" style="width:{{ p.speed }}%"></div></div>
+              <span style="font-size:0.75rem;">{{ p.speed }}</span>
+            </div>
+          </td>
+          <td>
+            <div style="display:flex;align-items:center;gap:0.4rem;">
+              <div class="stat-bar" style="width:50px;"><div class="stat-bar-fill" style="width:{{ p.technique }}%"></div></div>
+              <span style="font-size:0.75rem;">{{ p.technique }}</span>
+            </div>
+          </td>
+          <td>
+            {% if p.cyber_enhancement > 0 %}
+              <span class="badge badge-purple">Lv.{{ p.cyber_enhancement }} 🔮</span>
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td style="font-size:0.85rem;">€{{ "%.1f"|format(p.market_value/1000000) }}M</td>
+          <td>
+            <form method="POST" action="{{ url_for('game.sell_player', player_id=p.id) }}" onsubmit="return confirm('Cedere {{ p.name }} per €{{ '%.0f'|format(p.market_value*0.8/1000000) }}M?')">
+              <button type="submit" class="btn btn-secondary btn-sm">Cedi</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="card" style="text-align:center;padding:3rem;">
+  <div style="font-size:3rem;margin-bottom:1rem;">👥</div>
+  <p class="text-muted">La rosa è vuota. <a href="{{ url_for('game.market') }}" style="color:var(--cyan);">Vai al mercato</a> per acquistare giocatori.</p>
+</div>
+{% endif %}
+{% endblock %}

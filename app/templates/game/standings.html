@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Classifica — FutureSoccer{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>🏆 CLASSIFICA LEGA GALATTICA</h1>
+  <p class="text-muted">Stagione 2099/2100</p>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>#</th><th>SQUADRA</th><th>G</th><th>V</th><th>P</th><th>S</th><th>GF</th><th>GS</th><th>DR</th><th>PTS</th></tr>
+      </thead>
+      <tbody>
+        {% for t in teams %}
+        <tr style="{% if t.manager_id == current_user.id %}background:rgba(0,245,255,0.04);{% endif %}">
+          <td>
+            <strong style="color:{% if loop.index == 1 %}#ffd700{% elif loop.index == 2 %}#c0c0c0{% elif loop.index == 3 %}#cd7f32{% else %}var(--muted){% endif %}">
+              {{ loop.index }}
+            </strong>
+          </td>
+          <td>
+            <div style="display:flex;align-items:center;gap:0.75rem;">
+              <div style="width:28px;height:28px;border-radius:6px;background:linear-gradient(135deg,{{ t.color_primary }},{{ t.color_secondary }});flex-shrink:0;"></div>
+              <div>
+                <div style="font-weight:700;">{{ t.name }}{% if t.manager_id == current_user.id %} <span style="font-size:0.7rem;color:var(--cyan);">(tu)</span>{% endif %}</div>
+                <div style="font-size:0.75rem;color:var(--muted);">{{ t.city }}</div>
+              </div>
+            </div>
+          </td>
+          <td>{{ t.wins + t.draws + t.losses }}</td>
+          <td style="color:var(--success);">{{ t.wins }}</td>
+          <td style="color:var(--warning);">{{ t.draws }}</td>
+          <td style="color:var(--danger);">{{ t.losses }}</td>
+          <td>{{ t.goals_for }}</td>
+          <td>{{ t.goals_against }}</td>
+          <td style="color:{% if t.goals_diff > 0 %}var(--success){% elif t.goals_diff < 0 %}var(--danger){% else %}var(--muted){% endif %}">
+            {{ '+' if t.goals_diff > 0 else '' }}{{ t.goals_diff }}
+          </td>
+          <td><strong style="font-family:'Orbitron',monospace;color:var(--cyan);">{{ t.points }}</strong></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="10" style="text-align:center;color:var(--muted);padding:2rem;">Nessuna squadra in classifica ancora.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

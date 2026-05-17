@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Modifica Utente — Admin{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>✏️ MODIFICA UTENTE</h1>
+  <p class="text-muted">ID: {{ user.id }} — {{ user.email }}</p>
+</div>
+
+<div style="max-width:540px;">
+  <div class="card">
+    <form method="POST">
+      <div class="form-group">
+        <label>NOME UTENTE</label>
+        <input type="text" name="username" class="form-control" value="{{ user.username }}" required>
+      </div>
+      <div class="form-group">
+        <label>EMAIL</label>
+        <input type="email" name="email" class="form-control" value="{{ user.email }}" required>
+      </div>
+      <div class="form-group">
+        <label>RUOLO</label>
+        <select name="role" class="form-control">
+          <option value="player" {{ 'selected' if user.role == 'player' }}>Player</option>
+          <option value="superadmin" {{ 'selected' if user.role == 'superadmin' }}>SuperAdmin</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
+          <input type="checkbox" name="is_verified" {{ 'checked' if user.is_verified }}>
+          Account verificato
+        </label>
+      </div>
+      <div class="form-group">
+        <label>NUOVA PASSWORD <span style="color:var(--muted);font-size:0.75rem;">(lascia vuoto per non cambiare)</span></label>
+        <input type="password" name="new_password" class="form-control" placeholder="••••••••" minlength="8">
+      </div>
+      <div class="flex gap-2 mt-3">
+        <button type="submit" class="btn btn-primary">Salva Modifiche</button>
+        <a href="{{ url_for('admin.users_list') }}" class="btn btn-secondary">Annulla</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

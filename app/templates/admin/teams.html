@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Gestione Squadre — Admin{% endblock %}
+{% block content %}
+<div class="page-header flex flex-between flex-center">
+  <div>
+    <h1>🏟️ SQUADRE</h1>
+    <p class="text-muted">{{ teams|length }} squadre nella lega</p>
+  </div>
+  <div class="flex gap-1">
+    <a href="{{ url_for('admin.team_new') }}" class="btn btn-primary btn-sm">+ Nuova Squadra</a>
+    <a href="{{ url_for('admin.dashboard') }}" class="btn btn-secondary btn-sm">← Dashboard</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>SQUADRA</th><th>CITTÀ</th><th>STADIO</th><th>PRESTIGE</th><th>BUDGET</th><th>MANAGER</th><th>AZIONI</th></tr>
+      </thead>
+      <tbody>
+        {% for t in teams %}
+        <tr>
+          <td>
+            <div style="display:flex;align-items:center;gap:0.75rem;">
+              <div style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,{{ t.color_primary }},{{ t.color_secondary }});flex-shrink:0;"></div>
+              <span style="font-weight:700;">{{ t.name }}</span>
+            </div>
+          </td>
+          <td>{{ t.city }}</td>
+          <td style="font-size:0.85rem;color:var(--muted);">{{ t.stadium }}</td>
+          <td>
+            <div style="display:flex;align-items:center;gap:0.5rem;">
+              <div class="stat-bar" style="width:60px;"><div class="stat-bar-fill" style="width:{{ t.prestige }}%"></div></div>
+              <span style="font-size:0.8rem;">{{ t.prestige }}</span>
+            </div>
+          </td>
+          <td>€{{ "%.1f"|format(t.budget/1000000) }}M</td>
+          <td style="font-size:0.85rem;">
+            {{ t.manager.username if t.manager else '<span class="text-muted">—</span>'|safe }}
+          </td>
+          <td>
+            <div class="flex gap-1">
+              <a href="{{ url_for('admin.team_edit', team_id=t.id) }}" class="btn btn-secondary btn-sm">Modifica</a>
+              <form method="POST" action="{{ url_for('admin.team_delete', team_id=t.id) }}" onsubmit="return confirm('Eliminare {{ t.name }}?')">
+                <button type="submit" class="btn btn-danger btn-sm">Elimina</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
