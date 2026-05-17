@@ -89,6 +89,17 @@ def get_next_game_week_id():
     return y * 100 + w
 
 
+def get_seconds_into_game_day():
+    """Real seconds elapsed since the current game day started."""
+    from app.models.game import GameConfig
+    cfg = GameConfig.query.first()
+    if not cfg:
+        return 0
+    total_elapsed = (datetime.utcnow() - cfg.real_start).total_seconds()
+    ratio = get_clock_ratio()
+    return total_elapsed % ratio
+
+
 def get_game_month_id():
     """Unique int for the current game month: year*100 + month."""
     gd = get_game_date()

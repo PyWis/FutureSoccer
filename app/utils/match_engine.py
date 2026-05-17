@@ -325,6 +325,78 @@ def roll_injuries(lineup_dict, facility_field_stars=0):
     return lineup_dict, injury_events
 
 
+def apply_role_changes(lineup_dict, role_changes):
+    """
+    Apply role changes to starters.
+    role_changes: {str(player_id): 'goalkeeper'|'defender'|'attacker'}
+    Moves a starter from their current role slot to the requested slot.
+    Only valid target roles are goalkeeper/defender/attacker.
+    """
+    if not role_changes:
+        return lineup_dict
+
+    valid_roles = {'goalkeeper', 'defender', 'attacker'}
+
+    for pid_str, new_role in role_changes.items():
+        if new_role not in valid_roles:
+            continue
+        try:
+            pid = int(pid_str)
+        except (ValueError, TypeError):
+            pid = pid_str  # bot players have string ids
+
+        # Find the player in their current slot
+        player = None
+        current_role = None
+
+        gk = lineup_dict.get('goalkeeper')
+        if gk and gk['player_id'] == pid:
+            player = gk
+            current_role = 'goalkeeper'
+
+        if player is None:
+            for p in lineup_dict.get('defenders') or []:
+                if p['player_id'] == pid:
+                    player = p
+                    current_role = 'defender'
+                    break
+
+        if player is None:
+            for p in lineup_dict.get('attackers') or []:
+                if p['player_id'] == pid:
+                    player = p
+                    current_role = 'attacker'
+                    break
+
+        if player is None or current_role == new_role:
+            continue
+
+        # Remove from current slot
+        if current_role == 'goalkeeper':
+            lineup_dict['goalkeeper'] = None
+        elif current_role == 'defender':
+            lineup_dict['defenders'] = [p for p in lineup_dict['defenders'] if p['player_id'] != pid]
+        elif current_role == 'attacker':
+            lineup_dict['attackers'] = [p for p in lineup_dict['attackers'] if p['player_id'] != pid]
+
+        # Add to new slot
+        if new_role == 'goalkeeper':
+            # If there's already a goalkeeper, demote them to defender
+            existing_gk = lineup_dict.get('goalkeeper')
+            if existing_gk:
+                lineup_dict['defenders'] = lineup_dict.get('defenders') or []
+                lineup_dict['defenders'].append(existing_gk)
+            lineup_dict['goalkeeper'] = player
+        elif new_role == 'defender':
+            lineup_dict['defenders'] = lineup_dict.get('defenders') or []
+            lineup_dict['defenders'].append(player)
+        elif new_role == 'attacker':
+            lineup_dict['attackers'] = lineup_dict.get('attackers') or []
+            lineup_dict['attackers'].append(player)
+
+    return lineup_dict
+
+
 def apply_pending_subs(lineup_dict, subs_dict):
     """
     Apply pending substitutions.
@@ -400,10 +472,11 @@ def process_turn(match, facility_field_stars=0):
     home_lineup = json.loads(match.home_lineup_json or '{}')
     away_lineup = json.loads(match.away_lineup_json or '{}')
 
-    # 2. Apply pending subs
+    # 2. Apply pending subs + role changes
     home_subs = json.loads(match.home_pending_subs_json or '{}')
     if home_subs:
         home_lineup = apply_pending_subs(home_lineup, home_subs)
+        home_lineup = apply_role_changes(home_lineup, home_subs.get('role_changes', {}))
     # Away subs only if real away team
     if match.away_team_id is not None:
         # For simplicity, away team doesn't submit subs via this flow

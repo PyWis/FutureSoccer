@@ -28,6 +28,26 @@ def _require_team():
     return None
 
 
+def _process_scouting_payment(team):
+    """Every new week (on first market visit), charge 1M€ if recurring scouting is enabled."""
+    if not team.scouting_enabled:
+        return
+    current_week = get_game_week_id()
+    # paid_week_id is already set to current week or next week — only charge when a new week has arrived
+    if team.scouting_paid_week_id >= current_week:
+        return
+    cost = 1_000_000
+    if team.budget >= cost:
+        team.budget -= cost
+        team.scouting_paid_week_id = current_week
+        db.session.commit()
+        flash('💰 Scouting avanzato: €1.000.000 addebitati per questa settimana.', 'info')
+    else:
+        team.scouting_enabled = False
+        db.session.commit()
+        flash('⚠️ Scouting avanzato disattivato: budget insufficiente per il pagamento settimanale.', 'warning')
+
+
 def _process_sponsor_payments(team):
     """Credit unpaid sponsor weeks to team budget."""
     current_week = get_game_week_id()
@@ -75,6 +95,7 @@ def market():
         return redir
     team = current_user.team
     _process_sponsor_payments(team)
+    _process_scouting_payment(team)
 
     week_id = get_game_week_id()
     weekday = get_game_weekday()
@@ -179,16 +200,33 @@ def activate_scouting():
     team = current_user.team
     next_week_id = get_next_game_week_id()
     cost = 1_000_000
-    if team.scouting_pending_next_week:
-        flash('Scouting già attivato per la prossima settimana.', 'warning')
+    if team.scouting_enabled:
+        flash('Scouting già attivo.', 'warning')
         return redirect(url_for('events.market'))
     if team.budget < cost:
         flash('Budget insufficiente per attivare lo scouting (1M€).', 'danger')
         return redirect(url_for('events.market'))
     team.budget -= cost
     team.scouting_paid_week_id = next_week_id
+    team.scouting_enabled = True
     db.session.commit()
-    flash('Scouting attivato per la prossima settimana! Lunedì riceverai un giocatore con media fino a 5.0.', 'success')
+    flash('Scouting avanzato attivato! Lunedì riceverai un giocatore con media fino a 5.0. Si rinnova automaticamente ogni settimana.', 'success')
+    return redirect(url_for('events.market'))
+
+
+@events_bp.route('/market/scouting/deactivate', methods=['POST'])
+@login_required
+def deactivate_scouting():
+    redir = _require_team()
+    if redir:
+        return redir
+    team = current_user.team
+    if not team.scouting_enabled:
+        flash('Scouting non attivo.', 'warning')
+        return redirect(url_for('events.market'))
+    team.scouting_enabled = False
+    db.session.commit()
+    flash('Scouting avanzato disattivato. Non verranno addebitati ulteriori costi.', 'success')
     return redirect(url_for('events.market'))
 
 

@@ -4,7 +4,8 @@ from flask_login import login_required, current_user
 from app import db
 from app.models.game import FriendlyMatch, MatchChallenge, TeamFormation
 from app.models.team import Team
-from app.utils.gameclock import get_game_day_number, get_game_weekday, format_game_date, get_game_week_id
+from app.utils.gameclock import (get_game_day_number, get_game_weekday, format_game_date,
+                                  get_game_week_id, get_seconds_into_game_day)
 from datetime import datetime, timedelta
 
 match_bp = Blueprint('match', __name__)
@@ -99,10 +100,63 @@ def lobby():
             ~Team.id.in_(already_challenged_ids),
         ).all()
 
+    # Sunday match auto-start logic: matches start 60 real seconds after Sunday begins
+    SUNDAY_DELAY = 60  # seconds
+    seconds_into_sunday = get_seconds_into_game_day() if is_sunday else 0
+    sunday_unlocked = is_sunday and seconds_into_sunday >= SUNDAY_DELAY
+    sunday_countdown = max(0, int(SUNDAY_DELAY - seconds_into_sunday)) if is_sunday else 0
+
+    # Auto-start accepted challenges once Sunday is unlocked
+    if sunday_unlocked:
+        from app.utils.match_engine import build_home_lineup
+        for ch in list(accepted_challenges):
+            if ch.match_id is not None:
+                continue
+            challenger_team = Team.query.get(ch.challenger_id)
+            challenged_team = Team.query.get(ch.challenged_id)
+            if not challenger_team or not challenged_team:
+                continue
+            cf = TeamFormation.query.filter_by(team_id=challenger_team.id).first()
+            df = TeamFormation.query.filter_by(team_id=challenged_team.id).first()
+            if not cf or not df:
+                continue
+            match = FriendlyMatch(
+                home_team_id=challenger_team.id,
+                away_team_id=challenged_team.id,
+                game_day=current_day,
+                home_lineup_json=json.dumps(build_home_lineup(challenger_team, cf)),
+                away_lineup_json=json.dumps(build_home_lineup(challenged_team, df)),
+                last_turn_at=datetime.utcnow(),
+                status='active',
+                current_turn=0,
+            )
+            db.session.add(match)
+            db.session.flush()
+            ch.match_id = match.id
+        db.session.commit()
+        # Re-query accepted_challenges to reflect updated match_ids
+        accepted_challenges = MatchChallenge.query.filter(
+            MatchChallenge.game_day >= week_monday,
+            MatchChallenge.match_id != None,
+            MatchChallenge.status == 'accepted',
+            db.or_(
+                MatchChallenge.challenger_id == team.id,
+                MatchChallenge.challenged_id == team.id,
+            )
+        ).all()
+        # Redirect directly to match if this team's match just started
+        for ch in accepted_challenges:
+            if ch.match_id and (ch.challenger_id == team.id or ch.challenged_id == team.id):
+                m = FriendlyMatch.query.get(ch.match_id)
+                if m and m.status == 'active':
+                    return redirect(url_for('match.view', match_id=m.id))
+
     return render_template(
         'match/lobby.html',
         team=team,
         is_sunday=is_sunday,
+        sunday_unlocked=sunday_unlocked,
+        sunday_countdown=sunday_countdown,
         can_challenge=can_challenge,
         pending_challenges=pending_challenges,
         accepted_challenges=accepted_challenges,
@@ -412,4 +466,36 @@ def substitute(match_id):
     db.session.commit()
 
     flash('Sostituzione programmata per il prossimo turno.', 'success')
+    return redirect(url_for('match.view', match_id=match.id))
+
+
+@match_bp.route('/<int:match_id>/roles', methods=['POST'])
+@login_required
+def change_roles(match_id):
+    team = _get_team_or_redirect()
+    if not team:
+        return redirect(url_for('game.create_team'))
+
+    match = FriendlyMatch.query.get_or_404(match_id)
+
+    if match.home_team_id != team.id:
+        abort(403)
+    if match.status != 'active':
+        flash('La partita non è in corso.', 'warning')
+        return redirect(url_for('match.view', match_id=match.id))
+
+    valid_roles = {'goalkeeper', 'defender', 'attacker'}
+    role_changes = {}
+    for key, value in request.form.items():
+        if key.startswith('role_') and value in valid_roles:
+            pid_str = key[len('role_'):]
+            role_changes[pid_str] = value
+
+    if role_changes:
+        subs = json.loads(match.home_pending_subs_json or '{}')
+        subs['role_changes'] = role_changes
+        match.home_pending_subs_json = json.dumps(subs)
+        db.session.commit()
+        flash('Cambi di ruolo programmati per il prossimo turno.', 'success')
+
     return redirect(url_for('match.view', match_id=match.id))
