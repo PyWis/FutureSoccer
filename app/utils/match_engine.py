@@ -589,24 +589,7 @@ def finalize_match(match):
     from app import db
     from app.models.team import Player
 
-    # Update freshness of all home players from their end-of-match lineup snapshot
-    home_lineup = json.loads(match.home_lineup_json or '{}')
-    all_home_players = []
-    gk = home_lineup.get('goalkeeper')
-    if gk:
-        all_home_players.append(gk)
-    all_home_players.extend(home_lineup.get('defenders') or [])
-    all_home_players.extend(home_lineup.get('attackers') or [])
-    all_home_players.extend(home_lineup.get('reserves') or [])
-
-    for p_dict in all_home_players:
-        pid = p_dict.get('player_id')
-        if isinstance(pid, int):
-            player = Player.query.get(pid)
-            if player and player.team_id == match.home_team_id:
-                player.freshness = round(p_dict['freshness'], 1)
-
-    # Apply injury maluses on top of end-of-match freshness (can go negative)
+    # Apply injury maluses (can go negative)
     injuries = json.loads(match.injuries_json or '[]')
     for inj in injuries:
         pid = inj.get('player_id')
