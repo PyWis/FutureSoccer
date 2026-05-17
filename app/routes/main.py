@@ -7,7 +7,8 @@ main_bp = Blueprint('main', __name__)
 
 @main_bp.route('/')
 def index():
-    top_teams = Team.query.order_by(Team.prestige.desc()).limit(5).all()
+    all_teams = Team.query.all()
+    top_teams = sorted(all_teams, key=lambda t: t.top7_avg_skill, reverse=True)[:5]
     total_players = Player.query.count()
     total_teams = Team.query.count()
     return render_template('index.html',

@@ -154,7 +154,7 @@
       <div class="team-name">{{ team.name }}</div>
       <div class="team-city">{{ team.city }} · {{ team.stadium }}</div>
     </div>
-    <div class="team-pts">{{ team.prestige }} <span style="font-size:0.7rem;color:var(--muted)">PRESTIGE</span></div>
+    <div class="team-pts">{{ "%.2f"|format(team.top7_avg_skill) }} <span style="font-size:0.7rem;color:var(--muted)">MEDIA</span></div>
   </div>
   {% endfor %}
 </div>
