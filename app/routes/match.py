@@ -60,18 +60,17 @@ def lobby():
         MatchChallenge.status == 'pending',
     ).all()
 
-    # Accepted challenges this week (ready to start on Sunday)
-    accepted_challenges = []
-    if is_sunday:
-        accepted_challenges = MatchChallenge.query.filter(
-            MatchChallenge.game_day >= week_monday,
-            MatchChallenge.match_id == None,
-            MatchChallenge.status == 'accepted',
-            db.or_(
-                MatchChallenge.challenger_id == team.id,
-                MatchChallenge.challenged_id == team.id,
-            )
-        ).all()
+    # Accepted challenges this week — shown on Sunday as "start" buttons,
+    # shown Mon-Sat as "confirmed upcoming match" info
+    accepted_challenges = MatchChallenge.query.filter(
+        MatchChallenge.game_day >= week_monday,
+        MatchChallenge.match_id == None,
+        MatchChallenge.status == 'accepted',
+        db.or_(
+            MatchChallenge.challenger_id == team.id,
+            MatchChallenge.challenged_id == team.id,
+        )
+    ).all()
 
     # Completed match this week (for result display)
     completed_match = FriendlyMatch.query.filter(

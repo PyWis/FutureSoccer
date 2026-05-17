@@ -114,6 +114,31 @@
 
 {% else %}
 
+<!-- ── CONFIRMED MATCHES (Mon-Sat) ── -->
+{% if accepted_challenges %}
+<div class="card mb-3" style="border-color:rgba(0,245,255,.3);">
+  <div class="section-title" style="color:var(--cyan);">📅 Partita Confermata per Domenica</div>
+  {% for ch in accepted_challenges %}
+  <div class="challenge-card">
+    <div style="display:flex;align-items:center;gap:.6rem;">
+      <span style="font-size:1.1rem;">🏟️</span>
+      <div>
+        <div>
+          <strong>{{ ch.challenger.name }}</strong>
+          <span style="color:var(--muted);margin:0 .3rem;font-size:.8rem;">vs</span>
+          <strong>{{ ch.challenged.name }}</strong>
+        </div>
+        <div style="font-size:.72rem;color:var(--muted);margin-top:.15rem;">Sfida confermata · Si gioca domenica</div>
+      </div>
+    </div>
+    <form method="POST" action="{{ url_for('match.reject_challenge', challenge_id=ch.id) }}">
+      <button class="btn btn-outline btn-sm" style="font-size:.7rem;opacity:.6;">✕ Annulla</button>
+    </form>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
 <!-- ── CHALLENGE A TEAM (Mon-Sat) ── -->
 {% if can_challenge %}
 {% if other_teams %}
