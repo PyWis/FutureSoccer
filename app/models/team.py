@@ -21,7 +21,8 @@ class Team(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Game events tracking
-    scouting_paid_week_id = db.Column(db.Integer, default=-1)   # ISO week_id of paid scouting
+    scouting_paid_week_id = db.Column(db.Integer, default=-1)   # ISO week_id of last paid scouting
+    scouting_enabled = db.Column(db.Boolean, default=False)      # recurring scouting active
     last_processed_day = db.Column(db.Integer, default=-1)       # for daily event processing
 
     # Stadium facilities (0 = not built, 1-5 = stars)
@@ -52,7 +53,7 @@ class Team(db.Model):
     @property
     def scouting_pending_next_week(self):
         from app.utils.gameclock import get_next_game_week_id
-        return self.scouting_paid_week_id == get_next_game_week_id()
+        return self.scouting_enabled and self.scouting_paid_week_id == get_next_game_week_id()
 
     @property
     def top7_avg_skill(self):

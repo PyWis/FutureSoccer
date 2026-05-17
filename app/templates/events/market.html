@@ -33,16 +33,28 @@
     </p>
   </div>
   {% if scouting_active %}
+  <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
     <span class="badge badge-green" style="font-size:.85rem;padding:.5rem 1rem;">✓ Scouting Attivo questa settimana</span>
+    <form method="POST" action="{{ url_for('events.deactivate_scouting') }}"
+          onsubmit="return confirm('Disattivare lo scouting avanzato? Non verranno addebitati ulteriori costi dalla prossima settimana.')">
+      <button type="submit" class="btn btn-outline btn-sm" style="font-size:.78rem;color:var(--danger);border-color:var(--danger);">✕ Disattiva</button>
+    </form>
+  </div>
   {% elif scouting_next_week %}
+  <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
     <span class="badge" style="font-size:.85rem;padding:.5rem 1rem;background:rgba(123,47,255,.15);color:var(--purple);border:1px solid var(--purple);">⏳ Scouting attivo dalla prossima settimana</span>
+    <form method="POST" action="{{ url_for('events.deactivate_scouting') }}"
+          onsubmit="return confirm('Disattivare lo scouting avanzato?')">
+      <button type="submit" class="btn btn-outline btn-sm" style="font-size:.78rem;color:var(--danger);border-color:var(--danger);">✕ Disattiva</button>
+    </form>
+  </div>
   {% else %}
     <form method="POST" action="{{ url_for('events.activate_scouting') }}">
-      <button type="submit" class="btn btn-primary">🔭 Attiva Scouting Settimana Prossima — €1.000.000</button>
+      <button type="submit" class="btn btn-primary">🔭 Attiva Scouting — €1.000.000/settimana</button>
     </form>
   {% endif %}
   <p style="font-size:.73rem;color:var(--muted);margin-top:.3rem;">
-    Lo scouting si attiva per la settimana successiva: lunedì riceverai un giocatore con media fino a 5.0.
+    Lo scouting si attiva dalla settimana successiva e si rinnova automaticamente ogni lunedì (€1M/settimana). Puoi disattivarlo in qualsiasi momento.
   </p>
 </div>
 
