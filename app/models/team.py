@@ -77,6 +77,8 @@ class Player(db.Model):
     resistenza = db.Column(db.Float, default=3.0)
 
     is_free_agent = db.Column(db.Boolean, default=True)
+    freshness = db.Column(db.Float, default=10.0)          # 0–10, starts at 10
+    last_freshness_day = db.Column(db.Integer, default=0)  # game day of last freshness update
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     team_id = db.Column(db.Integer, db.ForeignKey('teams.id'), nullable=True)

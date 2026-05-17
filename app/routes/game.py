@@ -1,8 +1,9 @@
+import json
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
 from app import db
 from app.models.team import Team, Player
-from app.models.game import FreeAgentListing
+from app.models.game import FreeAgentListing, TeamFormation, ENGAGEMENT_OPTIONS
 from app.utils.generators import generate_new_team_player
 from app.utils.gameclock import format_game_date, get_game_weekday, is_training_day, is_sponsor_day, get_game_day_number
 
@@ -48,6 +49,20 @@ def dashboard():
                            weekday=weekday,
                            is_training=is_training_day(),
                            is_sponsor=is_sponsor_day())
+
+
+def _process_team_freshness(team):
+    """Add daily recovery (+0.3/day, cap 10) for all players based on days elapsed."""
+    current_day = get_game_day_number()
+    changed = False
+    for player in team.players.all():
+        days = max(0, current_day - player.last_freshness_day)
+        if days > 0:
+            player.freshness = min(10.0, round(player.freshness + days * 0.3, 1))
+            player.last_freshness_day = current_day
+            changed = True
+    if changed:
+        db.session.commit()
 
 
 @game_bp.route('/create-team', methods=['GET', 'POST'])
@@ -178,6 +193,89 @@ def stadium_upgrade(facility):
     db.session.commit()
     flash(f'{FACILITY_LABELS[facility]} portato a {current_stars + 1} ⭐!', 'success')
     return redirect(url_for('game.stadium'))
+
+
+# ─── FORMATION ─────────────────────────────────────────────────────────────────
+
+@game_bp.route('/formation', methods=['GET', 'POST'])
+@login_required
+def formation():
+    if not current_user.team:
+        return redirect(url_for('game.create_team'))
+    team = current_user.team
+    _process_team_freshness(team)
+
+    players = sorted(team.players.all(), key=lambda p: p.avg_skill, reverse=True)
+    players_by_id = {p.id: p for p in players}
+
+    form_obj = team.formation
+    if not form_obj:
+        form_obj = TeamFormation(team_id=team.id)
+        db.session.add(form_obj)
+        db.session.commit()
+
+    if request.method == 'POST':
+        engagement = request.form.get('engagement', 'normale')
+        if engagement not in dict([(e[0], e) for e in ENGAGEMENT_OPTIONS]):
+            engagement = 'normale'
+
+        goalkeeper_id = None
+        defender_ids = []
+        attacker_ids = []
+        reserve_ids = []
+
+        for p in players:
+            role = request.form.get(f'role_{p.id}', '')
+            if role == 'goalkeeper':
+                goalkeeper_id = p.id
+            elif role == 'defender':
+                defender_ids.append(p.id)
+            elif role == 'attacker':
+                attacker_ids.append(p.id)
+            elif role == 'reserve':
+                reserve_ids.append(p.id)
+
+        # Validate constraints
+        n_starters = (1 if goalkeeper_id else 0) + len(defender_ids) + len(attacker_ids)
+        errors = []
+        if goalkeeper_id is not None and goalkeeper_id not in players_by_id:
+            errors.append('Portiere non valido.')
+        if len(defender_ids) > 3:
+            errors.append('Massimo 3 difensori.')
+        if len(attacker_ids) > 3:
+            errors.append('Massimo 3 attaccanti.')
+        if n_starters > 5:
+            errors.append(f'Massimo 5 titolari (selezionati: {n_starters}).')
+        if n_starters > 0 and len(defender_ids) == 0:
+            errors.append('Seleziona almeno 1 difensore.')
+        if n_starters > 0 and len(attacker_ids) == 0:
+            errors.append('Seleziona almeno 1 attaccante.')
+        if len(reserve_ids) > 3:
+            errors.append('Massimo 3 riserve.')
+
+        if errors:
+            for e in errors:
+                flash(e, 'danger')
+        else:
+            form_obj.engagement = engagement
+            form_obj.goalkeeper_id = goalkeeper_id
+            form_obj.defender_ids_json = json.dumps(defender_ids)
+            form_obj.attacker_ids_json = json.dumps(attacker_ids)
+            form_obj.reserve_ids_json = json.dumps(reserve_ids)
+            form_obj.updated_at = __import__('datetime').datetime.utcnow()
+            db.session.commit()
+            flash('Formazione salvata!', 'success')
+
+    strength = form_obj.compute_strength(players_by_id)
+    current_roles = form_obj.current_roles()
+
+    return render_template('game/formation.html',
+                           team=team,
+                           players=players,
+                           formation=form_obj,
+                           current_roles=current_roles,
+                           strength=strength,
+                           engagement_options=ENGAGEMENT_OPTIONS)
 
 
 @game_bp.route('/profile', methods=['GET', 'POST'])

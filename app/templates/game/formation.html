@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+{% block title %}Formazione — FutureSoccer{% endblock %}
+{% block extra_head %}
+<style>
+  .eng-grid{display:flex;gap:.6rem;flex-wrap:wrap;margin:1rem 0;}
+  .eng-card{flex:1;min-width:100px;cursor:pointer;}
+  .eng-card input{display:none;}
+  .eng-inner{border:2px solid var(--card-border);border-radius:10px;padding:.7rem .5rem;text-align:center;transition:all .2s;}
+  .eng-card input:checked + .eng-inner{border-color:var(--cyan);background:rgba(0,245,255,.07);}
+  .eng-name{font-size:.78rem;font-weight:700;color:var(--text);}
+  .eng-mod{font-size:.72rem;color:var(--muted);margin-top:.2rem;}
+  .role-select{background:var(--card);color:var(--text);border:1px solid var(--card-border);border-radius:6px;padding:.3rem .5rem;font-size:.8rem;width:100%;}
+  .role-select option{background:var(--card);}
+  .fresh-bar{height:6px;border-radius:3px;background:var(--card-border);margin-top:3px;overflow:hidden;}
+  .fresh-fill{height:100%;border-radius:3px;transition:width .3s;}
+  .str-box{background:var(--card);border:2px solid var(--card-border);border-radius:14px;padding:1.2rem 1.5rem;text-align:center;}
+  .str-val{font-family:'Orbitron',monospace;font-size:1.6rem;font-weight:900;}
+  .role-badge{display:inline-block;padding:.15rem .4rem;border-radius:4px;font-size:.68rem;font-weight:700;letter-spacing:.5px;}
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-header flex flex-between flex-center" style="flex-wrap:wrap;gap:1rem;">
+  <div>
+    <h1>📋 FORMAZIONE</h1>
+    <p class="text-muted">{{ team.name }}</p>
+  </div>
+  {% if formation.updated_at %}
+  <div style="font-size:.75rem;color:var(--muted);">
+    Ultima modifica: {{ formation.updated_at.strftime('%d/%m/%Y %H:%M') }}
+  </div>
+  {% endif %}
+</div>
+
+<!-- ── STRENGTH PREVIEW ── -->
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:1rem;margin-bottom:1.5rem;">
+  <div class="str-box">
+    <div style="font-size:.7rem;color:var(--muted);letter-spacing:1px;">PORTA</div>
+    <div class="str-val" style="color:var(--cyan);">{{ "%.1f"|format(strength.porta) }}</div>
+  </div>
+  <div class="str-box">
+    <div style="font-size:.7rem;color:var(--muted);letter-spacing:1px;">DIFESA</div>
+    <div class="str-val" style="color:var(--success);">{{ "%.1f"|format(strength.difesa) }}</div>
+  </div>
+  <div class="str-box">
+    <div style="font-size:.7rem;color:var(--muted);letter-spacing:1px;">ATTACCO</div>
+    <div class="str-val" style="color:var(--danger);">{{ "%.1f"|format(strength.attacco) }}</div>
+  </div>
+  <div class="str-box" style="border-color:var(--purple);">
+    <div style="font-size:.7rem;color:var(--muted);letter-spacing:1px;">TOTALE</div>
+    <div class="str-val" style="color:var(--purple);">{{ "%.1f"|format(strength.total) }}</div>
+    <div style="font-size:.7rem;color:var(--muted);margin-top:.2rem;">
+      mod {{ "%+.0f"|format((strength.mod - 1) * 100) }}%
+    </div>
+  </div>
+</div>
+
+<form method="POST" id="formationForm">
+
+<!-- ── ENGAGEMENT ── -->
+<div class="card mb-3">
+  <h3 style="margin-bottom:.5rem;">⚡ IMPEGNO</h3>
+  <div class="eng-grid">
+    {% for val, label, mod_str in engagement_options %}
+    <label class="eng-card">
+      <input type="radio" name="engagement" value="{{ val }}"
+             {% if formation.engagement == val %}checked{% endif %}
+             onchange="this.form.submit()">
+      <div class="eng-inner">
+        <div class="eng-name">{{ label }}</div>
+        <div class="eng-mod">{{ mod_str }}</div>
+      </div>
+    </label>
+    {% endfor %}
+  </div>
+  <p style="font-size:.75rem;color:var(--muted);margin-top:.25rem;">
+    L'impegno modifica tutte le forze della squadra.
+  </p>
+</div>
+
+<!-- ── PLAYER TABLE ── -->
+<div class="card mb-3">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem;">
+    <h3>👥 ASSEGNA RUOLI</h3>
+    <div style="font-size:.78rem;color:var(--muted);">
+      Titolari: 0–1 🥅 + 1–3 🛡️ + 1–3 ⚡ (max 5) &nbsp;·&nbsp; Riserve: 0–3 🔄
+    </div>
+  </div>
+
+  {% set r = current_roles %}
+
+  <!-- Count summary -->
+  {% set n_gk  = players | selectattr('id', 'in', [formation.goalkeeper_id] if formation.goalkeeper_id else []) | list | length %}
+  {% set n_def = formation.defender_ids | length %}
+  {% set n_att = formation.attacker_ids | length %}
+  {% set n_res = formation.reserve_ids  | length %}
+  {% set n_tot = n_gk + n_def + n_att %}
+  <div style="font-size:.8rem;margin-bottom:.75rem;display:flex;gap:1rem;flex-wrap:wrap;">
+    <span>🥅 Portiere: <strong style="color:{% if n_gk > 1 %}var(--danger){% else %}var(--cyan){% endif %};">{{ n_gk }}/1</strong></span>
+    <span>🛡️ Difensori: <strong style="color:{% if n_def > 3 or (n_tot > 0 and n_def == 0) %}var(--danger){% else %}var(--cyan){% endif %};">{{ n_def }}/3</strong></span>
+    <span>⚡ Attaccanti: <strong style="color:{% if n_att > 3 or (n_tot > 0 and n_att == 0) %}var(--danger){% else %}var(--cyan){% endif %};">{{ n_att }}/3</strong></span>
+    <span>Titolari: <strong style="color:{% if n_tot > 5 %}var(--danger){% else %}var(--success){% endif %};">{{ n_tot }}/5</strong></span>
+    <span>🔄 Riserve: <strong style="color:{% if n_res > 3 %}var(--danger){% else %}var(--muted){% endif %};">{{ n_res }}/3</strong></span>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>GIOCATORE</th>
+          <th style="text-align:center;">FRESCHEZZA</th>
+          <th style="text-align:center;">P</th>
+          <th style="text-align:center;">D</th>
+          <th style="text-align:center;">A</th>
+          <th style="text-align:center;">R</th>
+          <th style="text-align:center;">MEDIA</th>
+          <th style="min-width:130px;">RUOLO</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in players %}
+        {% set role = current_roles.get(p.id) %}
+        <tr style="{% if role and role != 'reserve' %}background:rgba(0,245,255,.03);{% endif %}">
+          <td>
+            <strong>{{ p.type_icon }} {{ p.name }}</strong>
+            {% if role == 'goalkeeper' %}<span class="role-badge" style="background:rgba(0,245,255,.15);color:var(--cyan);">🥅 POR</span>
+            {% elif role == 'defender'  %}<span class="role-badge" style="background:rgba(46,213,115,.15);color:var(--success);">🛡️ DIF</span>
+            {% elif role == 'attacker'  %}<span class="role-badge" style="background:rgba(255,71,87,.15);color:var(--danger);">⚡ ATT</span>
+            {% elif role == 'reserve'   %}<span class="role-badge" style="background:rgba(136,136,136,.12);color:var(--muted);">🔄 RIS</span>
+            {% endif %}
+          </td>
+          <td style="text-align:center;min-width:80px;">
+            {% set fcolor = 'var(--success)' if p.freshness >= 7 else ('var(--warning)' if p.freshness >= 4 else 'var(--danger)') %}
+            <span style="font-size:.8rem;color:{{ fcolor }};font-weight:700;">{{ "%.1f"|format(p.freshness) }}</span>
+            <div class="fresh-bar">
+              <div class="fresh-fill" style="width:{{ (p.freshness / 10 * 100)|round }}%;background:{{ fcolor }};"></div>
+            </div>
+          </td>
+          <td style="text-align:center;font-size:.8rem;">{{ "%.1f"|format(p.porta) }}</td>
+          <td style="text-align:center;font-size:.8rem;">{{ "%.1f"|format(p.difesa) }}</td>
+          <td style="text-align:center;font-size:.8rem;">{{ "%.1f"|format(p.attacco) }}</td>
+          <td style="text-align:center;font-size:.8rem;">{{ "%.1f"|format(p.resistenza) }}</td>
+          <td style="text-align:center;font-size:.8rem;font-weight:700;color:var(--cyan);">{{ "%.2f"|format(p.avg_skill) }}</td>
+          <td>
+            <select name="role_{{ p.id }}" class="role-select" onchange="updateCounts()">
+              <option value=""           {% if not role %}selected{% endif %}>—</option>
+              <option value="goalkeeper" {% if role == 'goalkeeper' %}selected{% endif %}>🥅 Portiere</option>
+              <option value="defender"   {% if role == 'defender'   %}selected{% endif %}>🛡️ Difensore</option>
+              <option value="attacker"   {% if role == 'attacker'   %}selected{% endif %}>⚡ Attaccante</option>
+              <option value="reserve"    {% if role == 'reserve'    %}selected{% endif %}>🔄 Riserva</option>
+            </select>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div style="display:flex;justify-content:flex-end;gap:1rem;margin-top:1rem;">
+  <button type="submit" class="btn btn-primary" style="padding:.8rem 2.5rem;">
+    💾 SALVA FORMAZIONE
+  </button>
+</div>
+</form>
+{% endblock %}
+{% block extra_js %}
+<script>
+function updateCounts() {
+  let gk=0, def=0, att=0, res=0;
+  document.querySelectorAll('select[name^="role_"]').forEach(s => {
+    if (s.value === 'goalkeeper') gk++;
+    else if (s.value === 'defender') att++; // intentional: track
+    else if (s.value === 'attacker') att++;
+    else if (s.value === 'reserve') res++;
+  });
+  // Re-count properly
+  gk=0; def=0; att=0; res=0;
+  document.querySelectorAll('select[name^="role_"]').forEach(s => {
+    if (s.value === 'goalkeeper') gk++;
+    else if (s.value === 'defender') def++;
+    else if (s.value === 'attacker') att++;
+    else if (s.value === 'reserve') res++;
+  });
+  const tot = gk + def + att;
+  // Could update DOM counters here if needed
+}
+
+document.getElementById('formationForm').addEventListener('submit', function(e) {
+  let gk=0, def=0, att=0, res=0;
+  document.querySelectorAll('select[name^="role_"]').forEach(s => {
+    if (s.value === 'goalkeeper') gk++;
+    else if (s.value === 'defender') def++;
+    else if (s.value === 'attacker') att++;
+    else if (s.value === 'reserve') res++;
+  });
+  const tot = gk + def + att;
+  const errors = [];
+  if (gk > 1) errors.push('Puoi selezionare al massimo 1 portiere.');
+  if (def > 3) errors.push('Puoi selezionare al massimo 3 difensori.');
+  if (att > 3) errors.push('Puoi selezionare al massimo 3 attaccanti.');
+  if (tot > 5) errors.push(`Massimo 5 titolari (selezionati: ${tot}).`);
+  if (tot > 0 && def === 0) errors.push('Seleziona almeno 1 difensore.');
+  if (tot > 0 && att === 0) errors.push('Seleziona almeno 1 attaccante.');
+  if (res > 3) errors.push('Puoi selezionare al massimo 3 riserve.');
+  if (errors.length > 0) {
+    e.preventDefault();
+    alert(errors.join('\n'));
+  }
+});
+</script>
+{% endblock %}
