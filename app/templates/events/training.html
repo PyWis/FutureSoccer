@@ -32,12 +32,14 @@
   <div>
     {% if is_wednesday_makeup %}
       <span class="day-label day-active" style="background:rgba(255,165,0,.12);color:orange;">🔄 RECUPERO MARTEDÌ</span>
+    {% elif weekday == 4 and is_training %}
+      <span class="day-label day-active" style="background:rgba(255,165,0,.12);color:orange;">🔄 RECUPERO GIOVEDÌ</span>
     {% elif is_training %}
       <span class="day-label day-active">GIORNATA DI ALLENAMENTO</span>
     {% elif is_saturday_mode %}
       <span class="day-label day-active" style="background:rgba(123,47,255,.15);color:var(--purple);">🏟️ SABATO — STADIO</span>
     {% else %}
-      <span class="day-label day-inactive">PROSSIMO: MAR · GIO{% if saturday_slots > 0 %} · SAB (Stadio){% endif %}</span>
+      <span class="day-label day-inactive">PROSSIMO: MAR/MER · GIO/VEN{% if saturday_slots > 0 %} · SAB (Stadio){% endif %}</span>
     {% endif %}
   </div>
 </div>
@@ -47,7 +49,7 @@
   <div style="font-size:3rem;margin-bottom:1rem;">📅</div>
   <h2 style="color:var(--muted);margin-bottom:.5rem;">Nessun allenamento oggi</h2>
   <p class="text-muted">
-    Le sessioni si svolgono ogni <strong>Martedì</strong> (recupero Mercoledì) e <strong>Giovedì</strong>.
+    Le sessioni si svolgono ogni <strong>Martedì</strong> (recupero Mercoledì) e <strong>Giovedì</strong> (recupero Venerdì).
     {% if saturday_slots > 0 %}<br>Con l'impianto di allenamento ({{ saturday_slots }}⭐) puoi allenarti anche di <strong>Sabato</strong>.{% endif %}
   </p>
 </div>
