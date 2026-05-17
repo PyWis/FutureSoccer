@@ -128,24 +128,18 @@
       {% endif %}
 
       <div style="display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;min-width:160px;">
-        {% set cost = (offer.offer_avg * 500000)|round(-3)|int %}
         <div style="text-align:right;">
           <div style="font-size:.72rem;color:var(--muted);">PREZZO ACQUISTO</div>
-          {% if offer.is_scouted %}
-            <div style="font-family:'Orbitron',monospace;font-size:1.3rem;color:var(--purple);">€1.5M — €2.5M</div>
-            <div style="font-size:.72rem;color:var(--muted);margin-top:.2rem;">rivelato all'acquisto</div>
-          {% else %}
-            <div style="font-family:'Orbitron',monospace;font-size:1.5rem;color:var(--success);">€{{ "%.1f"|format(cost/1000000) }}M</div>
-          {% endif %}
+          <div style="font-family:'Orbitron',monospace;font-size:1.5rem;color:var(--success);">€250.000</div>
         </div>
         {% if team.players.count() >= 12 %}
           <div style="text-align:center;padding:.5rem;">
             <span class="badge badge-red">Rosa al completo</span>
           </div>
         {% elif offer.is_scouted %}
-          {% if team.budget >= 1_500_000 %}
+          {% if team.budget >= 250000 %}
             <form method="POST" action="{{ url_for('events.market_buy') }}" style="margin-top:1rem;"
-                  onsubmit="return confirm('Acquistare il giocatore scouting? Il prezzo esatto verrà rivelato al momento dell\'acquisto.')">
+                  onsubmit="return confirm('Acquistare il giocatore scouting? L\'identità verrà rivelata al momento dell\'acquisto.')">
               <button type="submit" class="btn btn-primary" style="background:linear-gradient(135deg,var(--purple),#ff6bff);">
                 🔮 Acquista al buio
               </button>
@@ -153,7 +147,7 @@
           {% else %}
             <span style="font-size:.8rem;color:var(--danger);">Budget insufficiente</span>
           {% endif %}
-        {% elif team.budget >= cost %}
+        {% elif team.budget >= 250000 %}
           <form method="POST" action="{{ url_for('events.market_buy') }}" style="margin-top:1rem;">
             <button type="submit" class="btn btn-primary">Acquista</button>
           </form>

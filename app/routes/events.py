@@ -114,7 +114,7 @@ def market_buy():
         flash('Rosa al completo (massimo 12 giocatori).', 'danger')
         return redirect(url_for('events.market'))
 
-    cost = round(offer.offer_avg * 500_000, -3)
+    cost = 250_000
     if team.budget < cost:
         flash(f'Budget insufficiente. Costo: €{cost:,.0f}', 'danger')
         return redirect(url_for('events.market'))
