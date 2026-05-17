@@ -51,19 +51,20 @@ def format_game_date(d=None):
 
 
 def is_training_day():
-    """True on Tue (regular), Wed (makeup for Tue), Thu (regular)."""
-    return get_game_weekday() in (1, 2, 3)
+    """True on Tue (regular), Wed (makeup Tue), Thu (regular), Fri (makeup Thu)."""
+    return get_game_weekday() in (1, 2, 3, 4)
 
 
 def get_training_session_day():
     """
     Returns the canonical game_day for the current training session.
-    Wednesday is a makeup for Tuesday: returns yesterday's game_day so the
-    unique TrainingRecord constraint prevents double training in one session.
+    Wednesday is makeup for Tuesday, Friday is makeup for Thursday:
+    returns yesterday's game_day so the unique TrainingRecord constraint
+    prevents double training in one session.
     """
     wd = get_game_weekday()
     gd = get_game_day_number()
-    if wd == 2:       # Wednesday = makeup for Tuesday
+    if wd in (2, 4):   # Wed = makeup Tue, Fri = makeup Thu
         return gd - 1
     return gd
 

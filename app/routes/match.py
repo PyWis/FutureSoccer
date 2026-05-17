@@ -188,8 +188,6 @@ def send_challenge(team_id):
     team = _get_team_or_redirect()
     if not team:
         return redirect(url_for('game.create_team'))
-    if not _require_sunday():
-        return redirect(url_for('match.lobby'))
 
     if get_game_weekday() == 6:
         flash('Le sfide si inviano da lunedì a sabato. La partita si giocherà domenica.', 'warning')
