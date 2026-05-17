@@ -1,0 +1,300 @@
+{% extends "base.html" %}
+{% block title %}Partita in corso — FutureSoccer{% endblock %}
+{% block extra_head %}
+<meta http-equiv="refresh" content="{{ seconds_until_next_turn if match.status == 'active' else 9999 }}">
+<style>
+  .score-display{text-align:center;padding:1.5rem 1rem;background:var(--card);border:2px solid var(--card-border);border-radius:16px;margin-bottom:1.2rem;}
+  .score-teams{display:flex;align-items:center;justify-content:center;gap:1rem;margin-bottom:.5rem;font-size:.85rem;color:var(--muted);}
+  .score-number{font-family:'Orbitron',monospace;font-size:3rem;font-weight:900;letter-spacing:4px;}
+  .score-home{color:var(--cyan);}
+  .score-dash{color:var(--muted);font-size:2rem;margin:0 .3rem;}
+  .score-away{color:var(--purple);}
+  .turn-pills{display:flex;gap:.35rem;justify-content:center;flex-wrap:wrap;margin:.5rem 0;}
+  .turn-pill{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;border:2px solid var(--card-border);color:var(--muted);}
+  .turn-pill.done{border-color:var(--success);color:var(--success);background:rgba(0,200,100,.08);}
+  .turn-pill.current{border-color:var(--cyan);color:var(--cyan);background:rgba(0,245,255,.12);animation:pulse 1.5s ease-in-out infinite;}
+  .turn-pill.extra{border-color:var(--danger);color:var(--danger);}
+  .turn-pill.extra.current{background:rgba(255,60,60,.1);}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.5;}}
+  .lineup-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.2rem;}
+  @media(max-width:640px){.lineup-grid{grid-template-columns:1fr;}}
+  .lineup-card{background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:.9rem;}
+  .lineup-title{font-size:.7rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:.7rem;}
+  .player-row{display:flex;align-items:center;gap:.5rem;padding:.3rem 0;border-bottom:1px solid rgba(255,255,255,.04);}
+  .player-row:last-child{border-bottom:none;}
+  .player-role{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:700;flex-shrink:0;}
+  .role-gk{background:rgba(255,200,0,.15);color:#ffc800;border:1px solid #ffc800;}
+  .role-def{background:rgba(0,200,100,.15);color:var(--success);border:1px solid var(--success);}
+  .role-att{background:rgba(255,60,60,.15);color:var(--danger);border:1px solid var(--danger);}
+  .role-res{background:rgba(150,150,150,.1);color:var(--muted);border:1px solid var(--muted);}
+  .player-name{font-size:.8rem;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .fresh-bar{height:4px;border-radius:2px;background:var(--card-border);width:50px;flex-shrink:0;}
+  .fresh-fill{height:100%;border-radius:2px;}
+  .fresh-num{font-size:.68rem;color:var(--muted);width:22px;text-align:right;flex-shrink:0;}
+  .event-log{background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:.9rem;max-height:280px;overflow-y:auto;}
+  .event-item{display:flex;align-items:flex-start;gap:.5rem;padding:.3rem 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:.8rem;}
+  .event-item:last-child{border-bottom:none;}
+  .event-turn{font-size:.65rem;color:var(--muted);min-width:40px;padding-top:.1rem;}
+  .event-icon{flex-shrink:0;}
+  .event-goal{color:var(--cyan);}
+  .event-injury{color:var(--danger);}
+  .event-freshness{color:var(--warning, #ffa500);}
+  .timer-bar{height:4px;background:var(--card-border);border-radius:2px;overflow:hidden;margin-top:.5rem;}
+  .timer-fill{height:100%;background:var(--cyan);border-radius:2px;transition:width 1s linear;}
+  .sub-form{margin-top:.7rem;padding-top:.7rem;border-top:1px solid var(--card-border);}
+  .sub-select{background:var(--card);color:var(--text);border:1px solid var(--card-border);border-radius:6px;padding:.3rem .4rem;font-size:.75rem;width:100%;}
+  .completed-banner{text-align:center;padding:1.5rem;background:rgba(0,245,255,.06);border:2px solid var(--cyan);border-radius:16px;margin-bottom:1.2rem;}
+</style>
+{% endblock %}
+{% block content %}
+
+<!-- ── SCORE DISPLAY ── -->
+<div class="score-display">
+  <div class="score-teams">
+    <span>{{ home_team_name }}</span>
+    <span style="color:var(--card-border);">vs</span>
+    <span>{{ away_team_name }}</span>
+  </div>
+  <div>
+    <span class="score-number score-home">{{ match.home_score }}</span>
+    <span class="score-dash">—</span>
+    <span class="score-number score-away">{{ match.away_score }}</span>
+  </div>
+
+  <!-- Turn pills -->
+  <div class="turn-pills">
+    {% for t in range(1, 7) %}
+    {% if match.current_turn > t %}
+      <div class="turn-pill done">T{{ t }}</div>
+    {% elif match.current_turn == t %}
+      <div class="turn-pill current">T{{ t }}</div>
+    {% else %}
+      <div class="turn-pill">T{{ t }}</div>
+    {% endif %}
+    {% endfor %}
+    <!-- Extra time pill -->
+    {% if match.current_turn >= 7 %}
+      <div class="turn-pill extra {% if match.current_turn == 7 %}current{% endif %}">ET</div>
+    {% else %}
+      <div class="turn-pill" style="opacity:.3;">ET</div>
+    {% endif %}
+  </div>
+
+  {% if match.status == 'active' %}
+  <div style="font-size:.75rem;color:var(--muted);margin-top:.4rem;">
+    {% if match.current_turn == 0 %}
+      Pre-partita — inizia a breve
+    {% else %}
+      Prossimo turno tra <strong>{{ seconds_until_next_turn }}s</strong>
+    {% endif %}
+  </div>
+  <div class="timer-bar">
+    <div class="timer-fill" style="width:{{ [100, (seconds_until_next_turn / TURN_SECONDS * 100)|int]|min }}%;"></div>
+  </div>
+  {% else %}
+  <div style="margin-top:.5rem;font-size:.75rem;color:var(--success);font-weight:700;letter-spacing:1px;">PARTITA CONCLUSA</div>
+  {% endif %}
+</div>
+
+<!-- ── COMPLETED BANNER ── -->
+{% if match.status == 'completed' %}
+<div class="completed-banner">
+  {% set home_score = match.home_score %}
+  {% set away_score = match.away_score %}
+  {% if is_home %}
+    {% if home_score > away_score %}
+      <div style="font-size:1.5rem;">🏆</div>
+      <div style="font-weight:700;font-size:1.1rem;color:var(--cyan);">Vittoria!</div>
+    {% elif home_score == away_score %}
+      <div style="font-size:1.5rem;">🤝</div>
+      <div style="font-weight:700;font-size:1.1rem;color:var(--muted);">Pareggio</div>
+    {% else %}
+      <div style="font-size:1.5rem;">😔</div>
+      <div style="font-weight:700;font-size:1.1rem;color:var(--danger);">Sconfitta</div>
+    {% endif %}
+  {% else %}
+    {% if away_score > home_score %}
+      <div style="font-size:1.5rem;">🏆</div>
+      <div style="font-weight:700;font-size:1.1rem;color:var(--cyan);">Vittoria!</div>
+    {% elif home_score == away_score %}
+      <div style="font-size:1.5rem;">🤝</div>
+      <div style="font-weight:700;font-size:1.1rem;color:var(--muted);">Pareggio</div>
+    {% else %}
+      <div style="font-size:1.5rem;">😔</div>
+      <div style="font-weight:700;font-size:1.1rem;color:var(--danger);">Sconfitta</div>
+    {% endif %}
+  {% endif %}
+  <a href="{{ url_for('match.lobby') }}" class="btn btn-outline" style="margin-top:.75rem;display:inline-block;">
+    Torna alla Lobby
+  </a>
+</div>
+{% endif %}
+
+<!-- ── LINEUPS ── -->
+<div class="lineup-grid">
+
+  <!-- MY LINEUP -->
+  <div class="lineup-card" style="border-color:rgba(0,245,255,.2);">
+    <div class="lineup-title" style="color:var(--cyan);">
+      {{ 'La mia Squadra' if is_home else opp_name if not is_home else 'Avversario' }}
+      — {{ my_lineup.get('engagement', 'normale')|capitalize }}
+    </div>
+
+    {% if my_lineup.get('goalkeeper') %}
+    {% set p = my_lineup.goalkeeper %}
+    <div class="player-row">
+      <div class="player-role role-gk">PO</div>
+      <div class="player-name">{{ p.name }}</div>
+      <div class="fresh-bar"><div class="fresh-fill" style="width:{{ (p.freshness / 10 * 100)|int }}%;background:{% if p.freshness >= 7 %}var(--success){% elif p.freshness >= 4 %}#ffa500{% else %}var(--danger){% endif %};"></div></div>
+      <div class="fresh-num">{{ "%.1f"|format(p.freshness) }}</div>
+    </div>
+    {% endif %}
+
+    {% for p in my_lineup.get('defenders') or [] %}
+    <div class="player-row">
+      <div class="player-role role-def">DF</div>
+      <div class="player-name">{{ p.name }}</div>
+      <div class="fresh-bar"><div class="fresh-fill" style="width:{{ (p.freshness / 10 * 100)|int }}%;background:{% if p.freshness >= 7 %}var(--success){% elif p.freshness >= 4 %}#ffa500{% else %}var(--danger){% endif %};"></div></div>
+      <div class="fresh-num">{{ "%.1f"|format(p.freshness) }}</div>
+    </div>
+    {% endfor %}
+
+    {% for p in my_lineup.get('attackers') or [] %}
+    <div class="player-row">
+      <div class="player-role role-att">AT</div>
+      <div class="player-name">{{ p.name }}</div>
+      <div class="fresh-bar"><div class="fresh-fill" style="width:{{ (p.freshness / 10 * 100)|int }}%;background:{% if p.freshness >= 7 %}var(--success){% elif p.freshness >= 4 %}#ffa500{% else %}var(--danger){% endif %};"></div></div>
+      <div class="fresh-num">{{ "%.1f"|format(p.freshness) }}</div>
+    </div>
+    {% endfor %}
+
+    {% if my_lineup.get('reserves') %}
+    <div style="font-size:.65rem;color:var(--muted);margin:.4rem 0 .2rem;letter-spacing:1px;">PANCHINA</div>
+    {% for p in my_lineup.reserves %}
+    <div class="player-row" style="opacity:.65;">
+      <div class="player-role role-res">RS</div>
+      <div class="player-name">{{ p.name }}</div>
+      <div class="fresh-bar"><div class="fresh-fill" style="width:{{ (p.freshness / 10 * 100)|int }}%;background:var(--muted);"></div></div>
+      <div class="fresh-num">{{ "%.1f"|format(p.freshness) }}</div>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <!-- SUBSTITUTION FORM (only for home team while active) -->
+    {% if is_home and match.status == 'active' and my_lineup.get('reserves') %}
+    <div class="sub-form">
+      <div style="font-size:.7rem;color:var(--muted);margin-bottom:.4rem;letter-spacing:1px;">SOSTITUZIONE</div>
+      <form method="POST" action="{{ url_for('match.substitute', match_id=match.id) }}">
+        <div style="margin-bottom:.4rem;">
+          <label style="font-size:.7rem;color:var(--muted);">Escludi:</label>
+          <select name="out_id" class="sub-select">
+            {% if my_lineup.get('goalkeeper') %}
+            <option value="{{ my_lineup.goalkeeper.player_id }}">{{ my_lineup.goalkeeper.name }} (PO)</option>
+            {% endif %}
+            {% for p in my_lineup.get('defenders') or [] %}
+            <option value="{{ p.player_id }}">{{ p.name }} (DF)</option>
+            {% endfor %}
+            {% for p in my_lineup.get('attackers') or [] %}
+            <option value="{{ p.player_id }}">{{ p.name }} (AT)</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div style="margin-bottom:.5rem;">
+          <label style="font-size:.7rem;color:var(--muted);">Entra:</label>
+          <select name="in_id" class="sub-select">
+            {% for p in my_lineup.reserves %}
+            <option value="{{ p.player_id }}">{{ p.name }} (RS, {{ "%.1f"|format(p.freshness) }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button class="btn btn-outline" style="width:100%;font-size:.75rem;padding:.3rem;">
+          Programma Sostituzione
+        </button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- OPPONENT LINEUP -->
+  <div class="lineup-card" style="border-color:rgba(123,47,255,.2);">
+    <div class="lineup-title" style="color:var(--purple);">
+      {{ opp_name }} — {{ opp_lineup.get('engagement', 'normale')|capitalize }}
+    </div>
+
+    {% if opp_lineup.get('goalkeeper') %}
+    {% set p = opp_lineup.goalkeeper %}
+    <div class="player-row">
+      <div class="player-role role-gk">PO</div>
+      <div class="player-name">{{ p.name }}</div>
+      <div class="fresh-bar"><div class="fresh-fill" style="width:{{ (p.freshness / 10 * 100)|int }}%;background:{% if p.freshness >= 7 %}var(--success){% elif p.freshness >= 4 %}#ffa500{% else %}var(--danger){% endif %};"></div></div>
+      <div class="fresh-num">{{ "%.1f"|format(p.freshness) }}</div>
+    </div>
+    {% endif %}
+
+    {% for p in opp_lineup.get('defenders') or [] %}
+    <div class="player-row">
+      <div class="player-role role-def">DF</div>
+      <div class="player-name">{{ p.name }}</div>
+      <div class="fresh-bar"><div class="fresh-fill" style="width:{{ (p.freshness / 10 * 100)|int }}%;background:{% if p.freshness >= 7 %}var(--success){% elif p.freshness >= 4 %}#ffa500{% else %}var(--danger){% endif %};"></div></div>
+      <div class="fresh-num">{{ "%.1f"|format(p.freshness) }}</div>
+    </div>
+    {% endfor %}
+
+    {% for p in opp_lineup.get('attackers') or [] %}
+    <div class="player-row">
+      <div class="player-role role-att">AT</div>
+      <div class="player-name">{{ p.name }}</div>
+      <div class="fresh-bar"><div class="fresh-fill" style="width:{{ (p.freshness / 10 * 100)|int }}%;background:{% if p.freshness >= 7 %}var(--success){% elif p.freshness >= 4 %}#ffa500{% else %}var(--danger){% endif %};"></div></div>
+      <div class="fresh-num">{{ "%.1f"|format(p.freshness) }}</div>
+    </div>
+    {% endfor %}
+
+    {% if opp_lineup.get('reserves') %}
+    <div style="font-size:.65rem;color:var(--muted);margin:.4rem 0 .2rem;letter-spacing:1px;">PANCHINA</div>
+    {% for p in opp_lineup.reserves %}
+    <div class="player-row" style="opacity:.65;">
+      <div class="player-role role-res">RS</div>
+      <div class="player-name">{{ p.name }}</div>
+      <div class="fresh-bar"><div class="fresh-fill" style="width:{{ (p.freshness / 10 * 100)|int }}%;background:var(--muted);"></div></div>
+      <div class="fresh-num">{{ "%.1f"|format(p.freshness) }}</div>
+    </div>
+    {% endfor %}
+    {% endif %}
+  </div>
+
+</div>
+
+<!-- ── TURN LOG ── -->
+<div class="event-log">
+  <div style="font-size:.7rem;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:.6rem;">
+    📋 Cronaca
+  </div>
+  {% if not turns %}
+    <div style="color:var(--muted);font-size:.82rem;text-align:center;padding:.5rem 0;">
+      La partita non è ancora iniziata.
+    </div>
+  {% else %}
+    {% for turn_rec in turns|reverse %}
+      {% for ev in turn_rec.get('events', [])|reverse %}
+      <div class="event-item">
+        <div class="event-turn">T{{ turn_rec.turn }}</div>
+        <div class="event-icon
+          {% if ev.type == 'goal' %}event-goal
+          {% elif ev.type == 'injury' %}event-injury
+          {% else %}event-freshness{% endif %}">
+          {% if ev.type == 'goal' %}⚽{% elif ev.type == 'injury' %}🚑{% else %}😓{% endif %}
+        </div>
+        <div>{{ ev.text }}</div>
+      </div>
+      {% else %}
+      <div class="event-item">
+        <div class="event-turn">T{{ turn_rec.turn }}</div>
+        <div class="event-icon" style="color:var(--muted);">—</div>
+        <div style="color:var(--muted);">Nessun evento</div>
+      </div>
+      {% endfor %}
+    {% endfor %}
+  {% endif %}
+</div>
+
+{% endblock %}

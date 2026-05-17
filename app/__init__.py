@@ -35,12 +35,14 @@ def create_app():
     from app.routes.admin import admin_bp
     from app.routes.game import game_bp
     from app.routes.events import events_bp
+    from app.routes.match import match_bp
 
     app.register_blueprint(main_bp)
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(admin_bp, url_prefix='/admin')
     app.register_blueprint(game_bp, url_prefix='/game')
     app.register_blueprint(events_bp, url_prefix='/events')
+    app.register_blueprint(match_bp, url_prefix='/match')
 
     @app.context_processor
     def inject_game_globals():
