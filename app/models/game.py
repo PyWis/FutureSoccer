@@ -295,3 +295,22 @@ class Loan(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     team = db.relationship('Team', foreign_keys=[team_id], backref='loans')
+
+
+class Investment(db.Model):
+    """Bond/cedola investment by a team."""
+    __tablename__ = 'investments'
+    id = db.Column(db.Integer, primary_key=True)
+    team_id = db.Column(db.Integer, db.ForeignKey('teams.id'), nullable=False)
+    bond_type = db.Column(db.String(20), nullable=False)       # white|green|yellow|red|black
+    original_type = db.Column(db.String(20), nullable=False)   # type purchased (before degradation)
+    degraded = db.Column(db.Boolean, default=False)
+    cost = db.Column(db.Float, nullable=False)
+    payout = db.Column(db.Float, nullable=False)
+    weeks_total = db.Column(db.Integer, nullable=False)
+    game_week_id_bought = db.Column(db.Integer, nullable=False)
+    game_week_id_maturity = db.Column(db.Integer, nullable=False)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    team = db.relationship('Team', foreign_keys=[team_id], backref='investments')

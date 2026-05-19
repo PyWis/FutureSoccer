@@ -84,7 +84,7 @@ def _seed_admin():
 
 
 def _init_game_clock():
-    from app.models.game import GameConfig
+    from app.models.game import GameConfig, Investment  # Investment imported to register metadata
     from datetime import datetime
     if not GameConfig.query.first():
         db.session.add(GameConfig(real_start=datetime.utcnow()))

@@ -176,16 +176,115 @@
 </div>
 {% endif %}
 
+<!-- ── ACTIVE INVESTMENTS ── -->
+{% if investments_display %}
+<div class="card mb-4" style="border-color:rgba(0,245,255,.25);">
+  <h3 style="margin-bottom:.75rem;">📈 Cedole Attive ({{ active_investments_count }}/{{ max_investments }})</h3>
+  <div style="display:flex;gap:1.5rem;font-size:.75rem;color:var(--muted);margin-bottom:.75rem;flex-wrap:wrap;">
+    <span>Investito: <strong style="color:var(--text);">€{{ "%.2f"|format(total_invested/1_000_000) }}M</strong></span>
+    <span>Rendimento atteso: <strong style="color:var(--success);">€{{ "%.2f"|format(total_expected_payout/1_000_000) }}M</strong></span>
+  </div>
+  {% for item in investments_display %}
+  {% set inv = item.inv %}
+  {% set bi = item.bond_info %}
+  <div class="loan-row">
+    <div style="min-width:100px;">
+      <span class="badge" style="background:rgba(0,0,0,.3);color:{{ bi.color }};border:1px solid {{ bi.color }};">
+        {{ bi.label }}
+      </span>
+      {% if inv.degraded %}
+      <span class="badge badge-red" style="font-size:.6rem;margin-left:.2rem;">DEGRADATA</span>
+      {% endif %}
+      <div style="font-size:.68rem;color:var(--muted);margin-top:.2rem;">
+        orig: {{ bond_types[inv.original_type].label }}
+      </div>
+    </div>
+    <div style="text-align:center;">
+      <div style="font-size:.75rem;color:var(--muted);">Costo</div>
+      <div style="font-family:'Orbitron',monospace;font-size:.85rem;">€{{ "%.1f"|format(inv.cost/1_000_000) }}M</div>
+    </div>
+    <div style="text-align:center;">
+      <div style="font-size:.75rem;color:var(--muted);">Rimborso</div>
+      <div style="font-family:'Orbitron',monospace;font-size:.85rem;color:var(--success);">€{{ "%.2f"|format(inv.payout/1_000_000) }}M</div>
+    </div>
+    <div style="text-align:right;">
+      <div style="font-size:.85rem;font-weight:700;">{{ item.weeks_left }} sett.</div>
+      <div style="font-size:.68rem;color:var(--muted);">alla scadenza</div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- ── BUY INVESTMENT ── -->
+{% if can_invest %}
+<div class="card mb-4" style="border-color:rgba(0,245,255,.2);">
+  <h3 style="margin-bottom:.4rem;">📊 Acquista Cedola</h3>
+  <p style="font-size:.8rem;color:var(--muted);margin-bottom:1rem;">
+    Cedole attive: <strong>{{ active_investments_count }}/{{ max_investments }}</strong>
+  </p>
+  <form method="POST" action="{{ url_for('events.finance_invest') }}">
+    <div class="grid-2" style="gap:.75rem;margin-bottom:1rem;">
+      {% for key, bt in bond_types.items() %}
+      {% set owned = active_counts.get(key, 0) %}
+      {% set at_limit = owned >= bt.max_count %}
+      <label class="loan-tier-card" id="bcard-{{ key }}" style="
+        border-color:{{ bt.color }}33;
+        {% if at_limit %}opacity:.45;pointer-events:none;{% endif %}
+      ">
+        <input type="radio" name="bond_type" value="{{ key }}" style="display:none;"
+               {% if loop.first and not at_limit %}checked{% endif %}
+               {% if at_limit %}disabled{% endif %}>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem;">
+          <span style="font-weight:700;color:{{ bt.color }};">Cedola {{ bt.label }}</span>
+          <span style="font-size:.65rem;color:var(--muted);">{{ owned }}/{{ bt.max_count }}</span>
+        </div>
+        <div style="font-family:'Orbitron',monospace;font-size:1.1rem;color:{{ bt.color }};">
+          €{{ "%.0f"|format(bt.cost/1_000_000) }}M
+        </div>
+        <div style="font-size:.7rem;margin-top:.25rem;display:flex;justify-content:space-between;">
+          <span style="color:var(--success);">+€{{ "%.2f"|format(bt.payout/1_000_000) }}M</span>
+          <span style="color:var(--muted);">{{ bt.weeks }} sett.</span>
+        </div>
+        {% if bt.degrade_chance > 0 %}
+        <div style="font-size:.63rem;color:var(--danger);margin-top:.2rem;">
+          ⚠️ {{ "%.0f"|format(bt.degrade_chance*100) }}% degrada a {{ bond_types[bt.degrade_to].label }}
+        </div>
+        {% endif %}
+        {% if at_limit %}
+        <div style="font-size:.65rem;color:var(--muted);margin-top:.2rem;">Limite raggiunto</div>
+        {% endif %}
+      </label>
+      {% endfor %}
+    </div>
+    <button type="submit" class="btn btn-primary" style="width:100%;"
+            onclick="return confirm('Acquistare la cedola selezionata?')">
+      📈 Acquista Cedola
+    </button>
+  </form>
+</div>
+{% elif not can_invest %}
+<div class="card mb-4" style="border-color:var(--warning);text-align:center;padding:1.2rem;">
+  <div style="color:var(--warning);">Hai raggiunto il limite di {{ max_investments }} cedole attive.</div>
+</div>
+{% endif %}
+
 <!-- ── INFO ── -->
 <div class="card" style="border-color:rgba(123,47,255,.3);padding:1.2rem;">
   <h4 style="margin-bottom:.6rem;color:var(--purple);">ℹ️ Come funzionano i prestiti</h4>
   <ul style="font-size:.8rem;color:var(--muted);line-height:1.9;padding-left:1.2rem;">
     <li>L'importo dipende dalle <strong>stelle totali del tuo stadio</strong> (tutte le strutture)</li>
     <li>Formula interessi: <code>capitale × tasso × (settimane / 25)</code></li>
-    <li>Rata settimanale = totale da restituire ÷ numero di settimane</li>
-    <li>Le rate vengono addebitate automaticamente <strong>ogni lunedì</strong></li>
+    <li>Le rate vengono addebitate automaticamente <strong>ogni settimana</strong></li>
     <li>Massimo <strong>{{ max_loans }} prestiti</strong> contemporanei</li>
-    <li>Se il budget scende sotto 0, la <strong>Federazione</strong> eroga un prestito di emergenza (+1%) da restituire il lunedì successivo e blocca nuovi prestiti</li>
+    <li>Se il budget scende sotto 0, la <strong>Federazione</strong> eroga un prestito di emergenza (+1%) da restituire la settimana successiva e blocca nuovi prestiti</li>
+  </ul>
+  <h4 style="margin:.75rem 0 .5rem;color:var(--cyan);">ℹ️ Come funzionano le cedole</h4>
+  <ul style="font-size:.8rem;color:var(--muted);line-height:1.9;padding-left:1.2rem;">
+    <li>Paghi subito il costo; il rimborso avviene automaticamente alla scadenza</li>
+    <li>Alcune cedole hanno una probabilità di <strong>degradarsi</strong> al momento dell'acquisto (rimborso ridotto)</li>
+    <li>Massimo <strong>{{ max_investments }} cedole</strong> attive contemporaneamente</li>
+    <li>Limite per tipo: White/Green/Yellow/Red max 10 — Black max 5</li>
   </ul>
 </div>
 
@@ -253,6 +352,27 @@
   var firstCard = document.querySelector('.loan-tier-card');
   if (firstCard) firstCard.classList.add('selected');
   update();
+
+  // Bond type card selection
+  document.querySelectorAll('input[name="bond_type"]').forEach(function(r) {
+    r.addEventListener('change', function() {
+      document.querySelectorAll('[id^="bcard-"]').forEach(function(c) { c.classList.remove('selected'); });
+      var card = document.getElementById('bcard-' + r.value);
+      if (card) card.classList.add('selected');
+    });
+  });
+  document.querySelectorAll('[id^="bcard-"]').forEach(function(card) {
+    card.addEventListener('click', function() {
+      var radio = card.querySelector('input[type="radio"]');
+      if (radio && !radio.disabled) {
+        radio.checked = true;
+        document.querySelectorAll('[id^="bcard-"]').forEach(function(c) { c.classList.remove('selected'); });
+        card.classList.add('selected');
+      }
+    });
+  });
+  var firstBondCard = document.querySelector('[id^="bcard-"]:not([style*="pointer-events:none"])');
+  if (firstBondCard) firstBondCard.classList.add('selected');
 })();
 </script>
 {% endblock %}
