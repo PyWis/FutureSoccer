@@ -3,7 +3,7 @@ from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
 from app import db
 from app.models.team import Team, Player
-from app.models.game import TeamWeeklyOffer, TrainingRecord, SponsorOffer, ActiveSponsor, FreeAgentListing, FreeAgentBid
+from app.models.game import TeamWeeklyOffer, TrainingRecord, SponsorOffer, ActiveSponsor, FreeAgentListing, FreeAgentBid, Loan
 from app.utils.gameclock import (
     get_game_week_id, get_game_weekday, get_game_day_number,
     format_game_date, is_training_day, is_sponsor_day, get_game_month_id,
@@ -19,6 +19,15 @@ SKILLS = ['porta', 'difesa', 'attacco', 'resistenza']
 SKILL_LABELS = {'porta': 'Porta', 'difesa': 'Difesa', 'attacco': 'Attacco', 'resistenza': 'Resistenza'}
 MAX_SECONDARY = 2
 _FACILITY_ATTRS = ['facility_training', 'facility_stream', 'facility_locker', 'facility_ground']
+
+LOAN_TIERS = {
+    'green':  {'multiplier': 1_000_000, 'rate': 0.01, 'label': 'Green',  'color': 'var(--success)'},
+    'yellow': {'multiplier': 2_000_000, 'rate': 0.03, 'label': 'Yellow', 'color': '#ffc800'},
+    'red':    {'multiplier': 5_000_000, 'rate': 0.09, 'label': 'Red',    'color': 'var(--danger)'},
+    'black':  {'multiplier':10_000_000, 'rate': 0.20, 'label': 'Black',  'color': '#888'},
+}
+MAX_LOANS = 3
+FEDERATION_TARGET = 2_000_000   # bring budget up to this when emergency loan fires
 
 
 def _require_team():
@@ -85,6 +94,53 @@ def _process_stadium_degradation(team):
     db.session.commit()
 
 
+def _process_loan_payments(team):
+    """Deduct weekly loan installments on each new game week."""
+    current_week = get_game_week_id()
+    active_loans = Loan.query.filter_by(team_id=team.id, is_active=True).all()
+    paid_any = False
+    for loan in active_loans:
+        if loan.last_paid_week_id >= current_week:
+            continue
+        team.budget -= loan.weekly_payment
+        loan.weeks_paid += 1
+        loan.last_paid_week_id = current_week
+        if loan.weeks_paid >= loan.weeks_total:
+            loan.is_active = False
+        paid_any = True
+    if paid_any:
+        db.session.commit()
+    # Emergency federation loan if budget went negative
+    _check_federation_loan(team)
+
+
+def _check_federation_loan(team):
+    """If budget < 0, auto-issue a federation emergency loan to bring to +2M."""
+    if team.budget >= 0:
+        return
+    # Only one federation loan at a time
+    existing = Loan.query.filter_by(team_id=team.id, loan_type='federation', is_active=True).first()
+    if existing:
+        return
+    amount = FEDERATION_TARGET - team.budget   # enough to reach +2M
+    interest = round(amount * 0.01, 2)
+    total_due = round(amount + interest, 2)
+    loan = Loan(
+        team_id=team.id,
+        loan_type='federation',
+        principal=amount,
+        total_due=total_due,
+        weekly_payment=total_due,   # repaid in full next week
+        weeks_total=1,
+        weeks_paid=0,
+        last_paid_week_id=get_game_week_id(),  # start counting from this week → paid next week
+    )
+    team.budget += amount
+    db.session.add(loan)
+    db.session.commit()
+    flash(f'🚨 Aiuto dalla Federazione attivato: €{amount/1_000_000:.2f}M (+ 1% interesse = €{total_due/1_000_000:.2f}M da restituire la prossima settimana).', 'warning')
+
+
 # ─── MARKET ────────────────────────────────────────────────────────────────────
 
 @events_bp.route('/market')
@@ -96,6 +152,7 @@ def market():
     team = current_user.team
     _process_sponsor_payments(team)
     _process_scouting_payment(team)
+    _process_loan_payments(team)
 
     week_id = get_game_week_id()
     weekday = get_game_weekday()
@@ -240,6 +297,7 @@ def training():
         return redir
     team = current_user.team
     _process_sponsor_payments(team)
+    _process_loan_payments(team)
 
     actual_game_day = get_game_day_number()
     session_day = get_training_session_day()   # canonical day for TrainingRecord
@@ -393,6 +451,7 @@ def sponsors():
         return redir
     team = current_user.team
     _process_sponsor_payments(team)
+    _process_loan_payments(team)
 
     week_id = get_game_week_id()
     weekday = get_game_weekday()
@@ -639,6 +698,7 @@ def free_agents():
     team = current_user.team
     _process_free_agent_auctions()
     _process_sponsor_payments(team)
+    _process_loan_payments(team)
 
     current_day = get_game_day_number()
     listings = FreeAgentListing.query.filter_by(status='active').all()
@@ -741,3 +801,115 @@ def free_agent_bid(listing_id):
     db.session.commit()
     flash(f'Offerta di €{amount:,.0f} inviata con successo!', 'success')
     return redirect(url_for('events.free_agents'))
+
+
+# ─── FINANCE ───────────────────────────────────────────────────────────────────
+
+@events_bp.route('/finance')
+@login_required
+def finance():
+    redir = _require_team()
+    if redir:
+        return redir
+    team = current_user.team
+    _process_sponsor_payments(team)
+    _process_scouting_payment(team)
+    _process_loan_payments(team)
+
+    active_loans = Loan.query.filter_by(team_id=team.id, is_active=True).order_by(Loan.created_at).all()
+    has_federation_loan = any(l.loan_type == 'federation' for l in active_loans)
+    can_borrow = not has_federation_loan and len(active_loans) < MAX_LOANS
+
+    # Compute total_stars for loan amounts
+    total_stars = (team.facility_training + team.facility_stream +
+                   team.facility_locker + team.facility_ground)
+
+    # Build tier info with actual amounts for this team
+    tiers = {}
+    for key, t in LOAN_TIERS.items():
+        principal = total_stars * t['multiplier']
+        tiers[key] = {**t, 'principal': principal}
+
+    # Enrich active loans with remaining info
+    loans_display = []
+    for loan in active_loans:
+        weeks_left = loan.weeks_total - loan.weeks_paid
+        remaining_due = round(loan.weekly_payment * weeks_left, 2)
+        loans_display.append({
+            'loan': loan,
+            'weeks_left': weeks_left,
+            'remaining_due': remaining_due,
+        })
+
+    total_weekly_debt = sum(l.weekly_payment for l in active_loans)
+
+    return render_template('events/finance.html',
+                           team=team,
+                           game_date=format_game_date(),
+                           active_loans=loans_display,
+                           has_federation_loan=has_federation_loan,
+                           can_borrow=can_borrow,
+                           total_stars=total_stars,
+                           tiers=tiers,
+                           total_weekly_debt=total_weekly_debt,
+                           loan_durations=[25, 50, 75, 100],
+                           max_loans=MAX_LOANS)
+
+
+@events_bp.route('/finance/borrow', methods=['POST'])
+@login_required
+def finance_borrow():
+    redir = _require_team()
+    if redir:
+        return redir
+    team = current_user.team
+
+    active_loans = Loan.query.filter_by(team_id=team.id, is_active=True).all()
+    has_federation_loan = any(l.loan_type == 'federation' for l in active_loans)
+    if has_federation_loan:
+        flash('Non puoi richiedere prestiti mentre è attivo l\'Aiuto dalla Federazione.', 'danger')
+        return redirect(url_for('events.finance'))
+    if len(active_loans) >= MAX_LOANS:
+        flash(f'Hai già {MAX_LOANS} prestiti attivi. Restituiscili prima di richiederne altri.', 'danger')
+        return redirect(url_for('events.finance'))
+
+    loan_type = request.form.get('loan_type')
+    try:
+        weeks = int(request.form.get('weeks', 0))
+    except (ValueError, TypeError):
+        weeks = 0
+
+    if loan_type not in LOAN_TIERS or weeks not in (25, 50, 75, 100):
+        flash('Parametri non validi.', 'danger')
+        return redirect(url_for('events.finance'))
+
+    total_stars = (team.facility_training + team.facility_stream +
+                   team.facility_locker + team.facility_ground)
+    if total_stars == 0:
+        flash('Il tuo stadio non ha ancora strutture: non puoi richiedere prestiti.', 'danger')
+        return redirect(url_for('events.finance'))
+
+    tier = LOAN_TIERS[loan_type]
+    principal = total_stars * tier['multiplier']
+    rate = tier['rate']
+    total_due = round(principal * (1 + rate * (weeks / 25)), 2)
+    weekly_payment = round(total_due / weeks, 2)
+
+    loan = Loan(
+        team_id=team.id,
+        loan_type=loan_type,
+        principal=principal,
+        total_due=total_due,
+        weekly_payment=weekly_payment,
+        weeks_total=weeks,
+        weeks_paid=0,
+        last_paid_week_id=get_game_week_id(),  # first payment next week
+    )
+    team.budget += principal
+    db.session.add(loan)
+    db.session.commit()
+
+    flash(f'💰 Prestito {tier["label"]} di €{principal/1_000_000:.1f}M approvato! '
+          f'Rimborso: €{weekly_payment/1_000:.0f}k/settimana per {weeks} settimane.', 'success')
+    return redirect(url_for('events.finance'))
+
