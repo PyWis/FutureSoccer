@@ -95,15 +95,19 @@ def _process_stadium_degradation(team):
 
 
 def _process_loan_payments(team):
-    """Deduct weekly loan installments on each new game week."""
+    """Deduct all overdue weekly loan installments (catches up missed weeks)."""
     current_week = get_game_week_id()
     active_loans = Loan.query.filter_by(team_id=team.id, is_active=True).all()
     paid_any = False
     for loan in active_loans:
-        if loan.last_paid_week_id >= current_week:
+        weeks_overdue = current_week - loan.last_paid_week_id
+        if weeks_overdue <= 0:
             continue
-        team.budget -= loan.weekly_payment
-        loan.weeks_paid += 1
+        # Cap to remaining installments
+        remaining = loan.weeks_total - loan.weeks_paid
+        installments_due = min(weeks_overdue, remaining)
+        team.budget -= loan.weekly_payment * installments_due
+        loan.weeks_paid += installments_due
         loan.last_paid_week_id = current_week
         if loan.weeks_paid >= loan.weeks_total:
             loan.is_active = False
@@ -830,15 +834,16 @@ def finance():
         principal = total_stars * t['multiplier']
         tiers[key] = {**t, 'principal': principal}
 
-    # Enrich active loans with remaining info
+    current_week = get_game_week_id()
     loans_display = []
     for loan in active_loans:
         weeks_left = loan.weeks_total - loan.weeks_paid
-        remaining_due = round(loan.weekly_payment * weeks_left, 2)
+        weeks_overdue = max(0, current_week - loan.last_paid_week_id)
         loans_display.append({
             'loan': loan,
             'weeks_left': weeks_left,
-            'remaining_due': remaining_due,
+            'remaining_due': round(loan.weekly_payment * weeks_left, 2),
+            'weeks_overdue': weeks_overdue,
         })
 
     total_weekly_debt = sum(l.weekly_payment for l in active_loans)

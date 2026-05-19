@@ -69,6 +69,11 @@
       <div style="font-size:.72rem;color:var(--muted);">
         residuo €{{ "%.2f"|format(item.remaining_due/1_000_000) }}M
       </div>
+      {% if item.weeks_overdue > 0 %}
+      <div style="font-size:.68rem;color:var(--danger);margin-top:.15rem;">
+        ⚠️ {{ item.weeks_overdue }} sett. arretrate
+      </div>
+      {% endif %}
     </div>
   </div>
   {% endfor %}
