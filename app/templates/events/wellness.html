@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+{% block title %}Benessere — FutureSoccer{% endblock %}
+{% block extra_head %}
+<style>
+  .session-counter{display:flex;align-items:center;gap:.75rem;padding:.75rem 1rem;background:var(--card);border:1px solid var(--card-border);border-radius:10px;}
+  .session-icon{font-size:1.4rem;}
+  .session-count{font-family:'Orbitron',monospace;font-size:1.5rem;font-weight:900;}
+  .session-max{font-size:.7rem;color:var(--muted);}
+  .player-row{display:flex;align-items:center;gap:.5rem;padding:.4rem .5rem;border-bottom:1px solid rgba(255,255,255,.04);}
+  .player-row:last-child{border-bottom:none;}
+  .fresh-bar{height:4px;border-radius:2px;background:var(--card-border);width:50px;flex-shrink:0;}
+  .fresh-fill{height:100%;border-radius:2px;}
+  .btn-xs{padding:.2rem .55rem;font-size:.7rem;}
+  .shop-card{border:1px solid var(--card-border);border-radius:12px;padding:1.1rem;margin-bottom:.75rem;}
+  .btn-outline{background:transparent;border:1px solid var(--card-border);color:var(--text);}
+  .btn-outline:hover{border-color:var(--cyan);color:var(--cyan);}
+  .btn-outline:disabled{opacity:.4;cursor:not-allowed;}
+</style>
+{% endblock %}
+{% block content %}
+
+<div class="page-header flex flex-between flex-center" style="flex-wrap:wrap;gap:1rem;">
+  <div>
+    <h1>🏥 BENESSERE</h1>
+    <p class="text-muted">{{ game_date }}</p>
+  </div>
+  <div style="text-align:right;">
+    <div style="font-size:.75rem;color:var(--muted);">Liquidità</div>
+    <div style="font-family:'Orbitron',monospace;font-size:1.1rem;color:var(--success);">€{{ "%.2f"|format(team.budget/1_000_000) }}M</div>
+  </div>
+</div>
+
+<!-- ── SESSION COUNTERS ── -->
+<div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1.2rem;">
+  <div class="session-counter" style="flex:1;min-width:140px;border-color:rgba(0,200,100,.3);">
+    <div class="session-icon">💆</div>
+    <div>
+      <div class="session-count" style="color:var(--success);">{{ team.physio_sessions }}</div>
+      <div class="session-max">Fisioterapia / {{ MAX_PHYSIO }}</div>
+    </div>
+  </div>
+  <div class="session-counter" style="flex:1;min-width:140px;border-color:rgba(0,245,255,.3);">
+    <div class="session-icon">🏥</div>
+    <div>
+      <div class="session-count" style="color:var(--cyan);">{{ team.health_sessions }}</div>
+      <div class="session-max">Salute / {{ MAX_HEALTH }}</div>
+    </div>
+  </div>
+  <div class="session-counter" style="flex:1;min-width:140px;border-color:rgba(123,47,255,.3);">
+    <div class="session-icon">🤖</div>
+    <div>
+      <div class="session-count" style="color:var(--purple);">{{ team.cyber_sessions }}</div>
+      <div class="session-max">Cyberfisio / {{ MAX_CYBER }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── BUY SESSIONS (Wed–Sun) ── -->
+{% if purchase_window %}
+<div class="card mb-4">
+  <h3 style="margin-bottom:.75rem;">🛒 Acquista Sessioni</h3>
+  <form method="POST" action="{{ url_for('events.wellness_buy_sessions') }}" style="display:flex;gap:.5rem;flex-wrap:wrap;">
+    <button name="option" value="physio1" class="btn btn-outline" style="font-size:.8rem;">💆 ×1 — €100k</button>
+    <button name="option" value="physio2" class="btn btn-outline" style="font-size:.8rem;">💆 ×2 — €250k</button>
+    <button name="option" value="physio3" class="btn btn-outline" style="font-size:.8rem;">💆 ×3 — €500k</button>
+    <button name="option" value="health1" class="btn btn-outline" style="font-size:.8rem;color:var(--cyan);border-color:var(--cyan);">🏥 ×1 Salute — €500k</button>
+  </form>
+</div>
+{% else %}
+<div class="card mb-4" style="border-color:rgba(136,136,136,.15);text-align:center;padding:1rem;">
+  <div style="font-size:.82rem;color:var(--muted);">🛒 Acquisti disponibili da <strong>Mercoledì a Domenica</strong></div>
+</div>
+{% endif %}
+
+<!-- ── CONVERT ── -->
+<div class="card mb-4">
+  <h3 style="margin-bottom:.75rem;">🔄 Conversione (3 Fisioterapia → 1 altra)</h3>
+  <div style="display:flex;gap:.75rem;flex-wrap:wrap;">
+    <form method="POST" action="{{ url_for('events.wellness_convert') }}">
+      <input type="hidden" name="target" value="health">
+      <button type="submit" class="btn btn-outline"
+              {% if team.physio_sessions < 3 or team.health_sessions >= MAX_HEALTH %}disabled{% endif %}
+              style="font-size:.82rem;color:var(--cyan);border-color:var(--cyan);">
+        💆💆💆 → 🏥 Salute
+      </button>
+    </form>
+    <form method="POST" action="{{ url_for('events.wellness_convert') }}">
+      <input type="hidden" name="target" value="cyber">
+      <button type="submit" class="btn btn-outline"
+              {% if team.physio_sessions < 3 or team.cyber_sessions >= MAX_CYBER %}disabled{% endif %}
+              style="font-size:.82rem;color:var(--purple);border-color:var(--purple);">
+        💆💆💆 → 🤖 Cyberfisio
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- ── USE ON PLAYERS ── -->
+{% if human_players or cyber_players %}
+<div class="card mb-4">
+  <h3 style="margin-bottom:.75rem;">⚡ Usa Sessione su Giocatore</h3>
+
+  {% if human_players %}
+  <div style="font-size:.7rem;color:var(--muted);letter-spacing:1px;margin-bottom:.5rem;">GIOCATORI UOMO / DONNA</div>
+  {% for p in human_players %}
+  <div class="player-row">
+    <div style="flex:1;font-size:.82rem;">
+      {{ p.name }}
+      <span style="font-size:.68rem;color:var(--muted);margin-left:.3rem;">{{ p.type }}</span>
+    </div>
+    <div style="font-size:.75rem;font-family:'Orbitron',monospace;
+      color:{% if p.freshness < 0 %}var(--danger){% elif p.freshness < 4 %}#ffa500{% else %}var(--success){% endif %};
+      width:36px;text-align:right;">
+      {{ "%.1f"|format(p.freshness) }}
+    </div>
+    <div class="fresh-bar">
+      <div class="fresh-fill" style="width:{{ [[((p.freshness / 10 * 100)|int), 0]|max, 100]|min }}%;
+        background:{% if p.freshness < 0 %}var(--danger){% elif p.freshness < 4 %}#ffa500{% else %}var(--success){% endif %};"></div>
+    </div>
+    <form method="POST" action="{{ url_for('events.wellness_use') }}" style="display:contents;">
+      <input type="hidden" name="player_id" value="{{ p.id }}">
+      <button name="session_type" value="physio" class="btn btn-outline btn-xs"
+              {% if team.physio_sessions < 1 %}disabled{% endif %}>💆+0.5</button>
+      <button name="session_type" value="health" class="btn btn-outline btn-xs"
+              style="color:var(--cyan);border-color:var(--cyan);"
+              {% if team.health_sessions < 1 or p.freshness >= 0 %}disabled{% endif %}
+              title="Solo se freschezza negativa">🏥+2.0</button>
+    </form>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  {% if cyber_players %}
+  <div style="font-size:.7rem;color:var(--purple);letter-spacing:1px;margin:.8rem 0 .5rem;">GIOCATORI CYBER</div>
+  {% for p in cyber_players %}
+  <div class="player-row">
+    <div style="flex:1;font-size:.82rem;">
+      {{ p.name }}
+      <span class="badge" style="font-size:.58rem;background:rgba(123,47,255,.2);color:var(--purple);margin-left:.3rem;">CYBER</span>
+    </div>
+    <div style="font-size:.75rem;font-family:'Orbitron',monospace;
+      color:{% if p.freshness < 0 %}var(--danger){% elif p.freshness < 4 %}#ffa500{% else %}var(--success){% endif %};
+      width:36px;text-align:right;">
+      {{ "%.1f"|format(p.freshness) }}
+    </div>
+    <div class="fresh-bar">
+      <div class="fresh-fill" style="width:{{ [[((p.freshness / 10 * 100)|int), 0]|max, 100]|min }}%;
+        background:var(--purple);"></div>
+    </div>
+    <form method="POST" action="{{ url_for('events.wellness_use') }}" style="display:contents;">
+      <input type="hidden" name="player_id" value="{{ p.id }}">
+      <button name="session_type" value="cyber" class="btn btn-outline btn-xs"
+              style="color:var(--purple);border-color:var(--purple);"
+              {% if team.cyber_sessions < 1 %}disabled{% endif %}>🤖+2.5</button>
+    </form>
+  </div>
+  {% endfor %}
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- ── SHOP ── -->
+<div class="card mb-4">
+  <h3 style="margin-bottom:.75rem;">👟 Shop Scarpe</h3>
+
+  <!-- Soccer Pro -->
+  <div class="shop-card" style="border-color:rgba(0,245,255,.25);">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.5rem;">
+      <div>
+        <div style="font-weight:700;color:var(--cyan);">Soccer Pro</div>
+        <div style="font-size:.78rem;color:var(--muted);margin-top:.2rem;">
+          +3 sessioni fisioterapia/settimana per 13 settimane · €5M · cooldown 13 sett.
+        </div>
+      </div>
+      {% if pro_active %}
+      <span class="badge badge-green">Attivo · {{ pro_weeks_left }} sett. rimaste</span>
+      {% else %}
+      <form method="POST" action="{{ url_for('events.wellness_shop') }}">
+        <button name="item" value="pro" class="btn btn-primary btn-sm"
+                {% if not pro_available or team.budget < 5_000_000 %}disabled{% endif %}>
+          Acquista €5M
+        </button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Soccer Sponsor -->
+  <div class="shop-card" style="border-color:rgba(123,47,255,.25);">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.5rem;">
+      <div>
+        <div style="font-weight:700;color:var(--purple);">Soccer Sponsor</div>
+        <div style="font-size:.78rem;color:var(--muted);margin-top:.2rem;">
+          Gratis · +20 sessioni fisioterapia (una tantum) · sponsor tecnico secondario 5 sett. (non rimovibile)
+        </div>
+      </div>
+      {% if shoe_sponsor_active %}
+      <span class="badge" style="background:rgba(123,47,255,.2);color:var(--purple);border:1px solid var(--purple);">Sponsor attivo</span>
+      {% else %}
+      <form method="POST" action="{{ url_for('events.wellness_shop') }}">
+        <button name="item" value="sponsor" class="btn btn-outline btn-sm"
+                style="color:var(--purple);border-color:var(--purple);"
+                {% if not can_shoe_sponsor %}disabled{% endif %}>
+          Attiva {% if not can_shoe_sponsor %}(slot occupati){% endif %}
+        </button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Soccer Future -->
+  <div class="shop-card" style="border-color:rgba(255,200,0,.25);margin-bottom:0;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.5rem;">
+      <div>
+        <div style="font-weight:700;color:#ffc800;">Soccer Future</div>
+        <div style="font-size:.78rem;color:var(--muted);margin-top:.2rem;">
+          €20M · +5 fisioterapia +1 salute/settimana per 20 sett. · +0.1 skill casuale a tutti i giocatori · cooldown 20 sett.
+        </div>
+      </div>
+      {% if future_active %}
+      <span class="badge badge-gold">Attivo · {{ future_weeks_left }} sett. rimaste</span>
+      {% else %}
+      <form method="POST" action="{{ url_for('events.wellness_shop') }}">
+        <button name="item" value="future" class="btn btn-sm"
+                style="background:#ffc800;color:#000;"
+                {% if not future_available or team.budget < 20_000_000 %}disabled{% endif %}>
+          Acquista €20M
+        </button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% endblock %}
