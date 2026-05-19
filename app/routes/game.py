@@ -27,7 +27,7 @@ FACILITY_ICONS = {
 FACILITY_EFFECTS = {
     'training': 'Allenamento gratuito al Sabato (p200k) per N giocatori pari alle stelle',
     'stream':   '— Effetto in arrivo',
-    'locker':   '— Effetto in arrivo',
+    'locker':   'Ogni stella genera 1 sessione fisioterapia a settimana (visita Benessere per riscuotere)',
     'ground':   'Riduce il rischio infortuni in partita (-0.1% per stella)',
 }
 # Index = star level (0 = unbuilt). Upgrade cost = FACILITY_PRICES[n+1] - FACILITY_PRICES[n]

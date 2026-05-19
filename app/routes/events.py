@@ -21,6 +21,11 @@ SKILL_LABELS = {'porta': 'Porta', 'difesa': 'Difesa', 'attacco': 'Attacco', 'res
 MAX_SECONDARY = 2
 _FACILITY_ATTRS = ['facility_training', 'facility_stream', 'facility_locker', 'facility_ground']
 
+MAX_PHYSIO = 20
+MAX_HEALTH = 5
+MAX_CYBER  = 5
+WELLNESS_PURCHASE_WEEKDAYS = (2, 3, 4, 5, 6)  # Wed–Sun
+
 LOAN_TIERS = {
     'green':  {'multiplier': 1_000_000, 'rate': 0.01, 'label': 'Green',  'color': 'var(--success)'},
     'yellow': {'multiplier': 2_000_000, 'rate': 0.03, 'label': 'Yellow', 'color': '#ffc800'},
@@ -759,8 +764,8 @@ def sponsor_remove(sponsor_id):
     if sp.team_id != current_user.team.id:
         flash('Operazione non autorizzata.', 'danger')
         return redirect(url_for('events.sponsors'))
-    if sp.type == 'dark':
-        flash('Lo Sponsor Oscuro non può essere rimosso per le prossime settimane.', 'danger')
+    if sp.type in ('dark', 'shoe'):
+        flash('Questo sponsor non può essere rimosso.', 'danger')
         return redirect(url_for('events.sponsors'))
     name = sp.sponsor_name
     db.session.delete(sp)
@@ -1126,6 +1131,307 @@ def finance_borrow():
           f'Rimborso: €{weekly_payment/1_000:.0f}k/settimana per {weeks} settimane.', 'success')
     return redirect(url_for('events.finance'))
 
+
+def _process_wellness(team):
+    """Grant weekly sessions from locker + active shoe upgrades."""
+    current_week = get_game_week_id()
+    if team.locker_last_grant_week_id >= current_week:
+        return  # already processed this week
+
+    granted_physio = 0
+    granted_health = 0
+
+    # Locker stars → physio sessions
+    granted_physio += team.facility_locker
+
+    # Soccer Pro: +3 physio/week while active
+    if team.soccer_pro_end_week_id > 0 and current_week < team.soccer_pro_end_week_id:
+        granted_physio += 3
+
+    # Soccer Future: +5 physio +1 health/week while active
+    if team.soccer_future_end_week_id > 0 and current_week < team.soccer_future_end_week_id:
+        granted_physio += 5
+        granted_health += 1
+        # One-time skill boost on first grant week
+        if not team.soccer_future_skill_boosted:
+            import random as _r
+            skills = ['porta', 'difesa', 'attacco', 'resistenza']
+            for player in team.players.all():
+                sk = _r.choice(skills)
+                setattr(player, sk, round(getattr(player, sk) + 0.1, 2))
+            team.soccer_future_skill_boosted = True
+
+    team.physio_sessions = min(MAX_PHYSIO, team.physio_sessions + granted_physio)
+    team.health_sessions = min(MAX_HEALTH, team.health_sessions + granted_health)
+    team.locker_last_grant_week_id = current_week
+    db.session.commit()
+
+
+# ─── WELLNESS ──────────────────────────────────────────────────────────────────
+
+@events_bp.route('/wellness')
+@login_required
+def wellness():
+    redir = _require_team()
+    if redir:
+        return redir
+    team = current_user.team
+    _process_sponsor_payments(team)
+    _process_loan_payments(team)
+    _process_wellness(team)
+
+    current_week = get_game_week_id()
+    weekday = get_game_weekday()
+    purchase_window = weekday in WELLNESS_PURCHASE_WEEKDAYS
+
+    players = team.players.order_by(None).all()
+    human_players = [p for p in players if p.type in ('uomo', 'donna')]
+    cyber_players = [p for p in players if p.type == 'cyber']
+
+    # Secondary sponsor slots for shoe sponsor
+    active_sponsors = ActiveSponsor.query.filter_by(team_id=team.id).all()
+    secondary_count = sum(1 for s in active_sponsors if s.type in ('secondary', 'shoe'))
+    shoe_sponsor_active = any(s.type == 'shoe' for s in active_sponsors)
+    can_shoe_sponsor = not shoe_sponsor_active and secondary_count < 2
+
+    # Shoe Pro cooldown: available if end_week <= current_week (or never used)
+    pro_active = team.soccer_pro_end_week_id > current_week
+    pro_available = not pro_active and (team.soccer_pro_end_week_id <= current_week)
+    pro_weeks_left = max(0, team.soccer_pro_end_week_id - current_week) if pro_active else 0
+
+    future_active = team.soccer_future_end_week_id > current_week
+    future_available = not future_active and (team.soccer_future_end_week_id <= current_week)
+    future_weeks_left = max(0, team.soccer_future_end_week_id - current_week) if future_active else 0
+
+    return render_template('events/wellness.html',
+                           team=team,
+                           game_date=format_game_date(),
+                           purchase_window=purchase_window,
+                           weekday=weekday,
+                           human_players=human_players,
+                           cyber_players=cyber_players,
+                           can_shoe_sponsor=can_shoe_sponsor,
+                           shoe_sponsor_active=shoe_sponsor_active,
+                           pro_active=pro_active,
+                           pro_available=pro_available,
+                           pro_weeks_left=pro_weeks_left,
+                           future_active=future_active,
+                           future_available=future_available,
+                           future_weeks_left=future_weeks_left,
+                           MAX_PHYSIO=MAX_PHYSIO,
+                           MAX_HEALTH=MAX_HEALTH,
+                           MAX_CYBER=MAX_CYBER)
+
+
+@events_bp.route('/wellness/buy-sessions', methods=['POST'])
+@login_required
+def wellness_buy_sessions():
+    redir = _require_team()
+    if redir:
+        return redir
+    team = current_user.team
+    if get_game_weekday() not in WELLNESS_PURCHASE_WEEKDAYS:
+        flash('Acquisti disponibili solo da mercoledì a domenica.', 'warning')
+        return redirect(url_for('events.wellness'))
+
+    option = request.form.get('option')  # 'physio1','physio2','physio3','health1'
+    costs = {'physio1': 100_000, 'physio2': 250_000, 'physio3': 500_000, 'health1': 500_000}
+    if option not in costs:
+        flash('Opzione non valida.', 'danger')
+        return redirect(url_for('events.wellness'))
+
+    cost = costs[option]
+    if team.budget < cost:
+        flash('Budget insufficiente.', 'danger')
+        return redirect(url_for('events.wellness'))
+
+    team.budget -= cost
+    if option == 'health1':
+        if team.health_sessions >= MAX_HEALTH:
+            flash('Hai già il massimo di sessioni salute.', 'warning')
+            return redirect(url_for('events.wellness'))
+        team.health_sessions = min(MAX_HEALTH, team.health_sessions + 1)
+        flash('✅ 1 sessione salute acquistata.', 'success')
+    else:
+        qty = int(option[-1])
+        if team.physio_sessions + qty > MAX_PHYSIO:
+            flash(f'Non puoi superare {MAX_PHYSIO} sessioni fisioterapia.', 'warning')
+            return redirect(url_for('events.wellness'))
+        team.physio_sessions = min(MAX_PHYSIO, team.physio_sessions + qty)
+        flash(f'✅ {qty} sessione/i fisioterapia acquistate.', 'success')
+
+    db.session.commit()
+    return redirect(url_for('events.wellness'))
+
+
+@events_bp.route('/wellness/convert', methods=['POST'])
+@login_required
+def wellness_convert():
+    redir = _require_team()
+    if redir:
+        return redir
+    team = current_user.team
+    target = request.form.get('target')  # 'health' or 'cyber'
+
+    if team.physio_sessions < 3:
+        flash('Servono almeno 3 sessioni fisioterapia per la conversione.', 'danger')
+        return redirect(url_for('events.wellness'))
+
+    if target == 'health':
+        if team.health_sessions >= MAX_HEALTH:
+            flash('Hai già il massimo di sessioni salute.', 'warning')
+            return redirect(url_for('events.wellness'))
+        team.physio_sessions -= 3
+        team.health_sessions = min(MAX_HEALTH, team.health_sessions + 1)
+        flash('🔄 3 sessioni fisioterapia convertite in 1 sessione salute.', 'success')
+    elif target == 'cyber':
+        if team.cyber_sessions >= MAX_CYBER:
+            flash('Hai già il massimo di sessioni cyberfisio.', 'warning')
+            return redirect(url_for('events.wellness'))
+        team.physio_sessions -= 3
+        team.cyber_sessions = min(MAX_CYBER, team.cyber_sessions + 1)
+        flash('🔄 3 sessioni fisioterapia convertite in 1 sessione cyberfisio.', 'success')
+    else:
+        flash('Tipo conversione non valido.', 'danger')
+
+    db.session.commit()
+    return redirect(url_for('events.wellness'))
+
+
+@events_bp.route('/wellness/use', methods=['POST'])
+@login_required
+def wellness_use():
+    redir = _require_team()
+    if redir:
+        return redir
+    team = current_user.team
+
+    from app.models.team import Player
+    session_type = request.form.get('session_type')  # 'physio','health','cyber'
+    try:
+        player_id = int(request.form.get('player_id', 0))
+    except (ValueError, TypeError):
+        flash('Giocatore non valido.', 'danger')
+        return redirect(url_for('events.wellness'))
+
+    player = Player.query.get_or_404(player_id)
+    if player.team_id != team.id:
+        flash('Giocatore non nella tua squadra.', 'danger')
+        return redirect(url_for('events.wellness'))
+
+    if session_type == 'physio':
+        if player.type not in ('uomo', 'donna'):
+            flash('La fisioterapia funziona solo su giocatori uomini o donne.', 'warning')
+            return redirect(url_for('events.wellness'))
+        if team.physio_sessions < 1:
+            flash('Nessuna sessione fisioterapia disponibile.', 'danger')
+            return redirect(url_for('events.wellness'))
+        team.physio_sessions -= 1
+        player.freshness = round(player.freshness + 0.5, 2)
+        flash(f'💆 {player.name}: +0.5 freschezza (fisioterapia).', 'success')
+
+    elif session_type == 'health':
+        if player.type not in ('uomo', 'donna'):
+            flash('La sessione salute funziona solo su giocatori uomini o donne.', 'warning')
+            return redirect(url_for('events.wellness'))
+        if player.freshness >= 0:
+            flash(f'{player.name} ha freschezza ≥ 0 — la sessione salute si usa solo su freschezza negativa.', 'warning')
+            return redirect(url_for('events.wellness'))
+        if team.health_sessions < 1:
+            flash('Nessuna sessione salute disponibile.', 'danger')
+            return redirect(url_for('events.wellness'))
+        team.health_sessions -= 1
+        player.freshness = round(player.freshness + 2.0, 2)
+        flash(f'🏥 {player.name}: +2.0 freschezza (sessione salute).', 'success')
+
+    elif session_type == 'cyber':
+        if player.type != 'cyber':
+            flash('La sessione cyberfisio funziona solo su giocatori cyber.', 'warning')
+            return redirect(url_for('events.wellness'))
+        if team.cyber_sessions < 1:
+            flash('Nessuna sessione cyberfisio disponibile.', 'danger')
+            return redirect(url_for('events.wellness'))
+        team.cyber_sessions -= 1
+        player.freshness = round(player.freshness + 2.5, 2)
+        flash(f'🤖 {player.name}: +2.5 freschezza (cyberfisio).', 'success')
+
+    else:
+        flash('Tipo sessione non valido.', 'danger')
+        return redirect(url_for('events.wellness'))
+
+    db.session.commit()
+    return redirect(url_for('events.wellness'))
+
+
+@events_bp.route('/wellness/shop', methods=['POST'])
+@login_required
+def wellness_shop():
+    redir = _require_team()
+    if redir:
+        return redir
+    team = current_user.team
+    item = request.form.get('item')
+    current_week = get_game_week_id()
+
+    if item == 'pro':
+        # Scarpe Soccer Pro: 5M, +3 physio/week for 13 weeks, cooldown 13 weeks
+        if team.soccer_pro_end_week_id > current_week:
+            flash('Scarpe Pro già attive.', 'warning')
+            return redirect(url_for('events.wellness'))
+        if team.budget < 5_000_000:
+            flash('Budget insufficiente (5M€).', 'danger')
+            return redirect(url_for('events.wellness'))
+        team.budget -= 5_000_000
+        team.soccer_pro_end_week_id = current_week + 13
+        db.session.commit()
+        flash('👟 Scarpe Soccer Pro attivate! +3 sessioni fisioterapia/settimana per 13 settimane.', 'success')
+
+    elif item == 'sponsor':
+        # Scarpe Soccer Sponsor: free, +20 physio, locked secondary sponsor 5 weeks
+        active_sponsors = ActiveSponsor.query.filter_by(team_id=team.id).all()
+        secondary_count = sum(1 for s in active_sponsors if s.type in ('secondary', 'shoe'))
+        shoe_active = any(s.type == 'shoe' for s in active_sponsors)
+        if shoe_active:
+            flash('Sponsor tecnico scarpe già attivo.', 'warning')
+            return redirect(url_for('events.wellness'))
+        if secondary_count >= 2:
+            flash('Nessuno slot sponsor secondario disponibile.', 'danger')
+            return redirect(url_for('events.wellness'))
+        # Add +20 physio (one-time) and locked secondary sponsor for 5 weeks
+        team.physio_sessions = min(MAX_PHYSIO, team.physio_sessions + 20)
+        shoe_sp = ActiveSponsor(
+            team_id=team.id,
+            sponsor_name='Soccer Tech Sponsor',
+            weekly_amount=0,
+            remaining_weeks=5,
+            type='shoe',
+            last_paid_week_id=current_week,
+        )
+        db.session.add(shoe_sp)
+        db.session.commit()
+        flash('👟 Scarpe Soccer Sponsor attivate! +20 sessioni fisioterapia e sponsor tecnico (5 settimane, non rimovibile).', 'success')
+
+    elif item == 'future':
+        # Scarpe Soccer Future: 20M, +5 physio +1 health/week for 20 weeks, +0.1 skill once, cooldown 20 weeks
+        if team.soccer_future_end_week_id > current_week:
+            flash('Scarpe Future già attive.', 'warning')
+            return redirect(url_for('events.wellness'))
+        if team.budget < 20_000_000:
+            flash('Budget insufficiente (20M€).', 'danger')
+            return redirect(url_for('events.wellness'))
+        team.budget -= 20_000_000
+        team.soccer_future_end_week_id = current_week + 20
+        team.soccer_future_skill_boosted = False   # reset so skill boost fires next processing
+        db.session.commit()
+        flash('👟 Scarpe Soccer Future attivate! +5 fisioterapia +1 salute/settimana per 20 settimane. +0.1 skill casuale a tutti i giocatori alla prossima visita.', 'success')
+
+    else:
+        flash('Articolo non valido.', 'danger')
+
+    return redirect(url_for('events.wellness'))
+
+
+# ─── FINANCE ───────────────────────────────────────────────────────────────────
 
 @events_bp.route('/finance/invest', methods=['POST'])
 @login_required

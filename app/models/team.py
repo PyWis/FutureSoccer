@@ -34,6 +34,15 @@ class Team(db.Model):
     facility_ground   = db.Column(db.Integer, default=0)   # Ground
     last_degraded_month = db.Column(db.Integer, default=0) # year*100+month last degradation applied
 
+    # Wellness sessions
+    physio_sessions    = db.Column(db.Integer, default=0)   # fisioterapia, max 20
+    health_sessions    = db.Column(db.Integer, default=0)   # salute, max 5
+    cyber_sessions     = db.Column(db.Integer, default=0)   # cyberfisio, max 5
+    locker_last_grant_week_id  = db.Column(db.Integer, default=-1)
+    soccer_pro_end_week_id     = db.Column(db.Integer, default=-1)  # week Pro expires (-1=never)
+    soccer_future_end_week_id  = db.Column(db.Integer, default=-1)
+    soccer_future_skill_boosted = db.Column(db.Boolean, default=False)
+
     manager_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, unique=True)
     manager = db.relationship('User', back_populates='team')
 
