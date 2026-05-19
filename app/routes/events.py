@@ -26,6 +26,13 @@ MAX_HEALTH = 5
 MAX_CYBER  = 5
 WELLNESS_PURCHASE_WEEKDAYS = (2, 3, 4, 5, 6)  # Wed–Sun
 
+_SHOE_SPONSOR_NAMES = [
+    'HyperStride Technologies', 'NeoFoot Labs', 'KinetiX Sport', 'VelocityGear',
+    'ArcFlex Systems', 'BioStep Pro', 'FutureSole Inc.', 'TitanKick Corp.',
+    'PulseTrack Athletics', 'OmegaBoot Tech', 'SkyFoot Dynamics', 'XcelRun Industries',
+    'ApexCleat Solutions', 'SwiftTread Group', 'EliteStride Partners',
+]
+
 LOAN_TIERS = {
     'green':  {'multiplier': 1_000_000, 'rate': 0.01, 'label': 'Green',  'color': 'var(--success)'},
     'yellow': {'multiplier': 2_000_000, 'rate': 0.03, 'label': 'Yellow', 'color': '#ffc800'},
@@ -1183,6 +1190,7 @@ def wellness():
     current_week = get_game_week_id()
     weekday = get_game_weekday()
     purchase_window = weekday in WELLNESS_PURCHASE_WEEKDAYS
+    already_bought = team.wellness_last_buy_week_id == current_week
 
     players = team.players.order_by(None).all()
     human_players = [p for p in players if p.type in ('uomo', 'donna')]
@@ -1191,7 +1199,10 @@ def wellness():
     # Secondary sponsor slots for shoe sponsor
     active_sponsors = ActiveSponsor.query.filter_by(team_id=team.id).all()
     secondary_count = sum(1 for s in active_sponsors if s.type in ('secondary', 'shoe'))
-    shoe_sponsor_active = any(s.type == 'shoe' for s in active_sponsors)
+    shoe_sp_record = next((s for s in active_sponsors if s.type == 'shoe'), None)
+    shoe_sponsor_active = shoe_sp_record is not None
+    shoe_sponsor_name = shoe_sp_record.sponsor_name if shoe_sp_record else None
+    shoe_sponsor_weeks_left = shoe_sp_record.remaining_weeks if shoe_sp_record else 0
     can_shoe_sponsor = not shoe_sponsor_active and secondary_count < 2
 
     # Shoe Pro cooldown: available if end_week <= current_week (or never used)
@@ -1212,12 +1223,15 @@ def wellness():
                            cyber_players=cyber_players,
                            can_shoe_sponsor=can_shoe_sponsor,
                            shoe_sponsor_active=shoe_sponsor_active,
+                           shoe_sponsor_name=shoe_sponsor_name,
+                           shoe_sponsor_weeks_left=shoe_sponsor_weeks_left,
                            pro_active=pro_active,
                            pro_available=pro_available,
                            pro_weeks_left=pro_weeks_left,
                            future_active=future_active,
                            future_available=future_available,
                            future_weeks_left=future_weeks_left,
+                           already_bought=already_bought,
                            MAX_PHYSIO=MAX_PHYSIO,
                            MAX_HEALTH=MAX_HEALTH,
                            MAX_CYBER=MAX_CYBER)
@@ -1230,12 +1244,16 @@ def wellness_buy_sessions():
     if redir:
         return redir
     team = current_user.team
+    current_week = get_game_week_id()
     if get_game_weekday() not in WELLNESS_PURCHASE_WEEKDAYS:
         flash('Acquisti disponibili solo da mercoledì a domenica.', 'warning')
         return redirect(url_for('events.wellness'))
+    if team.wellness_last_buy_week_id == current_week:
+        flash('Hai già acquistato questa settimana. Prossimo acquisto disponibile da mercoledì.', 'warning')
+        return redirect(url_for('events.wellness'))
 
-    option = request.form.get('option')  # 'physio1','physio2','physio3','health1'
-    costs = {'physio1': 100_000, 'physio2': 250_000, 'physio3': 500_000, 'health1': 500_000}
+    option = request.form.get('option')  # 'physio1','physio2','physio3','health1','diet'
+    costs = {'physio1': 100_000, 'physio2': 250_000, 'physio3': 500_000, 'health1': 500_000, 'diet': 500_000}
     if option not in costs:
         flash('Opzione non valida.', 'danger')
         return redirect(url_for('events.wellness'))
@@ -1246,7 +1264,12 @@ def wellness_buy_sessions():
         return redirect(url_for('events.wellness'))
 
     team.budget -= cost
-    if option == 'health1':
+    if option == 'diet':
+        players = team.players.all()
+        for p in players:
+            p.freshness = round(p.freshness + 0.2, 2)
+        flash(f'🥗 Dieta bilanciata: +0.2 freschezza a tutti i {len(players)} giocatori.', 'success')
+    elif option == 'health1':
         if team.health_sessions >= MAX_HEALTH:
             flash('Hai già il massimo di sessioni salute.', 'warning')
             return redirect(url_for('events.wellness'))
@@ -1260,6 +1283,7 @@ def wellness_buy_sessions():
         team.physio_sessions = min(MAX_PHYSIO, team.physio_sessions + qty)
         flash(f'✅ {qty} sessione/i fisioterapia acquistate.', 'success')
 
+    team.wellness_last_buy_week_id = current_week
     db.session.commit()
     return redirect(url_for('events.wellness'))
 
@@ -1399,9 +1423,10 @@ def wellness_shop():
             return redirect(url_for('events.wellness'))
         # Add +20 physio (one-time) and locked secondary sponsor for 5 weeks
         team.physio_sessions = min(MAX_PHYSIO, team.physio_sessions + 20)
+        shoe_name = random.choice(_SHOE_SPONSOR_NAMES)
         shoe_sp = ActiveSponsor(
             team_id=team.id,
-            sponsor_name='Soccer Tech Sponsor',
+            sponsor_name=shoe_name,
             weekly_amount=0,
             remaining_weeks=5,
             type='shoe',
@@ -1409,7 +1434,7 @@ def wellness_shop():
         )
         db.session.add(shoe_sp)
         db.session.commit()
-        flash('👟 Scarpe Soccer Sponsor attivate! +20 sessioni fisioterapia e sponsor tecnico (5 settimane, non rimovibile).', 'success')
+        flash(f'👟 Scarpe Soccer Sponsor attivate! Sponsor tecnico: {shoe_name} (5 settimane, non rimovibile) · +20 sessioni fisioterapia.', 'success')
 
     elif item == 'future':
         # Scarpe Soccer Future: 20M, +5 physio +1 health/week for 20 weeks, +0.1 skill once, cooldown 20 weeks

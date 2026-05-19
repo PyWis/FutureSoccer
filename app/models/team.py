@@ -39,6 +39,7 @@ class Team(db.Model):
     health_sessions    = db.Column(db.Integer, default=0)   # salute, max 5
     cyber_sessions     = db.Column(db.Integer, default=0)   # cyberfisio, max 5
     locker_last_grant_week_id  = db.Column(db.Integer, default=-1)
+    wellness_last_buy_week_id  = db.Column(db.Integer, default=-1)  # one purchase per week window
     soccer_pro_end_week_id     = db.Column(db.Integer, default=-1)  # week Pro expires (-1=never)
     soccer_future_end_week_id  = db.Column(db.Integer, default=-1)
     soccer_future_skill_boosted = db.Column(db.Boolean, default=False)
