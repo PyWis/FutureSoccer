@@ -3,7 +3,7 @@ from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
 from app import db
 from app.models.team import Team, Player
-from app.models.game import TeamWeeklyOffer, TrainingRecord, SponsorOffer, ActiveSponsor, FreeAgentListing, FreeAgentBid, Loan
+from app.models.game import TeamWeeklyOffer, TrainingRecord, SponsorOffer, ActiveSponsor, FreeAgentListing, FreeAgentBid, Loan, Investment
 from app.utils.gameclock import (
     get_game_week_id, get_game_weekday, get_game_day_number,
     format_game_date, is_training_day, is_sponsor_day, get_game_month_id,
@@ -28,6 +28,36 @@ LOAN_TIERS = {
 }
 MAX_LOANS = 3
 FEDERATION_TARGET = 2_000_000   # bring budget up to this when emergency loan fires
+
+import random as _random
+BOND_TYPES = {
+    'white': {
+        'label': 'White', 'color': '#d0d0d0',
+        'cost': 10_000_000, 'payout': 10_100_000, 'weeks': 10,
+        'max_count': 10, 'degrade_chance': 0, 'degrade_to': None,
+    },
+    'green': {
+        'label': 'Green', 'color': 'var(--success)',
+        'cost': 25_000_000, 'payout': 20_500_000, 'weeks': 25,
+        'max_count': 10, 'degrade_chance': 0, 'degrade_to': None,
+    },
+    'yellow': {
+        'label': 'Yellow', 'color': '#ffc800',
+        'cost': 50_000_000, 'payout': 55_000_000, 'weeks': 50,
+        'max_count': 10, 'degrade_chance': 0.01, 'degrade_to': 'green',
+    },
+    'red': {
+        'label': 'Red', 'color': 'var(--danger)',
+        'cost': 50_000_000, 'payout': 60_000_000, 'weeks': 50,
+        'max_count': 10, 'degrade_chance': 0.05, 'degrade_to': 'green',
+    },
+    'black': {
+        'label': 'Black', 'color': '#999',
+        'cost': 100_000_000, 'payout': 150_000_000, 'weeks': 50,
+        'max_count': 5, 'degrade_chance': 0.25, 'degrade_to': 'white',
+    },
+}
+MAX_INVESTMENTS = 20
 
 
 def _require_team():
@@ -143,6 +173,24 @@ def _check_federation_loan(team):
     db.session.add(loan)
     db.session.commit()
     flash(f'🚨 Aiuto dalla Federazione attivato: €{amount/1_000_000:.2f}M (+ 1% interesse = €{total_due/1_000_000:.2f}M da restituire la prossima settimana).', 'warning')
+
+
+def _process_investments(team):
+    """Pay out matured investments."""
+    current_week = get_game_week_id()
+    matured = Investment.query.filter_by(team_id=team.id, is_active=True).filter(
+        Investment.game_week_id_maturity <= current_week
+    ).all()
+    for inv in matured:
+        team.budget += inv.payout
+        inv.is_active = False
+        flash(
+            f'📈 Cedola {BOND_TYPES[inv.bond_type]["label"]} maturata! '
+            f'+€{inv.payout/1_000_000:.2f}M accreditati.',
+            'success'
+        )
+    if matured:
+        db.session.commit()
 
 
 # ─── MARKET ────────────────────────────────────────────────────────────────────
@@ -819,22 +867,21 @@ def finance():
     _process_sponsor_payments(team)
     _process_scouting_payment(team)
     _process_loan_payments(team)
+    _process_investments(team)
 
+    current_week = get_game_week_id()
+
+    # ── Loans ──
     active_loans = Loan.query.filter_by(team_id=team.id, is_active=True).order_by(Loan.created_at).all()
     has_federation_loan = any(l.loan_type == 'federation' for l in active_loans)
     can_borrow = not has_federation_loan and len(active_loans) < MAX_LOANS
 
-    # Compute total_stars for loan amounts
     total_stars = (team.facility_training + team.facility_stream +
                    team.facility_locker + team.facility_ground)
-
-    # Build tier info with actual amounts for this team
     tiers = {}
     for key, t in LOAN_TIERS.items():
-        principal = total_stars * t['multiplier']
-        tiers[key] = {**t, 'principal': principal}
+        tiers[key] = {**t, 'principal': total_stars * t['multiplier']}
 
-    current_week = get_game_week_id()
     loans_display = []
     for loan in active_loans:
         weeks_left = loan.weeks_total - loan.weeks_paid
@@ -845,8 +892,28 @@ def finance():
             'remaining_due': round(loan.weekly_payment * weeks_left, 2),
             'weeks_overdue': weeks_overdue,
         })
-
     total_weekly_debt = sum(l.weekly_payment for l in active_loans)
+
+    # ── Investments ──
+    active_investments = Investment.query.filter_by(team_id=team.id, is_active=True).order_by(Investment.created_at).all()
+    can_invest = len(active_investments) < MAX_INVESTMENTS
+
+    # Count active per bond type for limit checks
+    active_counts = {}
+    for inv in active_investments:
+        active_counts[inv.original_type] = active_counts.get(inv.original_type, 0) + 1
+
+    investments_display = []
+    for inv in active_investments:
+        weeks_left = inv.game_week_id_maturity - current_week
+        investments_display.append({
+            'inv': inv,
+            'weeks_left': max(0, weeks_left),
+            'bond_info': BOND_TYPES.get(inv.bond_type, {}),
+        })
+
+    total_invested = sum(i.cost for i in active_investments)
+    total_expected_payout = sum(i.payout for i in active_investments)
 
     return render_template('events/finance.html',
                            team=team,
@@ -858,7 +925,15 @@ def finance():
                            tiers=tiers,
                            total_weekly_debt=total_weekly_debt,
                            loan_durations=[25, 50, 75, 100],
-                           max_loans=MAX_LOANS)
+                           max_loans=MAX_LOANS,
+                           investments_display=investments_display,
+                           can_invest=can_invest,
+                           active_counts=active_counts,
+                           bond_types=BOND_TYPES,
+                           max_investments=MAX_INVESTMENTS,
+                           total_invested=total_invested,
+                           total_expected_payout=total_expected_payout,
+                           active_investments_count=len(active_investments))
 
 
 @events_bp.route('/finance/borrow', methods=['POST'])
@@ -916,5 +991,81 @@ def finance_borrow():
 
     flash(f'💰 Prestito {tier["label"]} di €{principal/1_000_000:.1f}M approvato! '
           f'Rimborso: €{weekly_payment/1_000:.0f}k/settimana per {weeks} settimane.', 'success')
+    return redirect(url_for('events.finance'))
+
+
+@events_bp.route('/finance/invest', methods=['POST'])
+@login_required
+def finance_invest():
+    redir = _require_team()
+    if redir:
+        return redir
+    team = current_user.team
+
+    bond_type = request.form.get('bond_type')
+    if bond_type not in BOND_TYPES:
+        flash('Tipo di cedola non valido.', 'danger')
+        return redirect(url_for('events.finance'))
+
+    bt = BOND_TYPES[bond_type]
+    current_week = get_game_week_id()
+
+    # Check global limit
+    total_active = Investment.query.filter_by(team_id=team.id, is_active=True).count()
+    if total_active >= MAX_INVESTMENTS:
+        flash(f'Hai già {MAX_INVESTMENTS} cedole attive.', 'danger')
+        return redirect(url_for('events.finance'))
+
+    # Check per-type limit
+    type_count = Investment.query.filter_by(team_id=team.id, original_type=bond_type, is_active=True).count()
+    if type_count >= bt['max_count']:
+        flash(f'Hai raggiunto il limite di {bt["max_count"]} cedole {bt["label"]}.', 'danger')
+        return redirect(url_for('events.finance'))
+
+    if team.budget < bt['cost']:
+        flash(f'Budget insufficiente. Servono €{bt["cost"]/1_000_000:.0f}M.', 'danger')
+        return redirect(url_for('events.finance'))
+
+    # Roll for degradation
+    actual_type = bond_type
+    actual_payout = bt['payout']
+    actual_weeks = bt['weeks']
+    degraded = False
+
+    if bt['degrade_chance'] > 0 and _random.random() < bt['degrade_chance']:
+        degraded = True
+        degrade_target = bt['degrade_to']
+        actual_type = degrade_target
+        # Degraded bond uses the target type's payout but a fixed 25-week maturity
+        actual_payout = BOND_TYPES[degrade_target]['payout']
+        actual_weeks = 25
+
+    inv = Investment(
+        team_id=team.id,
+        bond_type=actual_type,
+        original_type=bond_type,
+        degraded=degraded,
+        cost=bt['cost'],
+        payout=actual_payout,
+        weeks_total=actual_weeks,
+        game_week_id_bought=current_week,
+        game_week_id_maturity=current_week + actual_weeks,
+    )
+    team.budget -= bt['cost']
+    db.session.add(inv)
+    db.session.commit()
+
+    if degraded:
+        flash(
+            f'⚠️ Cedola {bt["label"]} acquistata ma DEGRADATA a {BOND_TYPES[actual_type]["label"]}! '
+            f'Riceverai €{actual_payout/1_000_000:.2f}M tra {actual_weeks} settimane.',
+            'warning'
+        )
+    else:
+        flash(
+            f'📈 Cedola {bt["label"]} acquistata! '
+            f'Riceverai €{actual_payout/1_000_000:.2f}M tra {actual_weeks} settimane.',
+            'success'
+        )
     return redirect(url_for('events.finance'))
 
