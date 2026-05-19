@@ -537,7 +537,7 @@ def sponsors():
     prev_week_id = get_prev_game_week_id()
 
     active = ActiveSponsor.query.filter_by(team_id=team.id).all()
-    main_sponsor = next((s for s in active if s.type == 'main'), None)
+    main_sponsor = next((s for s in active if s.type in ('main', 'dark')), None)
     secondary_sponsors = [s for s in active if s.type == 'secondary']
 
     # Sponsor offer window: generated Friday of week W, valid through Wednesday of week W+1.
@@ -587,16 +587,22 @@ def sponsors():
                            game_date=format_game_date(),
                            week_id=week_id,
                            dark_sponsor_available=_dark_sponsor_available(team),
-                           dark_sponsor_payout=round(team.top7_avg_skill * 10_000_000, 2))
+                           dark_sponsor_payout=round(team.top7_avg_skill * 10_000_000, 2),
+                           dark_sponsor_weeks_left=_dark_sponsor_cooldown_left(team))
 
 
 def _dark_sponsor_available(team):
-    """Dark sponsor requires 200 game weeks elapsed and not used this week."""
-    from app.utils.gameclock import get_game_day_number
-    if get_game_day_number() < 1400:   # 200 weeks × 7 days
-        return False
+    """Dark sponsor usable once every 200 game weeks (cooldown)."""
+    return _dark_sponsor_cooldown_left(team) == 0
+
+
+def _dark_sponsor_cooldown_left(team):
+    """Weeks remaining before dark sponsor can be used again (0 = available)."""
+    if team.dark_sponsor_last_week_id == -1:
+        return 0
     current_week = get_game_week_id()
-    return team.dark_sponsor_last_week_id != current_week
+    elapsed = current_week - team.dark_sponsor_last_week_id
+    return max(0, 200 - elapsed)
 
 
 _DARK_OUTCOMES = [
@@ -627,7 +633,22 @@ def dark_sponsor():
         return redirect(url_for('events.sponsors'))
 
     team.budget += payout
-    team.dark_sponsor_last_week_id = get_game_week_id()
+    current_week = get_game_week_id()
+    team.dark_sponsor_last_week_id = current_week
+
+    # Replace/remove any existing main sponsor, install dark one for 5 weeks (cannot remove)
+    existing_main = ActiveSponsor.query.filter_by(team_id=team.id, type='main').first()
+    if existing_main:
+        db.session.delete(existing_main)
+    dark_contract = ActiveSponsor(
+        team_id=team.id,
+        sponsor_name='Sponsor Oscuro',
+        weekly_amount=0,
+        remaining_weeks=5,
+        type='dark',
+        last_paid_week_id=current_week,
+    )
+    db.session.add(dark_contract)
 
     # Roll outcome
     outcomes, weights, _ = zip(*_DARK_OUTCOMES)
@@ -737,6 +758,9 @@ def sponsor_remove(sponsor_id):
     sp = ActiveSponsor.query.get_or_404(sponsor_id)
     if sp.team_id != current_user.team.id:
         flash('Operazione non autorizzata.', 'danger')
+        return redirect(url_for('events.sponsors'))
+    if sp.type == 'dark':
+        flash('Lo Sponsor Oscuro non può essere rimosso per le prossime settimane.', 'danger')
         return redirect(url_for('events.sponsors'))
     name = sp.sponsor_name
     db.session.delete(sp)

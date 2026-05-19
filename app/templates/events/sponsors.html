@@ -78,6 +78,13 @@
 <div class="sponsor-card main-sp mb-3">
   <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem;">
     <div>
+      {% if main_sponsor.type == 'dark' %}
+      <div style="font-size:.7rem;color:#cc66ff;letter-spacing:1px;margin-bottom:.3rem;">🕶️ SPONSOR OSCURO — BLOCCATO</div>
+      <div style="font-family:'Orbitron',monospace;font-size:1.2rem;font-weight:900;color:#cc66ff;">{{ main_sponsor.sponsor_name }}</div>
+      <div style="margin-top:.5rem;font-size:.82rem;color:#b088cc;">
+        🔒 Non rimovibile · {{ main_sponsor.remaining_weeks }} settimane rimaste
+      </div>
+      {% else %}
       <div style="font-size:.7rem;color:var(--cyan);letter-spacing:1px;margin-bottom:.3rem;">SPONSOR PRINCIPALE</div>
       <div style="font-family:'Orbitron',monospace;font-size:1.2rem;font-weight:900;">{{ main_sponsor.sponsor_name }}</div>
       <div style="margin-top:.5rem;font-size:.85rem;color:var(--muted);">
@@ -85,13 +92,18 @@
         {{ main_sponsor.remaining_weeks }} settimane rimaste ·
         Totale atteso: <strong style="color:var(--success);">€{{ "%.0f"|format(main_sponsor.weekly_amount * main_sponsor.remaining_weeks) }}</strong>
       </div>
+      {% endif %}
     </div>
     <div>
+      {% if main_sponsor.type == 'dark' %}
+      <span class="badge" style="background:rgba(80,0,80,.5);color:#cc66ff;border:1px solid #800080;">🔒 Bloccato</span>
+      {% else %}
       <form method="POST" action="{{ url_for('events.sponsor_remove', sponsor_id=main_sponsor.id) }}"
             onsubmit="return confirm('Rimuovere {{ main_sponsor.sponsor_name }}? Perderai i pagamenti rimanenti.')">
         <button type="submit" class="btn btn-danger btn-sm">Rimuovi</button>
       </form>
       <div style="font-size:.72rem;color:var(--muted);margin-top:.3rem;text-align:center;">Non si può declassare a secondario</div>
+      {% endif %}
     </div>
   </div>
 </div>
@@ -156,7 +168,7 @@
       </div>
       {% else %}
       <div style="margin-top:.6rem;font-size:.78rem;color:#704080;">
-        🔒 Non disponibile — servono 200 settimane di gioco o già usato questa settimana.
+        🔒 Ricarica in corso — disponibile tra <strong style="color:#9050b0;">{{ dark_sponsor_weeks_left }} settimane</strong>
       </div>
       {% endif %}
     </div>
