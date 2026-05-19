@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+{% block title %}Finance — FutureSoccer{% endblock %}
+{% block extra_head %}
+<style>
+  .loan-tier-card{border:2px solid var(--card-border);border-radius:12px;padding:1.2rem;transition:border-color .2s;cursor:pointer;display:block;}
+  .loan-tier-card.selected,.loan-tier-card:hover{border-color:var(--cyan);background:rgba(0,245,255,.05);}
+  .tier-green{border-color:rgba(0,200,100,.35);}
+  .tier-yellow{border-color:rgba(255,200,0,.35);}
+  .tier-red{border-color:rgba(255,60,60,.35);}
+  .tier-black{border-color:rgba(180,180,180,.2);}
+  .loan-row{display:flex;align-items:center;justify-content:space-between;gap:.5rem;padding:.65rem .5rem;border-bottom:1px solid var(--card-border);}
+  .loan-row:last-child{border-bottom:none;}
+  .weeks-btn{padding:.3rem .75rem;border:1px solid var(--card-border);border-radius:6px;background:var(--card);color:var(--text);font-size:.8rem;cursor:pointer;transition:border-color .15s,color .15s;}
+  .weeks-btn.active{border-color:var(--cyan);color:var(--cyan);background:rgba(0,245,255,.08);}
+  .summary-box{background:rgba(0,245,255,.05);border:1px solid rgba(0,245,255,.2);border-radius:10px;padding:1rem;margin-top:1rem;}
+</style>
+{% endblock %}
+{% block content %}
+
+<div class="page-header flex flex-between flex-center" style="flex-wrap:wrap;gap:1rem;">
+  <div>
+    <h1>💳 FINANCE</h1>
+    <p class="text-muted">{{ game_date }}</p>
+  </div>
+  <div style="text-align:right;">
+    <div style="font-size:.75rem;color:var(--muted);">Liquidità</div>
+    <div style="font-family:'Orbitron',monospace;font-size:1.3rem;color:{% if team.budget < 0 %}var(--danger){% else %}var(--success){% endif %};">
+      €{{ "%.2f"|format(team.budget/1_000_000) }}M
+    </div>
+    {% if total_weekly_debt > 0 %}
+    <div style="font-size:.72rem;color:var(--danger);margin-top:.15rem;">
+      −€{{ "%.0f"|format(total_weekly_debt/1000) }}k/settimana (rate)
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ── ACTIVE LOANS ── -->
+{% if active_loans %}
+<div class="card mb-4">
+  <h3 style="margin-bottom:.75rem;">📋 Prestiti Attivi ({{ active_loans|length }}/{{ max_loans }})</h3>
+  {% for item in active_loans %}
+  {% set loan = item.loan %}
+  <div class="loan-row">
+    <div style="min-width:90px;">
+      {% if loan.loan_type == 'federation' %}
+        <span class="badge badge-red">🚨 Federazione</span>
+      {% elif loan.loan_type == 'green' %}
+        <span class="badge badge-green">Green</span>
+      {% elif loan.loan_type == 'yellow' %}
+        <span class="badge badge-gold">Yellow</span>
+      {% elif loan.loan_type == 'red' %}
+        <span class="badge badge-red">Red</span>
+      {% else %}
+        <span class="badge" style="background:#2a2a2a;color:#aaa;border:1px solid #444;">Black</span>
+      {% endif %}
+      <div style="font-size:.7rem;color:var(--muted);margin-top:.2rem;">
+        cap. €{{ "%.2f"|format(loan.principal/1_000_000) }}M
+      </div>
+    </div>
+    <div style="text-align:center;">
+      <div style="font-family:'Orbitron',monospace;font-size:.95rem;color:var(--danger);">
+        −€{{ "%.0f"|format(loan.weekly_payment/1000) }}k
+      </div>
+      <div style="font-size:.65rem;color:var(--muted);">/ settimana</div>
+    </div>
+    <div style="text-align:right;">
+      <div style="font-size:.85rem;font-weight:700;">{{ item.weeks_left }} sett. rimanenti</div>
+      <div style="font-size:.72rem;color:var(--muted);">
+        residuo €{{ "%.2f"|format(item.remaining_due/1_000_000) }}M
+      </div>
+      {% if item.weeks_overdue > 0 %}
+      <div style="font-size:.68rem;color:var(--danger);margin-top:.15rem;">
+        ⚠️ {{ item.weeks_overdue }} sett. arretrate
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- ── FEDERATION LOAN NOTICE ── -->
+{% if has_federation_loan %}
+<div class="card mb-4" style="border-color:var(--danger);text-align:center;padding:1.5rem;">
+  <div style="font-size:1.4rem;margin-bottom:.4rem;">🚨</div>
+  <div style="font-weight:700;color:var(--danger);margin-bottom:.4rem;">Aiuto dalla Federazione Attivo</div>
+  <div style="font-size:.82rem;color:var(--muted);">
+    Non puoi richiedere nuovi prestiti finché l'aiuto dalla federazione non è stato restituito.<br>
+    Il rimborso avverrà automaticamente lunedì prossimo.
+  </div>
+</div>
+{% elif not can_borrow %}
+<div class="card mb-4" style="border-color:var(--warning);text-align:center;padding:1.2rem;">
+  <div style="font-size:.9rem;color:var(--warning);">
+    Hai raggiunto il limite di {{ max_loans }} prestiti contemporanei.
+  </div>
+</div>
+{% endif %}
+
+<!-- ── NEW LOAN FORM ── -->
+{% if can_borrow %}
+<div class="card mb-4">
+  <h3 style="margin-bottom:.4rem;">💰 Richiedi un Prestito</h3>
+  <p style="font-size:.8rem;color:var(--muted);margin-bottom:1rem;">
+    Stelle stadio totali: <strong style="color:var(--cyan);">{{ total_stars }}</strong>
+    {% if total_stars == 0 %}
+    — <span style="color:var(--danger);">Potenzia le strutture dello stadio per accedere ai prestiti.</span>
+    {% endif %}
+  </p>
+
+  {% if total_stars > 0 %}
+  <form method="POST" action="{{ url_for('events.finance_borrow') }}" id="loanForm">
+
+    <div style="font-size:.7rem;color:var(--muted);letter-spacing:1px;margin-bottom:.6rem;">TIPO DI PRESTITO</div>
+    <div class="grid-2" style="gap:.75rem;margin-bottom:1.25rem;">
+      {% for key, tier in tiers.items() %}
+      <label class="loan-tier-card tier-{{ key }}" id="card-{{ key }}">
+        <input type="radio" name="loan_type" value="{{ key }}" style="display:none;"
+               {% if loop.first %}checked{% endif %}>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.35rem;">
+          <span style="font-weight:700;color:{{ tier.color }};">{{ tier.label }}</span>
+          <span style="font-size:.68rem;color:var(--muted);">{{ "%.0f"|format(tier.rate*100) }}% / 25 sett.</span>
+        </div>
+        <div style="font-family:'Orbitron',monospace;font-size:1.15rem;color:{{ tier.color }};">
+          €{{ "%.1f"|format(tier.principal/1_000_000) }}M
+        </div>
+        <div style="font-size:.68rem;color:var(--muted);margin-top:.15rem;">
+          {{ total_stars }} stelle × €{{ "%.0f"|format(tier.multiplier/1_000_000) }}M
+        </div>
+      </label>
+      {% endfor %}
+    </div>
+
+    <div style="font-size:.7rem;color:var(--muted);letter-spacing:1px;margin-bottom:.6rem;">DURATA RIMBORSO</div>
+    <div style="display:flex;gap:.5rem;margin-bottom:1.25rem;flex-wrap:wrap;">
+      {% for w in loan_durations %}
+      <label>
+        <input type="radio" name="weeks" value="{{ w }}" style="display:none;"
+               {% if loop.first %}checked{% endif %}>
+        <div class="weeks-btn {% if loop.first %}active{% endif %}" data-weeks="{{ w }}">
+          {{ w }} settimane
+        </div>
+      </label>
+      {% endfor %}
+    </div>
+
+    <div class="summary-box" id="loanSummary">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:.75rem;">
+        <div>
+          <div style="font-size:.68rem;color:var(--muted);margin-bottom:.2rem;">CAPITALE</div>
+          <div style="font-family:'Orbitron',monospace;font-size:.95rem;" id="sumPrincipal">—</div>
+        </div>
+        <div>
+          <div style="font-size:.68rem;color:var(--muted);margin-bottom:.2rem;">INTERESSI TOTALI</div>
+          <div style="font-family:'Orbitron',monospace;font-size:.95rem;color:var(--danger);" id="sumInterest">—</div>
+        </div>
+        <div>
+          <div style="font-size:.68rem;color:var(--muted);margin-bottom:.2rem;">TOTALE DA RESTITUIRE</div>
+          <div style="font-family:'Orbitron',monospace;font-size:.95rem;color:var(--warning);" id="sumTotal">—</div>
+        </div>
+        <div>
+          <div style="font-size:.68rem;color:var(--muted);margin-bottom:.2rem;">RATA SETTIMANALE</div>
+          <div style="font-family:'Orbitron',monospace;font-size:.95rem;color:var(--cyan);" id="sumWeekly">—</div>
+        </div>
+      </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary"
+            style="width:100%;margin-top:1rem;font-size:.95rem;"
+            onclick="return confirm('Confermare il prestito?')">
+      💳 Richiedi Prestito
+    </button>
+  </form>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- ── INFO ── -->
+<div class="card" style="border-color:rgba(123,47,255,.3);padding:1.2rem;">
+  <h4 style="margin-bottom:.6rem;color:var(--purple);">ℹ️ Come funzionano i prestiti</h4>
+  <ul style="font-size:.8rem;color:var(--muted);line-height:1.9;padding-left:1.2rem;">
+    <li>L'importo dipende dalle <strong>stelle totali del tuo stadio</strong> (tutte le strutture)</li>
+    <li>Formula interessi: <code>capitale × tasso × (settimane / 25)</code></li>
+    <li>Rata settimanale = totale da restituire ÷ numero di settimane</li>
+    <li>Le rate vengono addebitate automaticamente <strong>ogni lunedì</strong></li>
+    <li>Massimo <strong>{{ max_loans }} prestiti</strong> contemporanei</li>
+    <li>Se il budget scende sotto 0, la <strong>Federazione</strong> eroga un prestito di emergenza (+1%) da restituire il lunedì successivo e blocca nuovi prestiti</li>
+  </ul>
+</div>
+
+{% endblock %}
+{% block extra_js %}
+<script>
+(function() {
+  var tierData = {
+    {% for key, tier in tiers.items() %}
+    '{{ key }}': { principal: {{ tier.principal }}, rate: {{ tier.rate }} }{% if not loop.last %},{% endif %}
+    {% endfor %}
+  };
+
+  function fmt(n) {
+    if (n >= 1000000) return '€' + (n / 1000000).toFixed(2) + 'M';
+    return '€' + (n / 1000).toFixed(0) + 'k';
+  }
+
+  function update() {
+    var typeEl = document.querySelector('input[name="loan_type"]:checked');
+    var weeksEl = document.querySelector('input[name="weeks"]:checked');
+    if (!typeEl || !weeksEl) return;
+    var t = tierData[typeEl.value];
+    var w = parseInt(weeksEl.value);
+    var principal = t.principal;
+    var totalDue = principal * (1 + t.rate * (w / 25));
+    var interest = totalDue - principal;
+    var weekly = totalDue / w;
+    document.getElementById('sumPrincipal').textContent = fmt(principal);
+    document.getElementById('sumInterest').textContent = fmt(interest);
+    document.getElementById('sumTotal').textContent = fmt(totalDue);
+    document.getElementById('sumWeekly').textContent = fmt(weekly);
+
+    // Highlight selected tier card
+    document.querySelectorAll('.loan-tier-card').forEach(function(c) { c.classList.remove('selected'); });
+    var card = document.getElementById('card-' + typeEl.value);
+    if (card) card.classList.add('selected');
+  }
+
+  // Tier radio clicks
+  document.querySelectorAll('input[name="loan_type"]').forEach(function(r) {
+    r.addEventListener('change', update);
+  });
+
+  // Weeks buttons
+  document.querySelectorAll('.weeks-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.weeks-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      var radio = btn.closest('label').querySelector('input[type="radio"]');
+      if (radio) radio.checked = true;
+      update();
+    });
+  });
+
+  // Tier card clicks
+  document.querySelectorAll('.loan-tier-card').forEach(function(card) {
+    card.addEventListener('click', function() {
+      var radio = card.querySelector('input[type="radio"]');
+      if (radio) { radio.checked = true; update(); }
+    });
+  });
+
+  // Init
+  var firstCard = document.querySelector('.loan-tier-card');
+  if (firstCard) firstCard.classList.add('selected');
+  update();
+})();
+</script>
+{% endblock %}

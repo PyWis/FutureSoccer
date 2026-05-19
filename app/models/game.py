@@ -278,3 +278,20 @@ class MatchChallenge(db.Model):
                                  backref='sent_challenges')
     challenged = db.relationship('Team', foreign_keys=[challenged_id],
                                  backref='received_challenges')
+
+
+class Loan(db.Model):
+    __tablename__ = 'loans'
+    id = db.Column(db.Integer, primary_key=True)
+    team_id = db.Column(db.Integer, db.ForeignKey('teams.id'), nullable=False)
+    loan_type = db.Column(db.String(20), nullable=False)   # green | yellow | red | black | federation
+    principal = db.Column(db.Float, nullable=False)         # amount borrowed
+    total_due = db.Column(db.Float, nullable=False)         # principal + interest
+    weekly_payment = db.Column(db.Float, nullable=False)    # total_due / weeks_total
+    weeks_total = db.Column(db.Integer, nullable=False)     # 25 | 50 | 75 | 100 (1 for federation)
+    weeks_paid = db.Column(db.Integer, default=0)
+    last_paid_week_id = db.Column(db.Integer, default=-1)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    team = db.relationship('Team', foreign_keys=[team_id], backref='loans')
