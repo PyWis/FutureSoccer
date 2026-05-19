@@ -21,9 +21,11 @@ class Team(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Game events tracking
-    scouting_paid_week_id = db.Column(db.Integer, default=-1)   # ISO week_id of last paid scouting
-    scouting_enabled = db.Column(db.Boolean, default=False)      # recurring scouting active
-    last_processed_day = db.Column(db.Integer, default=-1)       # for daily event processing
+    scouting_paid_week_id = db.Column(db.Integer, default=-1)
+    scouting_enabled = db.Column(db.Boolean, default=False)
+    last_processed_day = db.Column(db.Integer, default=-1)
+    dark_sponsor_last_week_id = db.Column(db.Integer, default=-1)  # last week dark sponsor used
+    federation_loan_streak = db.Column(db.Integer, default=0)      # consecutive weeks with fed loan
 
     # Stadium facilities (0 = not built, 1-5 = stars)
     facility_training = db.Column(db.Integer, default=0)   # Impianto di allenamento

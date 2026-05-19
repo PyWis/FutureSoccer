@@ -1,4 +1,5 @@
 import random
+import random as _random
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
 from app import db
@@ -149,14 +150,18 @@ def _process_loan_payments(team):
 
 
 def _check_federation_loan(team):
-    """If budget < 0, auto-issue a federation emergency loan to bring to +2M."""
+    """If budget < 0, auto-issue a federation emergency loan to bring to +2M.
+    Tracks consecutive weeks with federation help; at 25 weeks triggers a donation + skill penalty."""
     if team.budget >= 0:
+        # Team healthy: reset streak
+        if team.federation_loan_streak > 0:
+            team.federation_loan_streak = 0
+            db.session.commit()
         return
-    # Only one federation loan at a time
     existing = Loan.query.filter_by(team_id=team.id, loan_type='federation', is_active=True).first()
     if existing:
         return
-    amount = FEDERATION_TARGET - team.budget   # enough to reach +2M
+    amount = FEDERATION_TARGET - team.budget
     interest = round(amount * 0.01, 2)
     total_due = round(amount + interest, 2)
     loan = Loan(
@@ -164,15 +169,36 @@ def _check_federation_loan(team):
         loan_type='federation',
         principal=amount,
         total_due=total_due,
-        weekly_payment=total_due,   # repaid in full next week
+        weekly_payment=total_due,
         weeks_total=1,
         weeks_paid=0,
-        last_paid_week_id=get_game_week_id(),  # start counting from this week → paid next week
+        last_paid_week_id=get_game_week_id(),
     )
     team.budget += amount
+    team.federation_loan_streak += 1
     db.session.add(loan)
-    db.session.commit()
-    flash(f'🚨 Aiuto dalla Federazione attivato: €{amount/1_000_000:.2f}M (+ 1% interesse = €{total_due/1_000_000:.2f}M da restituire la prossima settimana).', 'warning')
+
+    if team.federation_loan_streak >= 25:
+        # Federazione dona 50M ma i giocatori devono fare la "lunga promozione"
+        team.budget += 50_000_000
+        team.federation_loan_streak = 0
+        for player in team.players.all():
+            player.porta       = round(player.porta       * 0.5, 2)
+            player.difesa      = round(player.difesa      * 0.5, 2)
+            player.attacco     = round(player.attacco     * 0.5, 2)
+            player.resistenza  = round(player.resistenza  * 0.5, 2)
+        db.session.commit()
+        flash('🏛️ La Federazione ha donato €50M — ma la "Lunga Promozione" ha dimezzato tutte le skill dei giocatori.', 'warning')
+    else:
+        db.session.commit()
+        streak_left = 25 - team.federation_loan_streak
+        flash(
+            f'🚨 Aiuto dalla Federazione attivato: €{amount/1_000_000:.2f}M '
+            f'(+1% = €{total_due/1_000_000:.2f}M da restituire). '
+            f'Crisi finanziaria: settimana {team.federation_loan_streak}/25 '
+            f'(mancano {streak_left} alla donazione federale).',
+            'warning'
+        )
 
 
 def _process_investments(team):
@@ -511,7 +537,7 @@ def sponsors():
     prev_week_id = get_prev_game_week_id()
 
     active = ActiveSponsor.query.filter_by(team_id=team.id).all()
-    main_sponsor = next((s for s in active if s.type == 'main'), None)
+    main_sponsor = next((s for s in active if s.type in ('main', 'dark')), None)
     secondary_sponsors = [s for s in active if s.type == 'secondary']
 
     # Sponsor offer window: generated Friday of week W, valid through Wednesday of week W+1.
@@ -559,7 +585,111 @@ def sponsors():
                            is_friday=is_friday,
                            offer_window_open=offer_window_open,
                            game_date=format_game_date(),
-                           week_id=week_id)
+                           week_id=week_id,
+                           dark_sponsor_available=_dark_sponsor_available(team),
+                           dark_sponsor_payout=round(team.top7_avg_skill * 10_000_000, 2),
+                           dark_sponsor_weeks_left=_dark_sponsor_cooldown_left(team))
+
+
+def _dark_sponsor_available(team):
+    """Dark sponsor usable once every 200 game weeks (cooldown)."""
+    return _dark_sponsor_cooldown_left(team) == 0
+
+
+def _dark_sponsor_cooldown_left(team):
+    """Weeks remaining before dark sponsor can be used again (0 = available)."""
+    if team.dark_sponsor_last_week_id == -1:
+        return 0
+    current_week = get_game_week_id()
+    elapsed = current_week - team.dark_sponsor_last_week_id
+    return max(0, 200 - elapsed)
+
+
+_DARK_OUTCOMES = [
+    ('none',         15, 'Nessuna conseguenza. Lo sponsor è soddisfatto.'),
+    ('player_leave', 20, 'Uno dei tuoi migliori 3 giocatori si è svincolato.'),
+    ('fine_50m',     25, 'La Federazione ti ha multato: −€50M.'),
+    ('fine_100m',    20, 'La Federazione ti ha multato: −€100M.'),
+    ('fine_200m',    15, 'La Federazione ti ha multato: −€200M.'),
+    ('lungo',         5, 'Lungo processo federale: −€25M e giocatori a −80% di tutte le skill.'),
+]
+
+
+@events_bp.route('/sponsors/dark', methods=['POST'])
+@login_required
+def dark_sponsor():
+    redir = _require_team()
+    if redir:
+        return redir
+    team = current_user.team
+
+    if not _dark_sponsor_available(team):
+        flash('Sponsor Oscuro non disponibile.', 'danger')
+        return redirect(url_for('events.sponsors'))
+
+    payout = round(team.top7_avg_skill * 10_000_000, 2)
+    if payout <= 0:
+        flash('La tua squadra non ha forza sufficiente per attirare lo Sponsor Oscuro.', 'danger')
+        return redirect(url_for('events.sponsors'))
+
+    team.budget += payout
+    current_week = get_game_week_id()
+    team.dark_sponsor_last_week_id = current_week
+
+    # Replace/remove any existing main sponsor, install dark one for 5 weeks (cannot remove)
+    existing_main = ActiveSponsor.query.filter_by(team_id=team.id, type='main').first()
+    if existing_main:
+        db.session.delete(existing_main)
+    dark_contract = ActiveSponsor(
+        team_id=team.id,
+        sponsor_name='Sponsor Oscuro',
+        weekly_amount=0,
+        remaining_weeks=5,
+        type='dark',
+        last_paid_week_id=current_week,
+    )
+    db.session.add(dark_contract)
+
+    # Roll outcome
+    outcomes, weights, _ = zip(*_DARK_OUTCOMES)
+    result = _random.choices(outcomes, weights=weights, k=1)[0]
+    desc = next(d for o, _, d in _DARK_OUTCOMES if o == result)
+
+    if result == 'none':
+        flash(f'🕶️ Sponsor Oscuro: +€{payout/1_000_000:.2f}M incassati. {desc}', 'success')
+
+    elif result == 'player_leave':
+        top3 = sorted(team.players.all(), key=lambda p: p.avg_skill, reverse=True)[:3]
+        if top3:
+            victim = _random.choice(top3)
+            victim.team_id = None
+            flash(f'🕶️ Sponsor Oscuro: +€{payout/1_000_000:.2f}M. ⚠️ {victim.name} si è svincolato!', 'warning')
+        else:
+            flash(f'🕶️ Sponsor Oscuro: +€{payout/1_000_000:.2f}M. {desc}', 'warning')
+
+    elif result == 'fine_50m':
+        team.budget -= 50_000_000
+        flash(f'🕶️ Sponsor Oscuro: +€{payout/1_000_000:.2f}M. 🚨 {desc}', 'danger')
+
+    elif result == 'fine_100m':
+        team.budget -= 100_000_000
+        flash(f'🕶️ Sponsor Oscuro: +€{payout/1_000_000:.2f}M. 🚨 {desc}', 'danger')
+
+    elif result == 'fine_200m':
+        team.budget -= 200_000_000
+        flash(f'🕶️ Sponsor Oscuro: +€{payout/1_000_000:.2f}M. 🚨 {desc}', 'danger')
+
+    elif result == 'lungo':
+        team.budget -= 25_000_000
+        for player in team.players.all():
+            player.porta      = round(player.porta      * 0.2, 2)
+            player.difesa     = round(player.difesa     * 0.2, 2)
+            player.attacco    = round(player.attacco    * 0.2, 2)
+            player.resistenza = round(player.resistenza * 0.2, 2)
+        flash(f'🕶️ Sponsor Oscuro: +€{payout/1_000_000:.2f}M. ☠️ {desc}', 'danger')
+
+    db.session.commit()
+    return redirect(url_for('events.sponsors'))
 
 
 @events_bp.route('/sponsors/accept/<int:offer_id>/<slot>', methods=['POST'])
@@ -628,6 +758,9 @@ def sponsor_remove(sponsor_id):
     sp = ActiveSponsor.query.get_or_404(sponsor_id)
     if sp.team_id != current_user.team.id:
         flash('Operazione non autorizzata.', 'danger')
+        return redirect(url_for('events.sponsors'))
+    if sp.type == 'dark':
+        flash('Lo Sponsor Oscuro non può essere rimosso per le prossime settimane.', 'danger')
         return redirect(url_for('events.sponsors'))
     name = sp.sponsor_name
     db.session.delete(sp)

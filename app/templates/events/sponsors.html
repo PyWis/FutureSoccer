@@ -78,6 +78,13 @@
 <div class="sponsor-card main-sp mb-3">
   <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem;">
     <div>
+      {% if main_sponsor.type == 'dark' %}
+      <div style="font-size:.7rem;color:#cc66ff;letter-spacing:1px;margin-bottom:.3rem;">🕶️ SPONSOR OSCURO — BLOCCATO</div>
+      <div style="font-family:'Orbitron',monospace;font-size:1.2rem;font-weight:900;color:#cc66ff;">{{ main_sponsor.sponsor_name }}</div>
+      <div style="margin-top:.5rem;font-size:.82rem;color:#b088cc;">
+        🔒 Non rimovibile · {{ main_sponsor.remaining_weeks }} settimane rimaste
+      </div>
+      {% else %}
       <div style="font-size:.7rem;color:var(--cyan);letter-spacing:1px;margin-bottom:.3rem;">SPONSOR PRINCIPALE</div>
       <div style="font-family:'Orbitron',monospace;font-size:1.2rem;font-weight:900;">{{ main_sponsor.sponsor_name }}</div>
       <div style="margin-top:.5rem;font-size:.85rem;color:var(--muted);">
@@ -85,13 +92,18 @@
         {{ main_sponsor.remaining_weeks }} settimane rimaste ·
         Totale atteso: <strong style="color:var(--success);">€{{ "%.0f"|format(main_sponsor.weekly_amount * main_sponsor.remaining_weeks) }}</strong>
       </div>
+      {% endif %}
     </div>
     <div>
+      {% if main_sponsor.type == 'dark' %}
+      <span class="badge" style="background:rgba(80,0,80,.5);color:#cc66ff;border:1px solid #800080;">🔒 Bloccato</span>
+      {% else %}
       <form method="POST" action="{{ url_for('events.sponsor_remove', sponsor_id=main_sponsor.id) }}"
             onsubmit="return confirm('Rimuovere {{ main_sponsor.sponsor_name }}? Perderai i pagamenti rimanenti.')">
         <button type="submit" class="btn btn-danger btn-sm">Rimuovi</button>
       </form>
       <div style="font-size:.72rem;color:var(--muted);margin-top:.3rem;text-align:center;">Non si può declassare a secondario</div>
+      {% endif %}
     </div>
   </div>
 </div>
@@ -134,6 +146,49 @@
 </div>
 {% endfor %}
 
+<!-- ── SPONSOR OSCURO ── -->
+<div class="card mt-4" style="border-color:rgba(80,0,80,.6);background:linear-gradient(135deg,rgba(20,0,20,.8),rgba(40,0,60,.4));position:relative;overflow:hidden;">
+  <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#800080,#300030,#800080);"></div>
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem;">
+    <div>
+      <h3 style="color:#cc66ff;letter-spacing:1px;">🕶️ SPONSOR OSCURO</h3>
+      <p style="font-size:.82rem;color:#b088cc;margin-top:.3rem;max-width:400px;">
+        Un'offerta nell'ombra. Il pagamento è immediato ma le conseguenze sono imprevedibili.
+        Disponibile solo dopo 200 settimane di gioco.
+      </p>
+      {% if dark_sponsor_available %}
+      <div style="margin-top:.75rem;">
+        <div style="font-size:.72rem;color:#b088cc;letter-spacing:1px;">INCASSO IMMEDIATO</div>
+        <div style="font-family:'Orbitron',monospace;font-size:1.6rem;font-weight:900;color:#cc66ff;">
+          €{{ "%.2f"|format(dark_sponsor_payout/1_000_000) }}M
+        </div>
+        <div style="font-size:.7rem;color:#a070c0;margin-top:.2rem;">
+          media forza (top 7) × €10M
+        </div>
+      </div>
+      {% else %}
+      <div style="margin-top:.6rem;font-size:.78rem;color:#704080;">
+        🔒 Ricarica in corso — disponibile tra <strong style="color:#9050b0;">{{ dark_sponsor_weeks_left }} settimane</strong>
+      </div>
+      {% endif %}
+    </div>
+    <div style="display:flex;flex-direction:column;gap:.5rem;align-items:flex-end;">
+      {% if dark_sponsor_available %}
+      <form method="POST" action="{{ url_for('events.dark_sponsor') }}"
+            onsubmit="return confirm('⚠️ Lo Sponsor Oscuro può avere conseguenze gravi. Procedere?')">
+        <button type="submit" class="btn" style="background:linear-gradient(135deg,#5c0080,#300050);color:#cc66ff;border:1px solid #800080;font-size:.9rem;padding:.6rem 1.4rem;">
+          🕶️ Accetta Offerta
+        </button>
+      </form>
+      {% endif %}
+      <div style="font-size:.68rem;color:#604070;text-align:right;max-width:200px;line-height:1.5;">
+        15% nessuna · 20% perde un top-3 · 25% −50M<br>
+        20% −100M · 15% −200M · 5% lungo processo
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Info box -->
 <div class="card mt-4" style="background:rgba(0,0,0,.2);border-color:rgba(136,136,136,.15);">
   <h3 class="mb-2">ℹ️ REGOLE SPONSOR</h3>
@@ -144,6 +199,7 @@
     <li>Puoi promuovere un secondario a principale solo se lo slot main è libero</li>
     <li>Non puoi declassare un main a secondario — devi prima rimuoverlo</li>
     <li>Il valore offerto dipende dalla media skill dei tuoi migliori 7 giocatori</li>
+    <li><strong style="color:#cc66ff;">Sponsor Oscuro</strong>: disponibile dopo 200 settimane, una volta per settimana — conseguenze casuali</li>
   </ul>
 </div>
 {% endblock %}
