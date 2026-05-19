@@ -55,8 +55,8 @@
   </div>
 </div>
 
-<!-- ── BUY SESSIONS (Wed–Sun) ── -->
-{% if purchase_window %}
+<!-- ── BUY SESSIONS (Wed–Sun, once per week) ── -->
+{% if purchase_window and not already_bought %}
 <div class="card mb-4">
   <h3 style="margin-bottom:.75rem;">🛒 Acquista Sessioni</h3>
   <form method="POST" action="{{ url_for('events.wellness_buy_sessions') }}" style="display:flex;gap:.5rem;flex-wrap:wrap;">
@@ -64,7 +64,13 @@
     <button name="option" value="physio2" class="btn btn-outline" style="font-size:.8rem;">💆 ×2 — €250k</button>
     <button name="option" value="physio3" class="btn btn-outline" style="font-size:.8rem;">💆 ×3 — €500k</button>
     <button name="option" value="health1" class="btn btn-outline" style="font-size:.8rem;color:var(--cyan);border-color:var(--cyan);">🏥 ×1 Salute — €500k</button>
+    <button name="option" value="diet" class="btn btn-outline" style="font-size:.8rem;color:#a0d080;border-color:#a0d080;">🥗 Dieta — €500k</button>
   </form>
+  <div style="font-size:.72rem;color:var(--muted);margin-top:.6rem;">Un solo acquisto per settimana · 🥗 Dieta bilanciata: +0.2 freschezza a tutti i giocatori</div>
+</div>
+{% elif purchase_window and already_bought %}
+<div class="card mb-4" style="border-color:rgba(0,245,255,.15);text-align:center;padding:1rem;">
+  <div style="font-size:.82rem;color:var(--muted);">✅ Acquisto effettuato questa settimana — disponibile da <strong>Mercoledì</strong></div>
 </div>
 {% else %}
 <div class="card mb-4" style="border-color:rgba(136,136,136,.15);text-align:center;padding:1rem;">

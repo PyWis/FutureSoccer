@@ -1190,6 +1190,7 @@ def wellness():
     current_week = get_game_week_id()
     weekday = get_game_weekday()
     purchase_window = weekday in WELLNESS_PURCHASE_WEEKDAYS
+    already_bought = team.wellness_last_buy_week_id == current_week
 
     players = team.players.order_by(None).all()
     human_players = [p for p in players if p.type in ('uomo', 'donna')]
@@ -1230,6 +1231,7 @@ def wellness():
                            future_active=future_active,
                            future_available=future_available,
                            future_weeks_left=future_weeks_left,
+                           already_bought=already_bought,
                            MAX_PHYSIO=MAX_PHYSIO,
                            MAX_HEALTH=MAX_HEALTH,
                            MAX_CYBER=MAX_CYBER)
@@ -1242,12 +1244,16 @@ def wellness_buy_sessions():
     if redir:
         return redir
     team = current_user.team
+    current_week = get_game_week_id()
     if get_game_weekday() not in WELLNESS_PURCHASE_WEEKDAYS:
         flash('Acquisti disponibili solo da mercoledì a domenica.', 'warning')
         return redirect(url_for('events.wellness'))
+    if team.wellness_last_buy_week_id == current_week:
+        flash('Hai già acquistato questa settimana. Prossimo acquisto disponibile da mercoledì.', 'warning')
+        return redirect(url_for('events.wellness'))
 
-    option = request.form.get('option')  # 'physio1','physio2','physio3','health1'
-    costs = {'physio1': 100_000, 'physio2': 250_000, 'physio3': 500_000, 'health1': 500_000}
+    option = request.form.get('option')  # 'physio1','physio2','physio3','health1','diet'
+    costs = {'physio1': 100_000, 'physio2': 250_000, 'physio3': 500_000, 'health1': 500_000, 'diet': 500_000}
     if option not in costs:
         flash('Opzione non valida.', 'danger')
         return redirect(url_for('events.wellness'))
@@ -1258,7 +1264,12 @@ def wellness_buy_sessions():
         return redirect(url_for('events.wellness'))
 
     team.budget -= cost
-    if option == 'health1':
+    if option == 'diet':
+        players = team.players.all()
+        for p in players:
+            p.freshness = round(p.freshness + 0.2, 2)
+        flash(f'🥗 Dieta bilanciata: +0.2 freschezza a tutti i {len(players)} giocatori.', 'success')
+    elif option == 'health1':
         if team.health_sessions >= MAX_HEALTH:
             flash('Hai già il massimo di sessioni salute.', 'warning')
             return redirect(url_for('events.wellness'))
@@ -1272,6 +1283,7 @@ def wellness_buy_sessions():
         team.physio_sessions = min(MAX_PHYSIO, team.physio_sessions + qty)
         flash(f'✅ {qty} sessione/i fisioterapia acquistate.', 'success')
 
+    team.wellness_last_buy_week_id = current_week
     db.session.commit()
     return redirect(url_for('events.wellness'))
 
