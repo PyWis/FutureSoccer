@@ -44,10 +44,17 @@ class Team(db.Model):
     soccer_future_end_week_id  = db.Column(db.Integer, default=-1)
     soccer_future_skill_boosted = db.Column(db.Boolean, default=False)
 
+    # Annual event tracking
+    last_age_year    = db.Column(db.Integer, default=0)   # game year when player ages were last incremented
+    last_retire_year = db.Column(db.Integer, default=0)   # game year when August retirement was last processed
+
     manager_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, unique=True)
     manager = db.relationship('User', back_populates='team')
 
-    players = db.relationship('Player', back_populates='team', lazy='dynamic')
+    players = db.relationship('Player', foreign_keys='Player.team_id',
+                              back_populates='team', lazy='dynamic')
+    hof_players = db.relationship('Player', foreign_keys='Player.hof_team_id',
+                                  back_populates='hof_team', lazy='dynamic')
 
     @property
     def points(self):
@@ -56,6 +63,11 @@ class Team(db.Model):
     @property
     def goals_diff(self):
         return self.goals_for - self.goals_against
+
+    @property
+    def hof_score(self):
+        players = self.hof_players.all()
+        return round(min(100.0, sum(p.avg_skill for p in players)), 2)
 
     @property
     def scouting_active(self):
@@ -95,12 +107,16 @@ class Player(db.Model):
     resistenza = db.Column(db.Float, default=3.0)
 
     is_free_agent = db.Column(db.Boolean, default=True)
+    is_hof = db.Column(db.Boolean, default=False)        # in Hall of Fame
     freshness = db.Column(db.Float, default=10.0)          # 0–10, starts at 10
     last_freshness_day = db.Column(db.Integer, default=0)  # game day of last freshness update
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     team_id = db.Column(db.Integer, db.ForeignKey('teams.id'), nullable=True)
-    team = db.relationship('Team', back_populates='players')
+    team = db.relationship('Team', foreign_keys=[team_id], back_populates='players')
+
+    hof_team_id = db.Column(db.Integer, db.ForeignKey('teams.id'), nullable=True)
+    hof_team = db.relationship('Team', foreign_keys=[hof_team_id], back_populates='hof_players')
 
     @property
     def avg_skill(self):

@@ -9,6 +9,7 @@ from app.utils.gameclock import (
     get_game_week_id, get_game_weekday, get_game_day_number,
     format_game_date, is_training_day, is_sponsor_day, get_game_month_id,
     get_prev_game_week_id, get_next_game_week_id, get_training_session_day,
+    get_game_date,
 )
 from app.utils.generators import (
     generate_market_offer_data, generate_sponsor_offer_data,
@@ -1013,6 +1014,7 @@ def finance():
     _process_scouting_payment(team)
     _process_loan_payments(team)
     _process_investments(team)
+    _process_annual_events(team)
 
     current_week = get_game_week_id()
 
@@ -1174,6 +1176,65 @@ def _process_wellness(team):
     db.session.commit()
 
 
+HOF_MAX = 12
+HOF_MIN_AGE = 28
+HOF_MAX_AGE_HUMAN = 80
+HOF_MAX_AGE_CYBER = 99
+
+
+def _process_annual_events(team):
+    """Jan 1: all players +1 age. Aug 1: retirement/skill-loss for 30+ humans."""
+    gd = get_game_date()
+    current_year = gd.year
+    current_month = gd.month
+
+    # ── January: age increment (squad + HoF) ──────────────────────────────────
+    if current_year > team.last_age_year:
+        squad = list(team.players.all())
+        hof = list(team.hof_players.all())
+        hof_removed = []
+        for p in squad:
+            p.age += 1
+        for p in hof:
+            p.age += 1
+            limit = HOF_MAX_AGE_CYBER if p.type == 'cyber' else HOF_MAX_AGE_HUMAN
+            if p.age >= limit:
+                hof_removed.append(p.name)
+                db.session.delete(p)
+        team.last_age_year = current_year
+        db.session.commit()
+        if hof_removed:
+            flash(f'⚰️ Hall of Fame: {", ".join(hof_removed)} rimoss{"i" if len(hof_removed)>1 else "o"} (età massima raggiunta).', 'info')
+
+    # ── August: retirement events (squad only, not cyber) ────────────────────
+    if current_year > team.last_retire_year and current_month >= 8:
+        squad = list(team.players.all())
+        released, skill_loss, removed = [], [], []
+        for p in squad:
+            if p.type == 'cyber':
+                continue
+            if p.age >= 35:
+                removed.append(p.name)
+                db.session.delete(p)
+                continue
+            if p.age >= 32:
+                for sk in SKILLS:
+                    setattr(p, sk, round(getattr(p, sk) * 0.7, 2))
+                skill_loss.append(p.name)
+            if p.age >= 30 and random.random() < 0.5:
+                p.team_id = None
+                p.is_free_agent = True
+                released.append(p.name)
+        team.last_retire_year = current_year
+        db.session.commit()
+        if removed:
+            flash(f'🏁 Ritirati (35+): {", ".join(removed)}.', 'warning')
+        if skill_loss:
+            flash(f'📉 Calo skill 30% (32+): {", ".join(skill_loss)}.', 'warning')
+        if released:
+            flash(f'👋 Svincolati (30+): {", ".join(released)}.', 'info')
+
+
 # ─── WELLNESS ──────────────────────────────────────────────────────────────────
 
 @events_bp.route('/wellness')
@@ -1186,6 +1247,7 @@ def wellness():
     _process_sponsor_payments(team)
     _process_loan_payments(team)
     _process_wellness(team)
+    _process_annual_events(team)
 
     current_week = get_game_week_id()
     weekday = get_game_weekday()
@@ -1532,4 +1594,88 @@ def finance_invest():
             'success'
         )
     return redirect(url_for('events.finance'))
+
+
+# ─── HALL OF FAME ───────────────────────────────────────────────────────────────
+
+@events_bp.route('/hof')
+@login_required
+def hall_of_fame():
+    redir = _require_team()
+    if redir:
+        return redir
+    team = current_user.team
+    _process_annual_events(team)
+
+    hof_players = team.hof_players.order_by(Player.age.desc()).all()
+    eligible = [p for p in team.players.all() if p.age >= HOF_MIN_AGE]
+    eligible.sort(key=lambda p: p.avg_skill, reverse=True)
+    can_add = len(hof_players) < HOF_MAX
+
+    return render_template('events/hof.html',
+                           team=team,
+                           game_date=format_game_date(),
+                           hof_players=hof_players,
+                           eligible=eligible,
+                           can_add=can_add,
+                           HOF_MAX=HOF_MAX,
+                           HOF_MIN_AGE=HOF_MIN_AGE)
+
+
+@events_bp.route('/hof/add', methods=['POST'])
+@login_required
+def hof_add():
+    redir = _require_team()
+    if redir:
+        return redir
+    team = current_user.team
+    try:
+        player_id = int(request.form.get('player_id', 0))
+    except (ValueError, TypeError):
+        flash('Giocatore non valido.', 'danger')
+        return redirect(url_for('events.hall_of_fame'))
+
+    player = Player.query.get_or_404(player_id)
+    if player.team_id != team.id:
+        flash('Giocatore non nella tua squadra.', 'danger')
+        return redirect(url_for('events.hall_of_fame'))
+    if player.age < HOF_MIN_AGE:
+        flash(f'Il giocatore deve avere almeno {HOF_MIN_AGE} anni.', 'warning')
+        return redirect(url_for('events.hall_of_fame'))
+    if team.hof_players.count() >= HOF_MAX:
+        flash(f'Hall of Fame piena ({HOF_MAX} giocatori massimo).', 'warning')
+        return redirect(url_for('events.hall_of_fame'))
+
+    player.team_id = None
+    player.is_free_agent = False
+    player.is_hof = True
+    player.hof_team_id = team.id
+    db.session.commit()
+    flash(f'🏆 {player.name} aggiunto alla Hall of Fame!', 'success')
+    return redirect(url_for('events.hall_of_fame'))
+
+
+@events_bp.route('/hof/remove', methods=['POST'])
+@login_required
+def hof_remove():
+    redir = _require_team()
+    if redir:
+        return redir
+    team = current_user.team
+    try:
+        player_id = int(request.form.get('player_id', 0))
+    except (ValueError, TypeError):
+        flash('Giocatore non valido.', 'danger')
+        return redirect(url_for('events.hall_of_fame'))
+
+    player = Player.query.get_or_404(player_id)
+    if player.hof_team_id != team.id:
+        flash('Operazione non autorizzata.', 'danger')
+        return redirect(url_for('events.hall_of_fame'))
+
+    name = player.name
+    db.session.delete(player)
+    db.session.commit()
+    flash(f'🗑️ {name} rimosso dalla Hall of Fame.', 'info')
+    return redirect(url_for('events.hall_of_fame'))
 
