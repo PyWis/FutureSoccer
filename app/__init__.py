@@ -50,16 +50,25 @@ def create_app():
             get_game_date, format_game_date,
             get_game_weekday, is_training_day, is_sponsor_day,
         )
+        from flask_login import current_user
         try:
             gd = get_game_date()
+            fed_streak = 0
+            fed_weeks_left = 0
+            if current_user.is_authenticated and getattr(current_user, 'team', None):
+                fed_streak = current_user.team.federation_loan_streak or 0
+                fed_weeks_left = max(0, 25 - fed_streak) if fed_streak > 0 else 0
             return dict(
                 g_date=format_game_date(gd),
                 g_weekday=get_game_weekday(),
                 g_is_training=is_training_day(),
                 g_is_sponsor=is_sponsor_day(),
+                g_fed_streak=fed_streak,
+                g_fed_weeks_left=fed_weeks_left,
             )
         except Exception:
-            return dict(g_date='', g_weekday=0, g_is_training=False, g_is_sponsor=False)
+            return dict(g_date='', g_weekday=0, g_is_training=False, g_is_sponsor=False,
+                        g_fed_streak=0, g_fed_weeks_left=0)
 
     with app.app_context():
         db.create_all()
