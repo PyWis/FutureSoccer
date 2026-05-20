@@ -17,6 +17,7 @@ from app.utils.generators import (
 
 events_bp = Blueprint('events', __name__)
 
+MAX_ROSTER = 12
 SKILLS = ['porta', 'difesa', 'attacco', 'resistenza']
 SKILL_LABELS = {'porta': 'Porta', 'difesa': 'Difesa', 'attacco': 'Attacco', 'resistenza': 'Resistenza'}
 MAX_SECONDARY = 2
@@ -302,8 +303,8 @@ def market_buy():
         flash('Hai già acquistato il giocatore di questa settimana.', 'warning')
         return redirect(url_for('events.market'))
 
-    if team.players.count() >= 12:
-        flash('Rosa al completo (massimo 12 giocatori).', 'danger')
+    if team.players.count() >= MAX_ROSTER:
+        flash(f'Rosa al completo (massimo {MAX_ROSTER} giocatori).', 'danger')
         return redirect(url_for('events.market'))
 
     cost = 250_000
@@ -954,8 +955,8 @@ def free_agent_bid(listing_id):
         flash('Non puoi fare un\'offerta sul tuo stesso giocatore.', 'danger')
         return redirect(url_for('events.free_agents'))
 
-    if team.players.count() >= 12:
-        flash('Rosa al completo (massimo 12 giocatori).', 'danger')
+    if team.players.count() >= MAX_ROSTER:
+        flash(f'Rosa al completo (massimo {MAX_ROSTER} giocatori).', 'danger')
         return redirect(url_for('events.free_agents'))
 
     current_day = get_game_day_number()
@@ -982,6 +983,23 @@ def free_agent_bid(listing_id):
 
     if amount > team.budget:
         flash('Budget insufficiente per questa offerta.', 'danger')
+        return redirect(url_for('events.free_agents'))
+
+    # Prevent over-committing: sum of all outstanding bids must stay within budget,
+    # otherwise a team could win several auctions it can't pay for.
+    outstanding = db.session.query(db.func.coalesce(db.func.sum(FreeAgentBid.amount), 0.0)).join(
+        FreeAgentListing, FreeAgentBid.listing_id == FreeAgentListing.id
+    ).filter(
+        FreeAgentBid.team_id == team.id,
+        FreeAgentBid.status == 'pending',
+        FreeAgentListing.status == 'active',
+    ).scalar() or 0.0
+    if outstanding + amount > team.budget:
+        flash(
+            f'Offerte totali troppo alte: hai già €{outstanding:,.0f} impegnati in altre aste. '
+            'Riduci le offerte o attendine la chiusura.',
+            'danger'
+        )
         return redirect(url_for('events.free_agents'))
 
     bid = FreeAgentBid(

@@ -43,6 +43,7 @@
     <div style="display:flex;flex-direction:column;gap:.6rem;min-width:180px;">
       {% if can_add_main %}
       <form method="POST" action="{{ url_for('events.sponsor_accept', offer_id=offer.id, slot='main') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="btn btn-primary btn-block">✓ Accetta come MAIN</button>
       </form>
       {% else %}
@@ -50,12 +51,14 @@
       {% endif %}
       {% if can_add_secondary %}
       <form method="POST" action="{{ url_for('events.sponsor_accept', offer_id=offer.id, slot='secondary') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="btn btn-secondary btn-block">Accetta come Secondario (30%)</button>
       </form>
       {% else %}
       <button class="btn btn-secondary btn-block" disabled style="opacity:.4;">Slot secondari pieni</button>
       {% endif %}
       <form method="POST" action="{{ url_for('events.sponsor_reject', offer_id=offer.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="btn btn-danger btn-sm btn-block">✕ Rifiuta</button>
       </form>
     </div>
@@ -100,6 +103,7 @@
       {% else %}
       <form method="POST" action="{{ url_for('events.sponsor_remove', sponsor_id=main_sponsor.id) }}"
             onsubmit="return confirm('Rimuovere {{ main_sponsor.sponsor_name }}? Perderai i pagamenti rimanenti.')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="btn btn-danger btn-sm">Rimuovi</button>
       </form>
       <div style="font-size:.72rem;color:var(--muted);margin-top:.3rem;text-align:center;">Non si può declassare a secondario</div>
@@ -127,11 +131,13 @@
     <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;">
       {% if not main_sponsor %}
       <form method="POST" action="{{ url_for('events.sponsor_upgrade', sponsor_id=sp.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="btn btn-primary btn-sm">↑ Promuovi a Main</button>
       </form>
       {% endif %}
       <form method="POST" action="{{ url_for('events.sponsor_remove', sponsor_id=sp.id) }}"
             onsubmit="return confirm('Rimuovere {{ sp.sponsor_name }}?')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="btn btn-danger btn-sm">Rimuovi</button>
       </form>
     </div>
@@ -176,6 +182,7 @@
       {% if dark_sponsor_available %}
       <form method="POST" action="{{ url_for('events.dark_sponsor') }}"
             onsubmit="return confirm('⚠️ Lo Sponsor Oscuro può avere conseguenze gravi. Procedere?')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="btn" style="background:linear-gradient(135deg,#5c0080,#300050);color:#cc66ff;border:1px solid #800080;font-size:.9rem;padding:.6rem 1.4rem;">
           🕶️ Accetta Offerta
         </button>

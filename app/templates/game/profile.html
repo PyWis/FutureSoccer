@@ -37,6 +37,7 @@
   <div class="card">
     <h3 class="mb-3">MODIFICA PROFILO</h3>
     <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="form-group">
         <label>NOME MANAGER</label>
         <input type="text" name="username" class="form-control" value="{{ current_user.username }}" minlength="3" maxlength="50" required>

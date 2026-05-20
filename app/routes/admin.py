@@ -6,6 +6,7 @@ from app.models.team import Team, Player
 from app.models.game import GameConfig
 from app.utils.gameclock import (get_clock_ratio, format_game_date, get_game_date,
                                   WEEKDAY_IT, MONTH_IT)
+from app.utils.validators import valid_hex_color, parse_float, parse_int
 from functools import wraps
 from datetime import timedelta
 
@@ -13,6 +14,11 @@ admin_bp = Blueprint('admin', __name__)
 
 SKILLS = ['porta', 'difesa', 'attacco', 'resistenza']
 PLAYER_TYPES = ['uomo', 'donna', 'cyber']
+SKILL_MIN = 0.5
+SKILL_MAX = 10.0
+AGE_MIN = 15
+AGE_MAX = 99
+ROLES = ['superadmin', 'player']
 
 
 def superadmin_required(f):
@@ -83,7 +89,9 @@ def user_edit(user_id):
     if request.method == 'POST':
         user.username = request.form.get('username', user.username).strip()
         user.email = request.form.get('email', user.email).strip().lower()
-        user.role = request.form.get('role', user.role)
+        new_role = request.form.get('role', user.role)
+        if new_role in ROLES:
+            user.role = new_role
         user.is_verified = request.form.get('is_verified') == 'on'
         new_pw = request.form.get('new_password', '').strip()
         if new_pw:
@@ -102,13 +110,13 @@ def user_edit(user_id):
 @superadmin_required
 def user_assign_team(user_id):
     user = User.query.get_or_404(user_id)
-    team_id = request.form.get('team_id', '').strip()
+    team_id = parse_int(request.form.get('team_id'), 0)
 
     if not team_id:
         flash('Seleziona una squadra.', 'warning')
         return redirect(url_for('admin.user_edit', user_id=user_id))
 
-    team = Team.query.get_or_404(int(team_id))
+    team = Team.query.get_or_404(team_id)
 
     # Unassign from previous manager if different
     if team.manager_id and team.manager_id != user_id:
@@ -183,9 +191,9 @@ def team_new():
         name = request.form.get('name', '').strip()
         city = request.form.get('city', '').strip()
         stadium = request.form.get('stadium', '').strip()
-        budget = float(request.form.get('budget', 50_000_000))
-        color_primary = request.form.get('color_primary', '#00f5ff')
-        color_secondary = request.form.get('color_secondary', '#7b2fff')
+        budget = parse_float(request.form.get('budget'), 50_000_000)
+        color_primary = valid_hex_color(request.form.get('color_primary'), '#00f5ff')
+        color_secondary = valid_hex_color(request.form.get('color_secondary'), '#7b2fff')
         if not name or not city or not stadium:
             flash('Compila tutti i campi obbligatori.', 'danger')
             return render_template('admin/team_form.html', team=None)
@@ -210,9 +218,9 @@ def team_edit(team_id):
         team.name = request.form.get('name', team.name).strip()
         team.city = request.form.get('city', team.city).strip()
         team.stadium = request.form.get('stadium', team.stadium).strip()
-        team.budget = float(request.form.get('budget', team.budget))
-        team.color_primary = request.form.get('color_primary', team.color_primary)
-        team.color_secondary = request.form.get('color_secondary', team.color_secondary)
+        team.budget = parse_float(request.form.get('budget'), team.budget)
+        team.color_primary = valid_hex_color(request.form.get('color_primary'), team.color_primary)
+        team.color_secondary = valid_hex_color(request.form.get('color_secondary'), team.color_secondary)
         db.session.commit()
         flash(f'Squadra {team.name} aggiornata.', 'success')
         return redirect(url_for('admin.teams_list'))
@@ -246,18 +254,21 @@ def players_list():
 def player_new():
     teams = Team.query.order_by(Team.name).all()
     if request.method == 'POST':
+        ptype = request.form.get('type', 'uomo')
+        if ptype not in PLAYER_TYPES:
+            ptype = 'uomo'
         player = Player(
             name=request.form.get('name', '').strip(),
-            type=request.form.get('type', 'uomo'),
-            age=int(request.form.get('age', 20)),
-            porta=float(request.form.get('porta', 3.0)),
-            difesa=float(request.form.get('difesa', 3.0)),
-            attacco=float(request.form.get('attacco', 3.0)),
-            resistenza=float(request.form.get('resistenza', 3.0)),
+            type=ptype,
+            age=parse_int(request.form.get('age'), 20, AGE_MIN, AGE_MAX),
+            porta=parse_float(request.form.get('porta'), 3.0, SKILL_MIN, SKILL_MAX),
+            difesa=parse_float(request.form.get('difesa'), 3.0, SKILL_MIN, SKILL_MAX),
+            attacco=parse_float(request.form.get('attacco'), 3.0, SKILL_MIN, SKILL_MAX),
+            resistenza=parse_float(request.form.get('resistenza'), 3.0, SKILL_MIN, SKILL_MAX),
         )
-        team_id = request.form.get('team_id')
+        team_id = parse_int(request.form.get('team_id'), 0)
         if team_id:
-            player.team_id = int(team_id)
+            player.team_id = team_id
             player.is_free_agent = False
         db.session.add(player)
         db.session.commit()
@@ -275,15 +286,17 @@ def player_edit(player_id):
     teams = Team.query.order_by(Team.name).all()
     if request.method == 'POST':
         player.name = request.form.get('name', player.name).strip()
-        player.type = request.form.get('type', player.type)
-        player.age = int(request.form.get('age', player.age))
-        player.porta = float(request.form.get('porta', player.porta))
-        player.difesa = float(request.form.get('difesa', player.difesa))
-        player.attacco = float(request.form.get('attacco', player.attacco))
-        player.resistenza = float(request.form.get('resistenza', player.resistenza))
-        team_id = request.form.get('team_id')
+        new_type = request.form.get('type', player.type)
+        if new_type in PLAYER_TYPES:
+            player.type = new_type
+        player.age = parse_int(request.form.get('age'), player.age, AGE_MIN, AGE_MAX)
+        player.porta = parse_float(request.form.get('porta'), player.porta, SKILL_MIN, SKILL_MAX)
+        player.difesa = parse_float(request.form.get('difesa'), player.difesa, SKILL_MIN, SKILL_MAX)
+        player.attacco = parse_float(request.form.get('attacco'), player.attacco, SKILL_MIN, SKILL_MAX)
+        player.resistenza = parse_float(request.form.get('resistenza'), player.resistenza, SKILL_MIN, SKILL_MAX)
+        team_id = parse_int(request.form.get('team_id'), 0)
         if team_id:
-            player.team_id = int(team_id)
+            player.team_id = team_id
             player.is_free_agent = False
         else:
             player.team_id = None

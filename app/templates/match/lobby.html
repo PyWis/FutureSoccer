@@ -70,9 +70,11 @@
     </div>
     <div class="btn-group">
       <form method="POST" action="{{ url_for('match.accept_challenge', challenge_id=ch.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="btn btn-sm" style="background:var(--success);color:#000;">✓ Accetta</button>
       </form>
       <form method="POST" action="{{ url_for('match.reject_challenge', challenge_id=ch.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="btn btn-outline btn-sm">✗ Rifiuta</button>
       </form>
     </div>
@@ -127,6 +129,7 @@
     Gioca contro la <strong>Squadra del Bar</strong> — un avversario casuale di livello base.
   </div>
   <form method="POST" action="{{ url_for('match.start_bot') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <button class="btn" style="font-size:1rem;padding:.7rem 2rem;">
       ⚽ Gioca vs Squadra del Bar
     </button>
@@ -153,6 +156,7 @@
       </div>
     </div>
     <form method="POST" action="{{ url_for('match.reject_challenge', challenge_id=ch.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button class="btn btn-outline btn-sm" style="font-size:.7rem;opacity:.6;">✕ Annulla</button>
     </form>
   </div>
@@ -172,6 +176,7 @@
       <span style="font-size:.75rem;color:var(--muted);margin-left:.5rem;">{{ t.city }}</span>
     </div>
     <form method="POST" action="{{ url_for('match.send_challenge', team_id=t.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button class="btn btn-outline btn-sm">Sfida</button>
     </form>
   </div>

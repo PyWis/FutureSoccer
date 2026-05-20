@@ -1,5 +1,6 @@
 import os
 import requests
+from markupsafe import escape
 
 
 BREVO_API_KEY = os.environ.get('BREVO_API_KEY', '')
@@ -33,6 +34,7 @@ def _send(to_email: str, to_name: str, subject: str, html_content: str) -> bool:
 
 
 def send_verification_email(user_email: str, username: str, token: str, base_url: str) -> bool:
+    username = escape(username)
     verify_url = f"{base_url}/auth/verify/{token}"
     html = f"""
     <div style="font-family:Arial,sans-serif;background:#0a0a1a;color:#e0e0e0;padding:40px;border-radius:12px;max-width:600px;margin:auto;">
@@ -56,6 +58,7 @@ def send_verification_email(user_email: str, username: str, token: str, base_url
 
 
 def send_welcome_email(user_email: str, username: str) -> bool:
+    username = escape(username)
     html = f"""
     <div style="font-family:Arial,sans-serif;background:#0a0a1a;color:#e0e0e0;padding:40px;border-radius:12px;max-width:600px;margin:auto;">
       <div style="text-align:center;margin-bottom:30px;">
@@ -72,6 +75,7 @@ def send_welcome_email(user_email: str, username: str) -> bool:
 
 
 def send_password_reset_email(user_email: str, username: str, token: str, base_url: str) -> bool:
+    username = escape(username)
     reset_url = f"{base_url}/auth/reset-password/{token}"
     html = f"""
     <div style="font-family:Arial,sans-serif;background:#0a0a1a;color:#e0e0e0;padding:40px;border-radius:12px;max-width:600px;margin:auto;">

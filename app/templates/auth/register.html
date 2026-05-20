@@ -25,6 +25,7 @@
   </div>
   <div class="auth-card">
     <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="form-group">
         <label>NOME MANAGER</label>
         <input type="text" name="username" class="form-control" placeholder="Es: CyberCoach99" required minlength="3" maxlength="50">

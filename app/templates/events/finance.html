@@ -111,6 +111,7 @@
 
   {% if total_stars > 0 %}
   <form method="POST" action="{{ url_for('events.finance_borrow') }}" id="loanForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
     <div style="font-size:.7rem;color:var(--muted);letter-spacing:1px;margin-bottom:.6rem;">TIPO DI PRESTITO</div>
     <div class="grid-2" style="gap:.75rem;margin-bottom:1.25rem;">
@@ -224,6 +225,7 @@
     Cedole attive: <strong>{{ active_investments_count }}/{{ max_investments }}</strong>
   </p>
   <form method="POST" action="{{ url_for('events.finance_invest') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="grid-2" style="gap:.75rem;margin-bottom:1rem;">
       {% for key, bt in bond_types.items() %}
       {% set owned = active_counts.get(key, 0) %}

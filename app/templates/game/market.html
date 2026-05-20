@@ -48,6 +48,7 @@
             {% if current_user.team %}
               {% if current_user.team.budget >= p.market_value %}
                 <form method="POST" action="{{ url_for('game.buy_player', player_id=p.id) }}" onsubmit="return confirm('Acquistare {{ p.name }} per €{{ '%.1f'|format(p.market_value/1000000) }}M?')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button type="submit" class="btn btn-primary btn-sm">Acquista</button>
                 </form>
               {% else %}

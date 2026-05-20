@@ -46,12 +46,14 @@
             <div class="flex gap-1">
               <a href="{{ url_for('admin.user_edit', user_id=u.id) }}" class="btn btn-secondary btn-sm">Modifica</a>
               <form method="POST" action="{{ url_for('admin.user_toggle_verify', user_id=u.id) }}" style="display:inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="btn btn-sm" style="background:rgba(0,245,255,0.1);color:var(--cyan);border:1px solid var(--card-border);">
                   {{ 'Blocca' if u.is_verified else 'Verifica' }}
                 </button>
               </form>
               {% if u.id != current_user.id %}
               <form method="POST" action="{{ url_for('admin.user_delete', user_id=u.id) }}" style="display:inline;" onsubmit="return confirm('Eliminare {{ u.username }}?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="btn btn-danger btn-sm">Elimina</button>
               </form>
               {% endif %}

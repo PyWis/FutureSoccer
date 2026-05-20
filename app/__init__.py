@@ -3,8 +3,12 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from flask_bcrypt import Bcrypt
 from flask_migrate import Migrate
+from flask_wtf import CSRFProtect
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from dotenv import load_dotenv
 import os
+import secrets
 
 load_dotenv()
 
@@ -12,18 +16,39 @@ db = SQLAlchemy()
 login_manager = LoginManager()
 bcrypt = Bcrypt()
 migrate = Migrate()
+csrf = CSRFProtect()
+limiter = Limiter(key_func=get_remote_address, default_limits=[])
+
+_DEFAULT_SECRET = 'dev-secret-key'
 
 
 def create_app():
     app = Flask(__name__)
 
-    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key')
+    is_prod = os.environ.get('FLASK_ENV') == 'production'
+    secret = os.environ.get('SECRET_KEY')
+    if not secret:
+        if is_prod:
+            raise RuntimeError('SECRET_KEY must be set in production.')
+        # Dev fallback: random per-process key (sessions reset on restart, never hard-coded)
+        secret = secrets.token_hex(32)
+    app.config['SECRET_KEY'] = secret
     app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///futuresoccer.db')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+    # ── Session / cookie hardening ──
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    app.config['SESSION_COOKIE_SECURE'] = is_prod
+    app.config['REMEMBER_COOKIE_HTTPONLY'] = True
+    app.config['REMEMBER_COOKIE_SAMESITE'] = 'Lax'
+    app.config['REMEMBER_COOKIE_SECURE'] = is_prod
 
     db.init_app(app)
     bcrypt.init_app(app)
     migrate.init_app(app, db)
+    csrf.init_app(app)
+    limiter.init_app(app)
 
     login_manager.init_app(app)
     login_manager.login_view = 'auth.login'
@@ -78,18 +103,34 @@ def create_app():
     return app
 
 
+_DEFAULT_ADMIN_PASSWORD = 'admin'
+
+
 def _seed_admin():
     from app.models.user import User
-    if not User.query.filter_by(role='superadmin').first():
-        admin = User(
-            username=os.environ.get('ADMIN_USERNAME', 'fusoccer'),
-            email=os.environ.get('ADMIN_EMAIL', 'admin@futuresoccer.com'),
-            role='superadmin',
-            is_verified=True,
-        )
-        admin.set_password(os.environ.get('ADMIN_PASSWORD', 'admin'))
-        db.session.add(admin)
-        db.session.commit()
+    if User.query.filter_by(role='superadmin').first():
+        return
+    password = os.environ.get('ADMIN_PASSWORD')
+    is_prod = os.environ.get('FLASK_ENV') == 'production'
+    if not password or password == _DEFAULT_ADMIN_PASSWORD:
+        if is_prod:
+            raise RuntimeError(
+                'Refusing to seed superadmin with default/empty password in production. '
+                'Set a strong ADMIN_PASSWORD.'
+            )
+        # Dev only: generate a random password and surface it in the logs once.
+        import secrets as _secrets
+        password = _secrets.token_urlsafe(16)
+        print(f'[SEED] Superadmin created with generated password: {password}')
+    admin = User(
+        username=os.environ.get('ADMIN_USERNAME', 'fusoccer'),
+        email=os.environ.get('ADMIN_EMAIL', 'admin@futuresoccer.com'),
+        role='superadmin',
+        is_verified=True,
+    )
+    admin.set_password(password)
+    db.session.add(admin)
+    db.session.commit()
 
 
 def _init_game_clock():

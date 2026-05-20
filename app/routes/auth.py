@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_user, logout_user, login_required, current_user
 from datetime import datetime
-from app import db
+from app import db, limiter
 from app.models.user import User
 from app.utils.brevo import send_verification_email, send_welcome_email, send_password_reset_email
 
@@ -9,6 +9,7 @@ auth_bp = Blueprint('auth', __name__)
 
 
 @auth_bp.route('/register', methods=['GET', 'POST'])
+@limiter.limit('10 per hour', methods=['POST'])
 def register():
     if current_user.is_authenticated:
         return redirect(url_for('game.dashboard'))
@@ -30,12 +31,16 @@ def register():
             error = 'Le password non coincidono.'
         elif User.query.filter_by(username=username).first():
             error = 'Nome utente già in uso.'
-        elif User.query.filter_by(email=email).first():
-            error = 'Email già registrata.'
 
         if error:
             flash(error, 'danger')
             return render_template('auth/register.html')
+
+        # Don't reveal whether an email is already registered (enumeration).
+        # Silently behave as success; the real owner already has an account.
+        if User.query.filter_by(email=email).first():
+            flash('Registrazione completata! Controlla la tua email per attivare l\'account.', 'success')
+            return redirect(url_for('auth.login'))
 
         user = User(username=username, email=email)
         user.set_password(password)
@@ -58,9 +63,13 @@ def verify_email(token):
     if not user:
         flash('Link di verifica non valido o già utilizzato.', 'danger')
         return redirect(url_for('auth.login'))
+    if user.verification_token_expires and datetime.utcnow() > user.verification_token_expires:
+        flash('Link di verifica scaduto. Richiedi un nuovo link di registrazione.', 'danger')
+        return redirect(url_for('auth.login'))
 
     user.is_verified = True
     user.verification_token = None
+    user.verification_token_expires = None
     db.session.commit()
 
     send_welcome_email(user.email, user.username)
@@ -69,6 +78,7 @@ def verify_email(token):
 
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
+@limiter.limit('10 per 15 minutes', methods=['POST'])
 def login():
     if current_user.is_authenticated:
         return redirect(url_for('game.dashboard'))
@@ -112,6 +122,7 @@ def logout():
 
 
 @auth_bp.route('/forgot-password', methods=['GET', 'POST'])
+@limiter.limit('5 per hour', methods=['POST'])
 def forgot_password():
     if request.method == 'POST':
         email = request.form.get('email', '').strip().lower()

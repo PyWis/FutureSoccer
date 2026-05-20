@@ -242,6 +242,7 @@
     <div style="margin-top:.75rem;font-size:.8rem;color:var(--danger);">Rosa al completo — libera un posto per fare offerte</div>
   {% else %}
     <form method="POST" action="{{ url_for('events.free_agent_bid', listing_id=listing.id) }}" class="bid-form-row">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input
         type="number"
         name="amount"

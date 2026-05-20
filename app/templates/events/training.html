@@ -74,6 +74,7 @@
   <span style="font-size:.78rem;color:var(--muted);margin-left:.5rem;">— seleziona i giocatori da allenare (💎 p200k gratuito)</span>
 </div>
 <form method="POST" id="trainingForm">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   {% for p in trainable %}
   {% set role = formation_roles.get(p.id) %}
   <div class="player-train-row" id="row_{{ p.id }}" style="opacity:.55;transition:opacity .2s;">
@@ -182,6 +183,7 @@
 
 {% if trainable %}
 <form method="POST" id="trainingForm">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="bulk_500k" id="bulk500kInput" value="">
 
   {% for p in trainable %}

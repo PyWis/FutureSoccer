@@ -488,10 +488,12 @@ def process_turn(match, facility_field_stars=0):
     if home_subs:
         home_lineup = apply_pending_subs(home_lineup, home_subs)
         home_lineup = apply_role_changes(home_lineup, home_subs.get('role_changes', {}))
-    # Away subs only if real away team
+    # Away subs only for a real (human) away team
     if match.away_team_id is not None:
-        # For simplicity, away team doesn't submit subs via this flow
-        pass
+        away_subs = json.loads(match.away_pending_subs_json or '{}')
+        if away_subs:
+            away_lineup = apply_pending_subs(away_lineup, away_subs)
+            away_lineup = apply_role_changes(away_lineup, away_subs.get('role_changes', {}))
 
     # 3. Apply freshness loss for both lineups
     home_lineup = apply_freshness_loss(home_lineup, delta=-0.2)
@@ -578,6 +580,7 @@ def process_turn(match, facility_field_stars=0):
     match.turns_json = json.dumps(turns)
     match.injuries_json = json.dumps(all_injuries)
     match.home_pending_subs_json = '{}'
+    match.away_pending_subs_json = '{}'
     match.current_turn += 1
     match.last_turn_at = datetime.utcnow()
 
