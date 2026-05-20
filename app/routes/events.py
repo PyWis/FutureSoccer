@@ -1,8 +1,19 @@
 import random
 import random as _random
-from flask import Blueprint, render_template, redirect, url_for, flash, request
+from flask import Blueprint, render_template, redirect, url_for, flash, request, has_request_context
 from flask_login import login_required, current_user
 from app import db
+
+
+def notify(message, category='info'):
+    """Flash a message only when inside a request context.
+
+    Event processors run both during web requests (where the manager should
+    see the message) and from the background scheduler (where there is no
+    session to flash into). This keeps them safe in both contexts.
+    """
+    if has_request_context():
+        flash(message, category)
 from app.models.team import Team, Player
 from app.models.game import TeamWeeklyOffer, TrainingRecord, SponsorOffer, ActiveSponsor, FreeAgentListing, FreeAgentBid, Loan, Investment
 from app.utils.gameclock import (
@@ -95,11 +106,11 @@ def _process_scouting_payment(team):
         team.budget -= cost
         team.scouting_paid_week_id = current_week
         db.session.commit()
-        flash('💰 Scouting avanzato: €1.000.000 addebitati per questa settimana.', 'info')
+        notify('💰 Scouting avanzato: €1.000.000 addebitati per questa settimana.', 'info')
     else:
         team.scouting_enabled = False
         db.session.commit()
-        flash('⚠️ Scouting avanzato disattivato: budget insufficiente per il pagamento settimanale.', 'warning')
+        notify('⚠️ Scouting avanzato disattivato: budget insufficiente per il pagamento settimanale.', 'warning')
 
 
 def _process_sponsor_payments(team):
@@ -202,11 +213,11 @@ def _check_federation_loan(team):
             player.attacco     = round(player.attacco     * 0.5, 2)
             player.resistenza  = round(player.resistenza  * 0.5, 2)
         db.session.commit()
-        flash('🏛️ La Federazione ha donato €50M — ma la "Lunga Promozione" ha dimezzato tutte le skill dei giocatori.', 'warning')
+        notify('🏛️ La Federazione ha donato €50M — ma la "Lunga Promozione" ha dimezzato tutte le skill dei giocatori.', 'warning')
     else:
         db.session.commit()
         streak_left = 25 - team.federation_loan_streak
-        flash(
+        notify(
             f'🚨 Aiuto dalla Federazione attivato: €{amount/1_000_000:.2f}M '
             f'(+1% = €{total_due/1_000_000:.2f}M da restituire). '
             f'Crisi finanziaria: settimana {team.federation_loan_streak}/25 '
@@ -224,7 +235,7 @@ def _process_investments(team):
     for inv in matured:
         team.budget += inv.payout
         inv.is_active = False
-        flash(
+        notify(
             f'📈 Cedola {BOND_TYPES[inv.bond_type]["label"]} maturata! '
             f'+€{inv.payout/1_000_000:.2f}M accreditati.',
             'success'
@@ -1327,7 +1338,7 @@ def _apply_ritiro_end_effects(team):
                 setattr(p, sk, 10.0)
 
     db.session.commit()
-    flash(f'🏕️ Ritiro completato! ({RITIRO_OPTIONS[rtype]["label"]}) — effetti applicati a tutti i giocatori.', 'success')
+    notify(f'🏕️ Ritiro completato! ({RITIRO_OPTIONS[rtype]["label"]}) — effetti applicati a tutti i giocatori.', 'success')
 
 
 def _process_annual_events(team):
@@ -1351,7 +1362,7 @@ def _process_annual_events(team):
                 setattr(p, sk, round(getattr(p, sk) * 0.8, 2))
         team.ritiro_year = current_year
         db.session.commit()
-        flash('📉 La squadra non è andata in ritiro estivo — tutte le skill −20%.', 'danger')
+        notify('📉 La squadra non è andata in ritiro estivo — tutte le skill −20%.', 'danger')
 
     # ── January: age increment (squad + HoF) ──────────────────────────────────
     if current_year > team.last_age_year:
@@ -1369,7 +1380,7 @@ def _process_annual_events(team):
         team.last_age_year = current_year
         db.session.commit()
         if hof_removed:
-            flash(f'⚰️ Hall of Fame: {", ".join(hof_removed)} rimoss{"i" if len(hof_removed)>1 else "o"} (età massima raggiunta).', 'info')
+            notify(f'⚰️ Hall of Fame: {", ".join(hof_removed)} rimoss{"i" if len(hof_removed)>1 else "o"} (età massima raggiunta).', 'info')
 
     # ── August: retirement events (squad only, not cyber) ────────────────────
     if current_year > team.last_retire_year and current_month >= 8:
@@ -1393,11 +1404,11 @@ def _process_annual_events(team):
         team.last_retire_year = current_year
         db.session.commit()
         if removed:
-            flash(f'🏁 Ritirati (35+): {", ".join(removed)}.', 'warning')
+            notify(f'🏁 Ritirati (35+): {", ".join(removed)}.', 'warning')
         if skill_loss:
-            flash(f'📉 Calo skill 30% (32+): {", ".join(skill_loss)}.', 'warning')
+            notify(f'📉 Calo skill 30% (32+): {", ".join(skill_loss)}.', 'warning')
         if released:
-            flash(f'👋 Svincolati (30+): {", ".join(released)}.', 'info')
+            notify(f'👋 Svincolati (30+): {", ".join(released)}.', 'info')
 
 
 # ─── WELLNESS ──────────────────────────────────────────────────────────────────

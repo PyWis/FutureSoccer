@@ -10,8 +10,11 @@ MONTH_IT = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno',
 
 
 def get_clock_ratio():
-    """Real seconds per game day (default 300 = 5 minutes)."""
-    return int(os.environ.get('GAME_CLOCK_RATIO', 300))
+    """Real seconds per game day (default 3600 = 1 hour).
+
+    A longer day makes the 2-minute Sunday connect window a small slice of the
+    day rather than most of it; tune via GAME_CLOCK_RATIO."""
+    return int(os.environ.get('GAME_CLOCK_RATIO', 3600))
 
 
 def get_game_datetime():
