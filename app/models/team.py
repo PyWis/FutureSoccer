@@ -45,8 +45,13 @@ class Team(db.Model):
     soccer_future_skill_boosted = db.Column(db.Boolean, default=False)
 
     # Annual event tracking
-    last_age_year    = db.Column(db.Integer, default=0)   # game year when player ages were last incremented
-    last_retire_year = db.Column(db.Integer, default=0)   # game year when August retirement was last processed
+    last_age_year    = db.Column(db.Integer, default=0)
+    last_retire_year = db.Column(db.Integer, default=0)
+
+    # Ritiro estivo
+    ritiro_year     = db.Column(db.Integer, default=0)    # year ritiro was bought or penalty applied
+    ritiro_type     = db.Column(db.String(20), nullable=True)  # sss|luna_mare|luna_dark|marte|giove
+    ritiro_end_day  = db.Column(db.Integer, default=-1)   # game day when end effects fire
 
     manager_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, unique=True)
     manager = db.relationship('User', back_populates='team')
