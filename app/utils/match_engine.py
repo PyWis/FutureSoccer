@@ -599,7 +599,7 @@ def process_turn(match, facility_field_stars=0):
 def finalize_match(match):
     """Apply match end effects to real Player objects."""
     from app import db
-    from app.models.team import Player
+    from app.models.team import Player, Team
 
     # Apply injury maluses (can go negative)
     injuries = json.loads(match.injuries_json or '[]')
@@ -610,5 +610,10 @@ def finalize_match(match):
             player = Player.query.get(pid)
             if player:
                 player.freshness = round(player.freshness + malus, 1)
+
+    # Streaming revenue: home team earns 100k per facility_stream star
+    home_team = Team.query.get(match.home_team_id)
+    if home_team and home_team.facility_stream > 0:
+        home_team.budget += home_team.facility_stream * 100_000
 
     db.session.commit()

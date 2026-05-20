@@ -9,6 +9,7 @@ from app.utils.gameclock import (
     get_game_week_id, get_game_weekday, get_game_day_number,
     format_game_date, is_training_day, is_sponsor_day, get_game_month_id,
     get_prev_game_week_id, get_next_game_week_id, get_training_session_day,
+    get_game_date,
 )
 from app.utils.generators import (
     generate_market_offer_data, generate_sponsor_offer_data,
@@ -1013,6 +1014,7 @@ def finance():
     _process_scouting_payment(team)
     _process_loan_payments(team)
     _process_investments(team)
+    _process_annual_events(team)
 
     current_week = get_game_week_id()
 
@@ -1174,6 +1176,212 @@ def _process_wellness(team):
     db.session.commit()
 
 
+HOF_MAX = 12
+HOF_MIN_AGE = 28
+HOF_MAX_AGE_HUMAN = 80
+HOF_MAX_AGE_CYBER = 99
+
+RITIRO_OPTIONS = {
+    'sss': {
+        'label': 'SSS: Stazione Spaziale Soccer',
+        'icon': '🚀',
+        'desc': 'Allenamento a gravità zero',
+        'effect': '+2.0 skill casuale per giocatore · freschezza finale → 10',
+        'freshness_end': 10.0,
+        'extra_cost': None,
+    },
+    'luna_mare': {
+        'label': 'Luna: Mare della Tranquillità',
+        'icon': '🌕',
+        'desc': 'Allenamento in superficie lunare',
+        'effect': '+0.5 tutte le skill per giocatore · freschezza finale → 10',
+        'freshness_end': 10.0,
+        'extra_cost': None,
+    },
+    'luna_dark': {
+        'label': 'Luna: Dark Side',
+        'icon': '🌑',
+        'desc': 'Lato oscuro della Luna',
+        'effect': 'Titolari top-11: +2.0 skill ruolo, fr→5 · Riserve: +0.5 tutte, fr→7 · Altri: fr→10',
+        'freshness_end': None,
+        'extra_cost': None,
+    },
+    'marte': {
+        'label': 'Marte: Mons Olimpo',
+        'icon': '🔴',
+        'desc': 'Allenamento sul vulcano più alto del sistema solare',
+        'effect': '+2.0 tutte le skill per giocatore · freschezza finale → 3',
+        'freshness_end': 3.0,
+        'extra_cost': 'Prestito Mons Olimpo: 50 rate × €4M (€200M totali)',
+    },
+    'giove': {
+        'label': 'Giove: Gravità Aumentata',
+        'icon': '🪐',
+        'desc': 'Gravità 2.5× — rischio estremo',
+        'effect': '80%: +5.0 skill · 20%: skill→0.5 · età+1 anno · freschezza→0',
+        'freshness_end': 0.0,
+        'extra_cost': 'Prestito Gravity: 100 rate × €10M (€1.000M totali)',
+    },
+}
+
+RITIRO_BASE_COST = 25_000_000
+
+
+def _apply_ritiro_end_effects(team):
+    """Apply type-specific skill bonuses and freshness at end of ritiro."""
+    players = list(team.players.all())
+    rtype = team.ritiro_type
+    current_week = get_game_week_id()
+
+    if rtype == 'sss':
+        for p in players:
+            sk = random.choice(SKILLS)
+            setattr(p, sk, round(getattr(p, sk) + 2.0, 2))
+            p.freshness = 10.0
+
+    elif rtype == 'luna_mare':
+        for p in players:
+            for sk in SKILLS:
+                setattr(p, sk, round(getattr(p, sk) + 0.5, 2))
+            p.freshness = 10.0
+
+    elif rtype == 'luna_dark':
+        by_skill = sorted(players, key=lambda x: x.avg_skill, reverse=True)
+        titolari_ids = {p.id for p in by_skill[:11]}
+        riserve_ids  = {p.id for p in by_skill[11:16]}
+        for p in players:
+            if p.id in titolari_ids:
+                role_sk = max(['porta', 'difesa', 'attacco'], key=lambda s: getattr(p, s))
+                setattr(p, role_sk, round(getattr(p, role_sk) + 2.0, 2))
+                p.freshness = 5.0
+            elif p.id in riserve_ids:
+                for sk in SKILLS:
+                    setattr(p, sk, round(getattr(p, sk) + 0.5, 2))
+                p.freshness = 7.0
+            else:
+                p.freshness = 10.0
+
+    elif rtype == 'marte':
+        for p in players:
+            for sk in SKILLS:
+                setattr(p, sk, round(getattr(p, sk) + 2.0, 2))
+            p.freshness = 3.0
+        # Mons Olimpo loan: 50 × 4M
+        loan = Loan(
+            team_id=team.id,
+            loan_type='mons_olimpo',
+            principal=200_000_000,
+            total_due=200_000_000,
+            weekly_payment=4_000_000,
+            weeks_total=50,
+            weeks_paid=0,
+            last_paid_week_id=current_week,
+        )
+        db.session.add(loan)
+
+    elif rtype == 'giove':
+        for p in players:
+            if random.random() < 0.8:
+                for sk in SKILLS:
+                    setattr(p, sk, round(getattr(p, sk) + 5.0, 2))
+            else:
+                for sk in SKILLS:
+                    setattr(p, sk, 0.5)
+            p.age += 1
+            p.freshness = 0.0
+        # Gravity loan: 100 × 10M
+        loan = Loan(
+            team_id=team.id,
+            loan_type='gravity',
+            principal=1_000_000_000,
+            total_due=1_000_000_000,
+            weekly_payment=10_000_000,
+            weeks_total=100,
+            weeks_paid=0,
+            last_paid_week_id=current_week,
+        )
+        db.session.add(loan)
+
+    # Cap all skills at 10.0 (common end effect)
+    for p in players:
+        for sk in SKILLS:
+            if getattr(p, sk) > 10.0:
+                setattr(p, sk, 10.0)
+
+    db.session.commit()
+    flash(f'🏕️ Ritiro completato! ({RITIRO_OPTIONS[rtype]["label"]}) — effetti applicati a tutti i giocatori.', 'success')
+
+
+def _process_annual_events(team):
+    """Jan 1: age increment. Aug 1: retirements. Ongoing: ritiro end effects & penalty."""
+    gd = get_game_date()
+    current_year = gd.year
+    current_month = gd.month
+    current_day = get_game_day_number()
+
+    # ── Ritiro end effects (any time, triggered by day counter) ───────────────
+    if team.ritiro_end_day > 0 and current_day >= team.ritiro_end_day:
+        _apply_ritiro_end_effects(team)
+        team.ritiro_end_day = -1
+        db.session.commit()
+
+    # ── Non-ritiro penalty (September+, no ritiro this year) ──────────────────
+    if current_month >= 9 and current_year > team.ritiro_year:
+        players = list(team.players.all())
+        for p in players:
+            for sk in SKILLS:
+                setattr(p, sk, round(getattr(p, sk) * 0.8, 2))
+        team.ritiro_year = current_year
+        db.session.commit()
+        flash('📉 La squadra non è andata in ritiro estivo — tutte le skill −20%.', 'danger')
+
+    # ── January: age increment (squad + HoF) ──────────────────────────────────
+    if current_year > team.last_age_year:
+        squad = list(team.players.all())
+        hof = list(team.hof_players.all())
+        hof_removed = []
+        for p in squad:
+            p.age += 1
+        for p in hof:
+            p.age += 1
+            limit = HOF_MAX_AGE_CYBER if p.type == 'cyber' else HOF_MAX_AGE_HUMAN
+            if p.age >= limit:
+                hof_removed.append(p.name)
+                db.session.delete(p)
+        team.last_age_year = current_year
+        db.session.commit()
+        if hof_removed:
+            flash(f'⚰️ Hall of Fame: {", ".join(hof_removed)} rimoss{"i" if len(hof_removed)>1 else "o"} (età massima raggiunta).', 'info')
+
+    # ── August: retirement events (squad only, not cyber) ────────────────────
+    if current_year > team.last_retire_year and current_month >= 8:
+        squad = list(team.players.all())
+        released, skill_loss, removed = [], [], []
+        for p in squad:
+            if p.type == 'cyber':
+                continue
+            if p.age >= 35:
+                removed.append(p.name)
+                db.session.delete(p)
+                continue
+            if p.age >= 32:
+                for sk in SKILLS:
+                    setattr(p, sk, round(getattr(p, sk) * 0.7, 2))
+                skill_loss.append(p.name)
+            if p.age >= 30 and random.random() < 0.5:
+                p.team_id = None
+                p.is_free_agent = True
+                released.append(p.name)
+        team.last_retire_year = current_year
+        db.session.commit()
+        if removed:
+            flash(f'🏁 Ritirati (35+): {", ".join(removed)}.', 'warning')
+        if skill_loss:
+            flash(f'📉 Calo skill 30% (32+): {", ".join(skill_loss)}.', 'warning')
+        if released:
+            flash(f'👋 Svincolati (30+): {", ".join(released)}.', 'info')
+
+
 # ─── WELLNESS ──────────────────────────────────────────────────────────────────
 
 @events_bp.route('/wellness')
@@ -1186,6 +1394,7 @@ def wellness():
     _process_sponsor_payments(team)
     _process_loan_payments(team)
     _process_wellness(team)
+    _process_annual_events(team)
 
     current_week = get_game_week_id()
     weekday = get_game_weekday()
@@ -1205,7 +1414,6 @@ def wellness():
     shoe_sponsor_weeks_left = shoe_sp_record.remaining_weeks if shoe_sp_record else 0
     can_shoe_sponsor = not shoe_sponsor_active and secondary_count < 2
 
-    # Shoe Pro cooldown: available if end_week <= current_week (or never used)
     pro_active = team.soccer_pro_end_week_id > current_week
     pro_available = not pro_active and (team.soccer_pro_end_week_id <= current_week)
     pro_weeks_left = max(0, team.soccer_pro_end_week_id - current_week) if pro_active else 0
@@ -1213,6 +1421,13 @@ def wellness():
     future_active = team.soccer_future_end_week_id > current_week
     future_available = not future_active and (team.soccer_future_end_week_id <= current_week)
     future_weeks_left = max(0, team.soccer_future_end_week_id - current_week) if future_active else 0
+
+    # Ritiro context
+    gd = get_game_date()
+    ritiro_window = (gd.month == 8 and gd.year > team.ritiro_year)
+    ritiro_active = team.ritiro_end_day > 0
+    ritiro_days_left = max(0, team.ritiro_end_day - get_game_day_number()) if ritiro_active else 0
+    ritiro_done_this_year = (team.ritiro_year == gd.year)
 
     return render_template('events/wellness.html',
                            team=team,
@@ -1232,9 +1447,62 @@ def wellness():
                            future_available=future_available,
                            future_weeks_left=future_weeks_left,
                            already_bought=already_bought,
+                           ritiro_window=ritiro_window,
+                           ritiro_active=ritiro_active,
+                           ritiro_days_left=ritiro_days_left,
+                           ritiro_done_this_year=ritiro_done_this_year,
+                           RITIRO_OPTIONS=RITIRO_OPTIONS,
+                           RITIRO_BASE_COST=RITIRO_BASE_COST,
                            MAX_PHYSIO=MAX_PHYSIO,
                            MAX_HEALTH=MAX_HEALTH,
                            MAX_CYBER=MAX_CYBER)
+
+
+@events_bp.route('/wellness/ritiro', methods=['POST'])
+@login_required
+def wellness_ritiro():
+    redir = _require_team()
+    if redir:
+        return redir
+    team = current_user.team
+    gd = get_game_date()
+
+    if gd.month != 8 or gd.year <= team.ritiro_year:
+        flash('Il ritiro estivo è disponibile solo in agosto e una volta per anno.', 'warning')
+        return redirect(url_for('events.wellness'))
+    if team.ritiro_end_day > 0:
+        flash('Il ritiro è già in corso.', 'warning')
+        return redirect(url_for('events.wellness'))
+
+    rtype = request.form.get('rtype')
+    if rtype not in RITIRO_OPTIONS:
+        flash('Tipo di ritiro non valido.', 'danger')
+        return redirect(url_for('events.wellness'))
+
+    if team.budget < RITIRO_BASE_COST:
+        flash(f'Budget insufficiente (servono €{RITIRO_BASE_COST/1_000_000:.0f}M).', 'danger')
+        return redirect(url_for('events.wellness'))
+
+    # Deduct base cost
+    team.budget -= RITIRO_BASE_COST
+
+    # Start effects: positive freshness → 0
+    for p in team.players.all():
+        if p.freshness > 0:
+            p.freshness = 0.0
+
+    team.ritiro_type = rtype
+    team.ritiro_year = gd.year
+    team.ritiro_end_day = get_game_day_number() + 21
+
+    db.session.commit()
+    opt = RITIRO_OPTIONS[rtype]
+    flash(
+        f'{opt["icon"]} Ritiro avviato: {opt["label"]}! '
+        f'Freschezza azzerata. Effetti al termine fra 21 giorni di gioco.',
+        'success'
+    )
+    return redirect(url_for('events.wellness'))
 
 
 @events_bp.route('/wellness/buy-sessions', methods=['POST'])
@@ -1532,4 +1800,88 @@ def finance_invest():
             'success'
         )
     return redirect(url_for('events.finance'))
+
+
+# ─── HALL OF FAME ───────────────────────────────────────────────────────────────
+
+@events_bp.route('/hof')
+@login_required
+def hall_of_fame():
+    redir = _require_team()
+    if redir:
+        return redir
+    team = current_user.team
+    _process_annual_events(team)
+
+    hof_players = team.hof_players.order_by(Player.age.desc()).all()
+    eligible = [p for p in team.players.all() if p.age >= HOF_MIN_AGE]
+    eligible.sort(key=lambda p: p.avg_skill, reverse=True)
+    can_add = len(hof_players) < HOF_MAX
+
+    return render_template('events/hof.html',
+                           team=team,
+                           game_date=format_game_date(),
+                           hof_players=hof_players,
+                           eligible=eligible,
+                           can_add=can_add,
+                           HOF_MAX=HOF_MAX,
+                           HOF_MIN_AGE=HOF_MIN_AGE)
+
+
+@events_bp.route('/hof/add', methods=['POST'])
+@login_required
+def hof_add():
+    redir = _require_team()
+    if redir:
+        return redir
+    team = current_user.team
+    try:
+        player_id = int(request.form.get('player_id', 0))
+    except (ValueError, TypeError):
+        flash('Giocatore non valido.', 'danger')
+        return redirect(url_for('events.hall_of_fame'))
+
+    player = Player.query.get_or_404(player_id)
+    if player.team_id != team.id:
+        flash('Giocatore non nella tua squadra.', 'danger')
+        return redirect(url_for('events.hall_of_fame'))
+    if player.age < HOF_MIN_AGE:
+        flash(f'Il giocatore deve avere almeno {HOF_MIN_AGE} anni.', 'warning')
+        return redirect(url_for('events.hall_of_fame'))
+    if team.hof_players.count() >= HOF_MAX:
+        flash(f'Hall of Fame piena ({HOF_MAX} giocatori massimo).', 'warning')
+        return redirect(url_for('events.hall_of_fame'))
+
+    player.team_id = None
+    player.is_free_agent = False
+    player.is_hof = True
+    player.hof_team_id = team.id
+    db.session.commit()
+    flash(f'🏆 {player.name} aggiunto alla Hall of Fame!', 'success')
+    return redirect(url_for('events.hall_of_fame'))
+
+
+@events_bp.route('/hof/remove', methods=['POST'])
+@login_required
+def hof_remove():
+    redir = _require_team()
+    if redir:
+        return redir
+    team = current_user.team
+    try:
+        player_id = int(request.form.get('player_id', 0))
+    except (ValueError, TypeError):
+        flash('Giocatore non valido.', 'danger')
+        return redirect(url_for('events.hall_of_fame'))
+
+    player = Player.query.get_or_404(player_id)
+    if player.hof_team_id != team.id:
+        flash('Operazione non autorizzata.', 'danger')
+        return redirect(url_for('events.hall_of_fame'))
+
+    name = player.name
+    db.session.delete(player)
+    db.session.commit()
+    flash(f'🗑️ {name} rimosso dalla Hall of Fame.', 'info')
+    return redirect(url_for('events.hall_of_fame'))
 

@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}Hall of Fame — FutureSoccer{% endblock %}
+{% block extra_head %}
+<style>
+  .hof-card{background:linear-gradient(135deg,rgba(20,10,40,.9),rgba(40,20,60,.5));border:1px solid rgba(255,200,50,.25);border-radius:14px;padding:1.25rem;position:relative;overflow:hidden;}
+  .hof-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#ffd700,#ffa500,#ffd700);}
+  .hof-player-row{display:flex;align-items:center;gap:.75rem;padding:.65rem .75rem;border-radius:8px;background:rgba(255,200,50,.04);border:1px solid rgba(255,200,50,.12);margin-bottom:.5rem;}
+  .hof-player-row:last-child{margin-bottom:0;}
+  .score-ring{width:90px;height:90px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-direction:column;border:3px solid #ffd700;background:rgba(255,215,0,.08);flex-shrink:0;}
+  .eligible-row{display:flex;align-items:center;gap:.6rem;padding:.5rem .6rem;border-radius:8px;border:1px solid rgba(255,255,255,.07);margin-bottom:.4rem;}
+  .eligible-row:last-child{margin-bottom:0;}
+  .age-badge{font-size:.68rem;padding:.1rem .35rem;border-radius:6px;font-weight:700;}
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-header flex flex-between flex-center" style="flex-wrap:wrap;gap:1rem;">
+  <div>
+    <h1>🏆 HALL OF FAME</h1>
+    <p class="text-muted">{{ game_date }}</p>
+  </div>
+  <div class="score-ring">
+    <div style="font-family:'Orbitron',monospace;font-size:1.4rem;font-weight:900;color:#ffd700;">{{ team.hof_score }}</div>
+    <div style="font-size:.6rem;color:#b8960a;letter-spacing:.5px;">/ 100</div>
+  </div>
+</div>
+
+<!-- ── HoF players ── -->
+<div class="hof-card mb-4">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+    <h2 style="color:#ffd700;font-size:1rem;letter-spacing:1px;">LEGGENDE ({{ hof_players|length }}/{{ HOF_MAX }})</h2>
+    <div style="font-size:.72rem;color:#b8960a;">Non possono rientrare in prima squadra</div>
+  </div>
+
+  {% if hof_players %}
+  {% for p in hof_players %}
+  <div class="hof-player-row">
+    <div style="font-size:1.2rem;">{{ p.type_icon }}</div>
+    <div style="flex:1;min-width:0;">
+      <div style="font-weight:700;font-size:.92rem;color:#ffd700;">{{ p.name }}</div>
+      <div style="font-size:.72rem;color:var(--muted);">
+        età {{ p.age }}
+        {% if p.type == 'cyber' %}<span style="color:#cc66ff;">· cyber (max {{ 99 }}aa)</span>
+        {% else %}· max {{ 80 }}aa{% endif %}
+      </div>
+    </div>
+    <div style="text-align:right;flex-shrink:0;">
+      <div style="font-family:'Orbitron',monospace;font-size:1rem;font-weight:700;color:#ffd700;">{{ p.avg_skill }}</div>
+      <div style="font-size:.65rem;color:var(--muted);">avg skill</div>
+    </div>
+    <div style="font-size:.65rem;color:var(--muted);text-align:right;flex-shrink:0;min-width:80px;">
+      P:{{ "%.1f"|format(p.porta) }}
+      D:{{ "%.1f"|format(p.difesa) }}<br>
+      A:{{ "%.1f"|format(p.attacco) }}
+      R:{{ "%.1f"|format(p.resistenza) }}
+    </div>
+    <form method="POST" action="{{ url_for('events.hof_remove') }}"
+          onsubmit="return confirm('Rimuovere {{ p.name }} dalla Hall of Fame?')">
+      <input type="hidden" name="player_id" value="{{ p.id }}">
+      <button type="submit" class="btn btn-danger btn-sm" style="font-size:.72rem;padding:.2rem .5rem;">✕</button>
+    </form>
+  </div>
+  {% endfor %}
+  {% else %}
+  <div style="text-align:center;padding:1.5rem;color:var(--muted);font-size:.85rem;">
+    Nessuna leggenda ancora — aggiungi giocatori dai {{ HOF_MIN_AGE }} anni in su
+  </div>
+  {% endif %}
+</div>
+
+<!-- ── Eligible players ── -->
+<div class="card mb-4">
+  <h2 class="mb-3" style="font-size:1rem;letter-spacing:1px;">GIOCATORI ELEGGIBILI ({{ HOF_MIN_AGE }}+ anni)</h2>
+  {% if eligible %}
+  {% for p in eligible %}
+  <div class="eligible-row">
+    <div style="font-size:1.1rem;">{{ p.type_icon }}</div>
+    <div style="flex:1;min-width:0;">
+      <div style="font-weight:600;font-size:.88rem;">{{ p.name }}</div>
+      <div style="font-size:.7rem;color:var(--muted);">
+        età {{ p.age }}
+        {% if p.age >= 35 %}<span style="color:#ff4444;">· verrà rimosso ad agosto</span>
+        {% elif p.age >= 32 %}<span style="color:#ffa500;">· calo skill ad agosto</span>
+        {% elif p.age >= 30 %}<span style="color:#ffcc00;">· 50% svincolo ad agosto</span>
+        {% endif %}
+      </div>
+    </div>
+    <div style="font-family:'Orbitron',monospace;font-size:.9rem;font-weight:700;color:var(--cyan);margin-right:.5rem;">
+      {{ p.avg_skill }}
+    </div>
+    {% if can_add %}
+    <form method="POST" action="{{ url_for('events.hof_add') }}">
+      <input type="hidden" name="player_id" value="{{ p.id }}">
+      <button type="submit" class="btn btn-primary btn-sm" style="font-size:.72rem;padding:.25rem .6rem;">
+        🏆 HoF
+      </button>
+    </form>
+    {% else %}
+    <span style="font-size:.72rem;color:var(--muted);">HoF piena</span>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% else %}
+  <p style="font-size:.82rem;color:var(--muted);">Nessun giocatore in squadra con {{ HOF_MIN_AGE }}+ anni.</p>
+  {% endif %}
+</div>
+
+<!-- ── Info ── -->
+<div class="card" style="background:rgba(0,0,0,.2);border-color:rgba(136,136,136,.15);">
+  <h3 class="mb-2">ℹ️ REGOLE HALL OF FAME</h3>
+  <ul style="font-size:.82rem;color:var(--muted);line-height:1.9;padding-left:1.2rem;">
+    <li>Puoi inserire giocatori dai <strong>{{ HOF_MIN_AGE }} anni</strong> in su — max <strong>{{ HOF_MAX }} leggende</strong></li>
+    <li>I giocatori nella HoF non possono rientrare in prima squadra</li>
+    <li>Invecchiano ogni <strong>1° gennaio</strong> e vengono rimossi automaticamente a <strong>80 anni</strong> (cyber a <strong>99</strong>)</li>
+    <li>Il punteggio HoF = somma avg skill di tutte le leggende (max 100)</li>
+    <li>Puoi rimuovere un giocatore in qualsiasi momento (viene eliminato definitivamente)</li>
+    <li style="color:#ffa500;">Regole agosto: 30+ → 50% svincolo · 32+ → −30% skill · 35+ → rimosso (esclusi cyber)</li>
+  </ul>
+</div>
+{% endblock %}

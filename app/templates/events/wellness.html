@@ -30,6 +30,57 @@
   </div>
 </div>
 
+<!-- ══ RITIRO ESTIVO ═══════════════════════════════════════════════════════ -->
+{% if ritiro_active %}
+<div class="card mb-4" style="border-color:rgba(0,245,255,.3);background:linear-gradient(135deg,rgba(0,30,50,.8),rgba(0,50,80,.4));">
+  <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.5rem;">
+    <span style="font-size:1.4rem;">🏕️</span>
+    <div>
+      <div style="font-weight:700;color:var(--cyan);">RITIRO IN CORSO — {{ RITIRO_OPTIONS[team.ritiro_type]['label'] }}</div>
+      <div style="font-size:.78rem;color:var(--muted);">Gli effetti verranno applicati al termine · {{ ritiro_days_left }} giorni di gioco rimanenti</div>
+    </div>
+  </div>
+</div>
+{% elif ritiro_done_this_year %}
+<div class="card mb-4" style="border-color:rgba(0,200,100,.2);">
+  <p style="font-size:.82rem;color:var(--success);">✅ Ritiro completato quest'anno — {{ RITIRO_OPTIONS.get(team.ritiro_type, {}).get('label', '') }}</p>
+</div>
+{% elif ritiro_window %}
+<div class="card mb-4" style="border-color:rgba(255,165,0,.4);background:linear-gradient(135deg,rgba(40,20,0,.8),rgba(60,30,0,.4));position:relative;overflow:hidden;">
+  <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#ff8c00,#ffd700,#ff8c00);"></div>
+  <h2 style="color:#ffd700;margin-bottom:.4rem;">🏕️ RITIRO ESTIVO — AGOSTO</h2>
+  <p style="font-size:.8rem;color:#d4a800;margin-bottom:1rem;">
+    Costo base: <strong>€{{ "%.0f"|format(RITIRO_BASE_COST/1_000_000) }}M</strong> · Durata 21 giorni · Freschezza positiva → 0 all'avvio · Skill cappate a 10 al termine<br>
+    <span style="color:#cc6600;">⚠️ Le squadre che non partecipano perdono il 20% di tutte le skill a settembre.</span>
+  </p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:.75rem;">
+    {% for key, opt in RITIRO_OPTIONS.items() %}
+    <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,165,0,.15);border-radius:10px;padding:1rem;">
+      <div style="font-size:1.2rem;margin-bottom:.3rem;">{{ opt.icon }}</div>
+      <div style="font-weight:700;font-size:.88rem;color:#ffd700;margin-bottom:.3rem;">{{ opt.label }}</div>
+      <div style="font-size:.72rem;color:var(--muted);margin-bottom:.5rem;line-height:1.6;">{{ opt.effect }}</div>
+      {% if opt.extra_cost %}
+      <div style="font-size:.68rem;color:#ff8800;margin-bottom:.5rem;">💸 {{ opt.extra_cost }}</div>
+      {% endif %}
+      <form method="POST" action="{{ url_for('events.wellness_ritiro') }}">
+        <input type="hidden" name="rtype" value="{{ key }}">
+        <button type="submit" class="btn btn-sm btn-block"
+          style="background:rgba(255,165,0,.15);border:1px solid rgba(255,165,0,.4);color:#ffd700;font-size:.78rem;"
+          {% if team.budget < RITIRO_BASE_COST %}disabled style="opacity:.4;"{% endif %}
+          onclick="return confirm('Avviare il ritiro {{ opt.label }}? Costa €{{ "%.0f"|format(RITIRO_BASE_COST/1_000_000) }}M e azzera la freschezza positiva.')">
+          Scegli questo ritiro
+        </button>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% else %}
+<div class="card mb-4" style="border-color:rgba(136,136,136,.1);padding:.75rem 1rem;">
+  <p style="font-size:.8rem;color:var(--muted);">🏕️ <strong>Ritiro Estivo</strong> — disponibile ogni <strong>agosto</strong>. Le squadre che non partecipano perdono il 20% skill a settembre.</p>
+</div>
+{% endif %}
+
 <!-- ── SESSION COUNTERS ── -->
 <div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1.2rem;">
   <div class="session-counter" style="flex:1;min-width:140px;border-color:rgba(0,200,100,.3);">
