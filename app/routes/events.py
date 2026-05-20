@@ -1338,11 +1338,14 @@ def _apply_ritiro_end_effects(team):
         )
         db.session.add(loan)
 
-    # Cap all skills at 10.0 (common end effect)
+    # Cap all skills at 10.0 (common end effect) and re-anchor freshness recovery
+    # to today so the frozen retreat days aren't recovered retroactively.
+    end_day = get_game_day_number()
     for p in players:
         for sk in SKILLS:
             if getattr(p, sk) > 10.0:
                 setattr(p, sk, 10.0)
+        p.last_freshness_day = end_day
 
     db.session.commit()
     notify(f'🏕️ Ritiro completato! ({RITIRO_OPTIONS[rtype]["label"]}) — effetti applicati a tutti i giocatori.', 'success')
@@ -1563,6 +1566,10 @@ def wellness_buy_sessions():
         flash('Opzione non valida.', 'danger')
         return redirect(url_for('events.wellness'))
 
+    if option == 'diet' and team.ritiro_end_day > 0:
+        flash('Durante il ritiro la freschezza è bloccata: dieta non disponibile.', 'warning')
+        return redirect(url_for('events.wellness'))
+
     cost = costs[option]
     if team.budget < cost:
         flash('Budget insufficiente.', 'danger')
@@ -1638,6 +1645,10 @@ def wellness_use():
     if redir:
         return redir
     team = current_user.team
+
+    if team.ritiro_end_day > 0:
+        flash('Durante il ritiro la freschezza è bloccata: nessuna sessione fino al termine.', 'warning')
+        return redirect(url_for('events.wellness'))
 
     from app.models.team import Player
     session_type = request.form.get('session_type')  # 'physio','health','cyber'
