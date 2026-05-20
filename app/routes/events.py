@@ -1903,3 +1903,39 @@ def hof_remove():
     flash(f'🗑️ {name} rimosso dalla Hall of Fame.', 'info')
     return redirect(url_for('events.hall_of_fame'))
 
+
+# ─── CENTRALIZED DAY-TICK PROCESSING ─────────────────────────────────────────────
+
+def process_due_team_events(team):
+    """Apply every game event that has come due for a team.
+
+    Invoked on each authenticated request (see app before_request) so that
+    day/week-tick events — sponsor income, loan installments, investments,
+    stadium degradation, wellness grants, annual events — always fire as soon
+    as the game day advances, regardless of which page the manager opens.
+
+    Every underlying processor is idempotent (guarded by week/day/month/year
+    ids), so repeated calls within the same period are no-ops. Income is
+    credited before costs so the federation emergency loan only triggers when
+    the team is genuinely insolvent.
+    """
+    from app.routes.game import _process_team_freshness
+
+    # Global: resolve any auctions whose windows have closed (may credit/debit
+    # this team as buyer or seller).
+    _process_free_agent_auctions()
+
+    # Income first
+    _process_sponsor_payments(team)
+    _process_investments(team)
+
+    # Then costs (loans run last among financials → federation check sees final budget)
+    _process_scouting_payment(team)
+    _process_loan_payments(team)
+
+    # Non-financial / mixed
+    _process_wellness(team)
+    _process_stadium_degradation(team)
+    _process_annual_events(team)
+    _process_team_freshness(team)
+
