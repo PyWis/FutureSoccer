@@ -251,6 +251,7 @@ class FriendlyMatch(db.Model):
     away_lineup_json = db.Column(db.Text, default='{}')  # bot data when away_team_id is null
     # Pending substitutions submitted by user (applied next turn)
     home_pending_subs_json = db.Column(db.Text, default='{}')
+    away_pending_subs_json = db.Column(db.Text, default='{}')
     # Accumulated injury penalties (applied to Player.freshness at match end)
     injuries_json = db.Column(db.Text, default='[]')
     # Turn-by-turn log

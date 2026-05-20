@@ -19,6 +19,7 @@ class User(db.Model, UserMixin):
     role = db.Column(db.String(20), default='player')  # superadmin | player
     is_verified = db.Column(db.Boolean, default=False)
     verification_token = db.Column(db.String(100), nullable=True)
+    verification_token_expires = db.Column(db.DateTime, nullable=True)
     reset_token = db.Column(db.String(100), nullable=True)
     reset_token_expires = db.Column(db.DateTime, nullable=True)
     avatar = db.Column(db.String(200), default='default_avatar.png')
@@ -34,7 +35,9 @@ class User(db.Model, UserMixin):
         return bcrypt.check_password_hash(self.password_hash, password)
 
     def generate_verification_token(self):
+        from datetime import timedelta
         self.verification_token = secrets.token_urlsafe(32)
+        self.verification_token_expires = datetime.utcnow() + timedelta(hours=24)
         return self.verification_token
 
     def generate_reset_token(self):

@@ -386,7 +386,10 @@ def view(match_id):
             next_turn_time = match.last_turn_at + timedelta(seconds=TURN_SECONDS)
             if datetime.utcnow() >= next_turn_time:
                 from app.utils.match_engine import process_turn
-                process_turn(match, team.facility_ground)
+                # Home-field injury reduction always uses the HOME team's ground stars,
+                # independent of which participant triggers the turn.
+                home_ground = match.home_team.facility_ground if match.home_team else 0
+                process_turn(match, home_ground)
                 db.session.commit()
 
     # Parse data
@@ -440,12 +443,15 @@ def substitute(match_id):
 
     match = FriendlyMatch.query.get_or_404(match_id)
 
-    # Only home team can sub via this route
-    if match.home_team_id != team.id:
+    # Either participating team can manage its own lineup
+    if team.id not in (match.home_team_id, match.away_team_id):
         abort(403)
     if match.status != 'active':
         flash('La partita non è in corso.', 'warning')
         return redirect(url_for('match.view', match_id=match.id))
+
+    is_home = (match.home_team_id == team.id)
+    subs_field = 'home_pending_subs_json' if is_home else 'away_pending_subs_json'
 
     try:
         out_id = int(request.form.get('out_id', 0))
@@ -458,11 +464,11 @@ def substitute(match_id):
         flash('Seleziona un giocatore da sostituire e uno dalla panchina.', 'warning')
         return redirect(url_for('match.view', match_id=match.id))
 
-    subs = json.loads(match.home_pending_subs_json or '{}')
+    subs = json.loads(getattr(match, subs_field) or '{}')
     if 'swap' not in subs:
         subs['swap'] = []
     subs['swap'].append({'out_id': out_id, 'in_id': in_id})
-    match.home_pending_subs_json = json.dumps(subs)
+    setattr(match, subs_field, json.dumps(subs))
     db.session.commit()
 
     flash('Sostituzione programmata per il prossimo turno.', 'success')
@@ -478,11 +484,14 @@ def change_roles(match_id):
 
     match = FriendlyMatch.query.get_or_404(match_id)
 
-    if match.home_team_id != team.id:
+    if team.id not in (match.home_team_id, match.away_team_id):
         abort(403)
     if match.status != 'active':
         flash('La partita non è in corso.', 'warning')
         return redirect(url_for('match.view', match_id=match.id))
+
+    is_home = (match.home_team_id == team.id)
+    subs_field = 'home_pending_subs_json' if is_home else 'away_pending_subs_json'
 
     valid_roles = {'goalkeeper', 'defender', 'attacker'}
     role_changes = {}
@@ -492,9 +501,9 @@ def change_roles(match_id):
             role_changes[pid_str] = value
 
     if role_changes:
-        subs = json.loads(match.home_pending_subs_json or '{}')
+        subs = json.loads(getattr(match, subs_field) or '{}')
         subs['role_changes'] = role_changes
-        match.home_pending_subs_json = json.dumps(subs)
+        setattr(match, subs_field, json.dumps(subs))
         db.session.commit()
         flash('Cambi di ruolo programmati per il prossimo turno.', 'success')
 

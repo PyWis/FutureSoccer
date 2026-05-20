@@ -198,11 +198,12 @@
     {% endfor %}
     {% endif %}
 
-    {% if is_home and match.status == 'active' %}
+    {% if match.status == 'active' %}
     <!-- ROLE CHANGE FORM -->
     <div class="sub-form">
       <div style="font-size:.7rem;color:var(--muted);margin-bottom:.4rem;letter-spacing:1px;">CAMBIA RUOLO</div>
       <form method="POST" action="{{ url_for('match.change_roles', match_id=match.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         {% if my_lineup.get('goalkeeper') %}
         {% set p = my_lineup.goalkeeper %}
         <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.3rem;">
@@ -245,6 +246,7 @@
     <div class="sub-form">
       <div style="font-size:.7rem;color:var(--muted);margin-bottom:.4rem;letter-spacing:1px;">SOSTITUZIONE</div>
       <form method="POST" action="{{ url_for('match.substitute', match_id=match.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div style="margin-bottom:.4rem;">
           <label style="font-size:.7rem;color:var(--muted);">Escludi:</label>
           <select name="out_id" class="sub-select">

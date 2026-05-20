@@ -27,13 +27,14 @@
           <td>{{ "%.1f"|format(p.resistenza) }}</td>
           <td><strong style="color:var(--cyan);">{{ "%.2f"|format(p.avg_skill) }}</strong></td>
           <td style="font-size:.82rem;">
-            {{ p.team.name if p.team else '<span class="text-muted">Free</span>'|safe }}
+            {% if p.team %}{{ p.team.name }}{% else %}<span class="text-muted">Free</span>{% endif %}
           </td>
           <td>
             <div class="flex gap-1">
               <a href="{{ url_for('admin.player_edit', player_id=p.id) }}" class="btn btn-secondary btn-sm">Mod.</a>
               <form method="POST" action="{{ url_for('admin.player_delete', player_id=p.id) }}"
                     onsubmit="return confirm('Eliminare {{ p.name }}?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="btn btn-danger btn-sm">✕</button>
               </form>
             </div>

@@ -18,6 +18,7 @@
   <div class="card card-glow">
     <div class="preview-badge" id="previewBadge" style="background:linear-gradient(135deg,#00f5ff,#7b2fff);">⚽</div>
     <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="form-group">
         <label>NOME SQUADRA *</label>
         <input type="text" name="name" class="form-control" placeholder="Es: Neo Galaxy FC" required maxlength="100">

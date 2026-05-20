@@ -113,6 +113,7 @@
     Data attuale: <strong style="color:var(--cyan);">{{ game_date }}</strong>
   </div>
   <form method="POST" action="{{ url_for('admin.clock_advance') }}" style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div style="display:flex;gap:.4rem;">
       <button type="submit" name="days" value="1" class="btn btn-outline btn-sm">+1 giorno</button>
       <button type="submit" name="days" value="7" class="btn btn-outline btn-sm">+7 giorni</button>

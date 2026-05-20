@@ -15,6 +15,7 @@
   <div class="card">
     <h3 class="mb-3">DATI ACCOUNT</h3>
     <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="form-group">
         <label>NOME UTENTE</label>
         <input type="text" name="username" class="form-control" value="{{ user.username }}" required>
@@ -63,6 +64,7 @@
     </div>
     <form method="POST" action="{{ url_for('admin.user_unassign_team', user_id=user.id) }}"
           onsubmit="return confirm('Rimuovere la squadra da {{ user.username }}?')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button type="submit" class="btn btn-danger btn-sm">✕ Rimuovi squadra</button>
     </form>
     {% else %}
@@ -79,6 +81,7 @@
 
     {% if free_teams %}
     <form method="POST" action="{{ url_for('admin.user_assign_team', user_id=user.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="form-group">
         <label>SQUADRA DISPONIBILE</label>
         <select name="team_id" class="form-control">

@@ -80,6 +80,7 @@
             {% if players|length > 1 %}
             <form method="POST" action="{{ url_for('game.sell_player', player_id=p.id) }}"
                   onsubmit="return confirm('Cedere {{ p.name }} per €{{ '%.0f'|format(p.avg_skill*400000) }}?')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button type="submit" class="btn btn-secondary btn-sm">Cedi</button>
             </form>
             {% endif %}

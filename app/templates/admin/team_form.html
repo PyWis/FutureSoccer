@@ -8,6 +8,7 @@
 <div style="max-width:600px;">
   <div class="card">
     <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="grid-2">
         <div class="form-group">
           <label>NOME SQUADRA *</label>

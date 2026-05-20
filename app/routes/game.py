@@ -6,10 +6,12 @@ from app.models.team import Team, Player
 from app.models.game import FreeAgentListing, TeamFormation, ENGAGEMENT_OPTIONS
 from app.utils.generators import generate_new_team_player
 from app.utils.gameclock import format_game_date, get_game_weekday, is_training_day, is_sponsor_day, get_game_day_number
+from app.utils.validators import valid_hex_color
 
 game_bp = Blueprint('game', __name__)
 
 MAX_ROSTER = 12
+MIN_ROSTER = 1
 
 FACILITY_TYPES = ['training', 'stream', 'locker', 'ground']
 FACILITY_LABELS = {
@@ -75,8 +77,8 @@ def create_team():
         name = request.form.get('name', '').strip()
         city = request.form.get('city', '').strip()
         stadium = request.form.get('stadium', '').strip()
-        color_primary = request.form.get('color_primary', '#00f5ff')
-        color_secondary = request.form.get('color_secondary', '#7b2fff')
+        color_primary = valid_hex_color(request.form.get('color_primary'), '#00f5ff')
+        color_secondary = valid_hex_color(request.form.get('color_secondary'), '#7b2fff')
 
         if not name or not city or not stadium:
             flash('Compila tutti i campi.', 'danger')
@@ -119,6 +121,9 @@ def sell_player(player_id):
     if not team or player.team_id != team.id:
         flash('Operazione non autorizzata.', 'danger')
         return redirect(url_for('game.my_team'))
+    if team.players.count() <= MIN_ROSTER:
+        flash('Non puoi vendere il tuo ultimo giocatore: la rosa resterebbe vuota.', 'danger')
+        return redirect(url_for('game.my_team'))
     list_game_day = get_game_day_number()
     base_price = round(player.avg_skill * 1_000_000, -3)
     listing = FreeAgentListing(
@@ -147,9 +152,11 @@ def sell_player(player_id):
 @game_bp.route('/standings')
 @login_required
 def standings():
-    teams = Team.query.order_by(
-        Team.wins.desc(), Team.draws.desc(), Team.goals_for.desc()
-    ).all()
+    teams = sorted(
+        Team.query.all(),
+        key=lambda t: (t.points, t.goals_diff, t.goals_for),
+        reverse=True,
+    )
     return render_template('game/standings.html', teams=teams)
 
 

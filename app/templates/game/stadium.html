@@ -89,6 +89,7 @@
     {% else %}
       {% set upgrade_cost = facility_prices[stars + 1] - facility_prices[stars] %}
       <form method="POST" action="{{ url_for('game.stadium_upgrade', facility=ftype) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit"
                 class="btn btn-primary btn-sm"
                 {% if team.budget < upgrade_cost %}disabled title="Budget insufficiente"{% endif %}>

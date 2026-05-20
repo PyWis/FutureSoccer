@@ -55,6 +55,7 @@
     </div>
     <form method="POST" action="{{ url_for('events.hof_remove') }}"
           onsubmit="return confirm('Rimuovere {{ p.name }} dalla Hall of Fame?')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="player_id" value="{{ p.id }}">
       <button type="submit" class="btn btn-danger btn-sm" style="font-size:.72rem;padding:.2rem .5rem;">✕</button>
     </form>
@@ -89,6 +90,7 @@
     </div>
     {% if can_add %}
     <form method="POST" action="{{ url_for('events.hof_add') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="player_id" value="{{ p.id }}">
       <button type="submit" class="btn btn-primary btn-sm" style="font-size:.72rem;padding:.25rem .6rem;">
         🏆 HoF

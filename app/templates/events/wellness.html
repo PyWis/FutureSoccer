@@ -63,6 +63,7 @@
       <div style="font-size:.68rem;color:#ff8800;margin-bottom:.5rem;">💸 {{ opt.extra_cost }}</div>
       {% endif %}
       <form method="POST" action="{{ url_for('events.wellness_ritiro') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="rtype" value="{{ key }}">
         <button type="submit" class="btn btn-sm btn-block"
           style="background:rgba(255,165,0,.15);border:1px solid rgba(255,165,0,.4);color:#ffd700;font-size:.78rem;"
@@ -111,6 +112,7 @@
 <div class="card mb-4">
   <h3 style="margin-bottom:.75rem;">🛒 Acquista Sessioni</h3>
   <form method="POST" action="{{ url_for('events.wellness_buy_sessions') }}" style="display:flex;gap:.5rem;flex-wrap:wrap;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <button name="option" value="physio1" class="btn btn-outline" style="font-size:.8rem;">💆 ×1 — €100k</button>
     <button name="option" value="physio2" class="btn btn-outline" style="font-size:.8rem;">💆 ×2 — €250k</button>
     <button name="option" value="physio3" class="btn btn-outline" style="font-size:.8rem;">💆 ×3 — €500k</button>
@@ -134,6 +136,7 @@
   <h3 style="margin-bottom:.75rem;">🔄 Conversione (3 Fisioterapia → 1 altra)</h3>
   <div style="display:flex;gap:.75rem;flex-wrap:wrap;">
     <form method="POST" action="{{ url_for('events.wellness_convert') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="target" value="health">
       <button type="submit" class="btn btn-outline"
               {% if team.physio_sessions < 3 or team.health_sessions >= MAX_HEALTH %}disabled{% endif %}
@@ -142,6 +145,7 @@
       </button>
     </form>
     <form method="POST" action="{{ url_for('events.wellness_convert') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="target" value="cyber">
       <button type="submit" class="btn btn-outline"
               {% if team.physio_sessions < 3 or team.cyber_sessions >= MAX_CYBER %}disabled{% endif %}
@@ -175,6 +179,7 @@
         background:{% if p.freshness < 0 %}var(--danger){% elif p.freshness < 4 %}#ffa500{% else %}var(--success){% endif %};"></div>
     </div>
     <form method="POST" action="{{ url_for('events.wellness_use') }}" style="display:contents;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="player_id" value="{{ p.id }}">
       <button name="session_type" value="physio" class="btn btn-outline btn-xs"
               {% if team.physio_sessions < 1 %}disabled{% endif %}>💆+0.5</button>
@@ -205,6 +210,7 @@
         background:var(--purple);"></div>
     </div>
     <form method="POST" action="{{ url_for('events.wellness_use') }}" style="display:contents;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="player_id" value="{{ p.id }}">
       <button name="session_type" value="cyber" class="btn btn-outline btn-xs"
               style="color:var(--purple);border-color:var(--purple);"
@@ -233,6 +239,7 @@
       <span class="badge badge-green">Attivo · {{ pro_weeks_left }} sett. rimaste</span>
       {% else %}
       <form method="POST" action="{{ url_for('events.wellness_shop') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button name="item" value="pro" class="btn btn-primary btn-sm"
                 {% if not pro_available or team.budget < 5_000_000 %}disabled{% endif %}>
           Acquista €5M
@@ -258,6 +265,7 @@
       </div>
       {% else %}
       <form method="POST" action="{{ url_for('events.wellness_shop') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button name="item" value="sponsor" class="btn btn-outline btn-sm"
                 style="color:var(--purple);border-color:var(--purple);"
                 {% if not can_shoe_sponsor %}disabled{% endif %}>
@@ -281,6 +289,7 @@
       <span class="badge badge-gold">Attivo · {{ future_weeks_left }} sett. rimaste</span>
       {% else %}
       <form method="POST" action="{{ url_for('events.wellness_shop') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button name="item" value="future" class="btn btn-sm"
                 style="background:#ffc800;color:#000;"
                 {% if not future_available or team.budget < 20_000_000 %}disabled{% endif %}>
