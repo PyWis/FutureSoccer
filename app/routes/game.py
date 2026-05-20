@@ -5,8 +5,12 @@ from app import db
 from app.models.team import Team, Player
 from app.models.game import FreeAgentListing, TeamFormation, ENGAGEMENT_OPTIONS
 from app.utils.generators import generate_new_team_player
-from app.utils.gameclock import format_game_date, get_game_weekday, is_training_day, is_sponsor_day, get_game_day_number
+from app.utils.gameclock import (format_game_date, get_game_weekday, is_training_day,
+                                 is_sponsor_day, get_game_day_number, get_game_week_id,
+                                 get_prev_game_week_id, get_game_season, format_game_season,
+                                 game_day_to_date)
 from app.utils.validators import valid_hex_color
+from app.utils import ledger
 
 game_bp = Blueprint('game', __name__)
 
@@ -195,7 +199,8 @@ def stadium_upgrade(facility):
     if team.budget < upgrade_cost:
         flash(f'Budget insufficiente. Costo upgrade: €{upgrade_cost:,.0f}', 'danger')
         return redirect(url_for('game.stadium'))
-    team.budget -= upgrade_cost
+    ledger.record(team, -upgrade_cost, ledger.CAT_STADIUM,
+                  f'Upgrade {FACILITY_LABELS[facility]} → {current_stars + 1}⭐')
     setattr(team, attr, current_stars + 1)
     db.session.commit()
     flash(f'{FACILITY_LABELS[facility]} portato a {current_stars + 1} ⭐!', 'success')
@@ -295,6 +300,112 @@ def formation():
                            strength=strength,
                            engagement_options=ENGAGEMENT_OPTIONS,
                            sort_by=sort_by)
+
+
+def _aggregate_transactions(txs):
+    """Split transactions into entrate/uscite grouped by category."""
+    entrate, uscite = {}, {}
+    for tx in txs:
+        bucket = entrate if tx.amount >= 0 else uscite
+        bucket[tx.category] = bucket.get(tx.category, 0.0) + abs(tx.amount)
+    tot_in = sum(entrate.values())
+    tot_out = sum(uscite.values())
+    return {
+        'entrate': sorted(entrate.items(), key=lambda kv: kv[1], reverse=True),
+        'uscite':  sorted(uscite.items(), key=lambda kv: kv[1], reverse=True),
+        'tot_in': tot_in,
+        'tot_out': tot_out,
+        'net': tot_in - tot_out,
+    }
+
+
+@game_bp.route('/bilancio')
+@login_required
+def bilancio():
+    if not current_user.team:
+        return redirect(url_for('game.create_team'))
+    from app.models.game import BudgetTransaction
+    team = current_user.team
+
+    prev_week = get_prev_game_week_id()
+    season = get_game_season()
+
+    week_txs = BudgetTransaction.query.filter_by(
+        team_id=team.id, game_week_id=prev_week).order_by(BudgetTransaction.created_at.desc()).all()
+    season_txs = BudgetTransaction.query.filter_by(
+        team_id=team.id, season=season).order_by(BudgetTransaction.created_at.desc()).all()
+
+    return render_template('game/bilancio.html',
+                           team=team,
+                           game_date=format_game_date(),
+                           prev_week_summary=_aggregate_transactions(week_txs),
+                           season_summary=_aggregate_transactions(season_txs),
+                           recent_txs=season_txs[:40],
+                           season_label=format_game_season(season),
+                           cat_label=ledger.category_label,
+                           cat_icon=ledger.category_icon)
+
+
+@game_bp.route('/calendario')
+@login_required
+def calendario():
+    if not current_user.team:
+        return redirect(url_for('game.create_team'))
+    from app.models.game import FriendlyMatch, MatchChallenge
+    team = current_user.team
+    season = get_game_season()
+    current_day = get_game_day_number()
+
+    matches = FriendlyMatch.query.filter(
+        db.or_(FriendlyMatch.home_team_id == team.id,
+               FriendlyMatch.away_team_id == team.id)
+    ).order_by(FriendlyMatch.game_day.desc()).all()
+
+    played = []
+    for m in matches:
+        d = game_day_to_date(m.game_day)
+        if get_game_season(d) != season:
+            continue
+        is_home = (m.home_team_id == team.id)
+        opp = ('Squadra del Bar' if m.away_team_id is None
+               else (m.away_team.name if is_home and m.away_team else
+                     (m.home_team.name if not is_home and m.home_team else 'Avversario')))
+        gf = m.home_score if is_home else m.away_score
+        ga = m.away_score if is_home else m.home_score
+        if m.status == 'completed':
+            outcome = 'V' if gf > ga else ('P' if gf < ga else 'N')
+        else:
+            outcome = None
+        played.append({
+            'match': m, 'date': d, 'opponent': opp, 'is_home': is_home,
+            'gf': gf, 'ga': ga, 'outcome': outcome,
+        })
+
+    week_monday = current_day - get_game_weekday()
+    upcoming = MatchChallenge.query.filter(
+        MatchChallenge.match_id == None,
+        MatchChallenge.status.in_(('pending', 'accepted')),
+        MatchChallenge.game_day >= week_monday,
+        db.or_(MatchChallenge.challenger_id == team.id,
+               MatchChallenge.challenged_id == team.id),
+    ).all()
+    upcoming_view = []
+    for ch in upcoming:
+        is_challenger = (ch.challenger_id == team.id)
+        opp_team = Team.query.get(ch.challenged_id if is_challenger else ch.challenger_id)
+        upcoming_view.append({
+            'challenge': ch,
+            'opponent': opp_team.name if opp_team else 'Avversario',
+            'direction': 'inviata' if is_challenger else 'ricevuta',
+        })
+
+    return render_template('game/calendario.html',
+                           team=team,
+                           game_date=format_game_date(),
+                           season_label=format_game_season(season),
+                           played=played,
+                           upcoming=upcoming_view,
+                           fmt_date=format_game_date)
 
 
 @game_bp.route('/profile', methods=['GET', 'POST'])

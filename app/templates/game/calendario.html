@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Calendario — FutureSoccer{% endblock %}
+{% block topbar_title %}CALENDARIO{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>📅 CALENDARIO</h1>
+  <p class="text-muted">{{ game_date }} · Stagione {{ season_label }}</p>
+</div>
+
+<!-- ── RITMO SETTIMANALE ── -->
+<div class="card mb-3">
+  <h2 style="font-size:1.05rem;" class="mb-2">Ritmo settimanale</h2>
+  <div class="grid-4" style="gap:.75rem;">
+    {% set days = [
+      ('Lun', '🛒', 'Mercato'),
+      ('Mar', '💪', 'Allenamento'),
+      ('Mer', '💪', 'Allenamento (recupero)'),
+      ('Gio', '💪', 'Allenamento'),
+      ('Ven', '💼', 'Sponsor'),
+      ('Sab', '🏋️', 'Allenamento stadio'),
+      ('Dom', '⚽', 'Partita'),
+    ] %}
+    {% for d, icon, label in days %}
+    <div style="text-align:center;padding:.6rem .4rem;border:1px solid var(--card-border);border-radius:10px;">
+      <div style="font-size:.65rem;letter-spacing:1px;color:var(--cyan);">{{ d }}</div>
+      <div style="font-size:1.4rem;margin:.2rem 0;">{{ icon }}</div>
+      <div style="font-size:.7rem;color:var(--muted);">{{ label }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- ── EVENTI ANNUALI ── -->
+<div class="card mb-3">
+  <h2 style="font-size:1.05rem;" class="mb-2">Eventi annuali</h2>
+  <div class="grid-4" style="gap:.75rem;">
+    {% set annual = [
+      ('1 Gen', '🎂', 'Invecchiamento giocatori'),
+      ('Agosto', '🏕️', 'Ritiro estivo'),
+      ('Agosto', '🏁', 'Ritiri / svincoli veterani'),
+      ('1 Set', '🆕', 'Nuova stagione'),
+    ] %}
+    {% for when, icon, label in annual %}
+    <div style="text-align:center;padding:.6rem .4rem;border:1px solid var(--card-border);border-radius:10px;">
+      <div style="font-size:.65rem;letter-spacing:1px;color:var(--purple);">{{ when }}</div>
+      <div style="font-size:1.4rem;margin:.2rem 0;">{{ icon }}</div>
+      <div style="font-size:.7rem;color:var(--muted);">{{ label }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- ── PROSSIME PARTITE ── -->
+<div class="card mb-3">
+  <h2 style="font-size:1.05rem;" class="mb-2">⏭️ Prossime partite</h2>
+  {% if upcoming %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>AVVERSARIO</th><th>SFIDA</th><th>STATO</th></tr></thead>
+      <tbody>
+        {% for u in upcoming %}
+        <tr>
+          <td><strong>{{ u.opponent }}</strong></td>
+          <td style="font-size:.82rem;color:var(--muted);">{{ u.direction }}</td>
+          <td>
+            <span class="badge {% if u.challenge.status == 'accepted' %}badge-green{% else %}badge-gold{% endif %}">
+              {{ 'Accettata · si gioca Domenica' if u.challenge.status == 'accepted' else 'In attesa' }}
+            </span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-muted" style="font-size:.85rem;">Nessuna sfida in programma. Vai su <strong>Partita</strong> per sfidare un'altra squadra.</p>
+  {% endif %}
+</div>
+
+<!-- ── PARTITE GIOCATE ── -->
+<div class="card">
+  <h2 style="font-size:1.05rem;" class="mb-2">📋 Partite della stagione</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>DATA</th><th>C/T</th><th>AVVERSARIO</th><th style="text-align:center;">RISULTATO</th><th style="text-align:center;">ESITO</th></tr>
+      </thead>
+      <tbody>
+        {% for p in played %}
+        <tr>
+          <td style="font-size:.8rem;">{{ fmt_date(p.date) }}</td>
+          <td>{{ '🏠' if p.is_home else '✈️' }}</td>
+          <td><strong>{{ p.opponent }}</strong></td>
+          <td style="text-align:center;font-family:'Orbitron',monospace;">
+            {% if p.match.status == 'completed' %}{{ p.gf }} – {{ p.ga }}{% else %}<span class="text-warning">in corso</span>{% endif %}
+          </td>
+          <td style="text-align:center;">
+            {% if p.outcome == 'V' %}<span class="badge badge-green">V</span>
+            {% elif p.outcome == 'P' %}<span class="badge badge-red">P</span>
+            {% elif p.outcome == 'N' %}<span class="badge badge-cyan">N</span>
+            {% else %}<span class="text-muted">—</span>{% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-muted" style="padding:2rem;">Nessuna partita giocata in questa stagione.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

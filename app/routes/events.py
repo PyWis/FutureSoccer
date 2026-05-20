@@ -25,6 +25,7 @@ from app.utils.gameclock import (
 from app.utils.generators import (
     generate_market_offer_data, generate_sponsor_offer_data,
 )
+from app.utils import ledger
 
 events_bp = Blueprint('events', __name__)
 
@@ -103,7 +104,7 @@ def _process_scouting_payment(team):
         return
     cost = 1_000_000
     if team.budget >= cost:
-        team.budget -= cost
+        ledger.record(team, -cost, ledger.CAT_SCOUTING, 'Scouting avanzato settimanale')
         team.scouting_paid_week_id = current_week
         db.session.commit()
         notify('💰 Scouting avanzato: €1.000.000 addebitati per questa settimana.', 'info')
@@ -127,7 +128,8 @@ def _process_sponsor_payments(team):
         if weeks_due > 0:
             to_pay = min(weeks_due, sp.remaining_weeks)
             rate = sp.weekly_amount if sp.type == 'main' else sp.weekly_amount * 0.3
-            team.budget += rate * to_pay
+            ledger.record(team, rate * to_pay, ledger.CAT_SPONSOR,
+                          f'{sp.sponsor_name} ({to_pay} sett.)')
             sp.remaining_weeks -= to_pay
             sp.last_paid_week_id = current_week
             paid_any = True
@@ -162,7 +164,8 @@ def _process_loan_payments(team):
         # Cap to remaining installments
         remaining = loan.weeks_total - loan.weeks_paid
         installments_due = min(weeks_overdue, remaining)
-        team.budget -= loan.weekly_payment * installments_due
+        ledger.record(team, -loan.weekly_payment * installments_due, ledger.CAT_LOAN_PAY,
+                      f'Rata prestito {loan.loan_type} ×{installments_due}')
         loan.weeks_paid += installments_due
         loan.last_paid_week_id = current_week
         if loan.weeks_paid >= loan.weeks_total:
@@ -199,13 +202,13 @@ def _check_federation_loan(team):
         weeks_paid=0,
         last_paid_week_id=get_game_week_id(),
     )
-    team.budget += amount
+    ledger.record(team, amount, ledger.CAT_FEDERATION, 'Aiuto dalla Federazione')
     team.federation_loan_streak += 1
     db.session.add(loan)
 
     if team.federation_loan_streak >= 25:
         # Federazione dona 50M ma i giocatori devono fare la "lunga promozione"
-        team.budget += 50_000_000
+        ledger.record(team, 50_000_000, ledger.CAT_FEDERATION, 'Donazione federale (Lunga Promozione)')
         team.federation_loan_streak = 0
         for player in team.players.all():
             player.porta       = round(player.porta       * 0.5, 2)
@@ -233,7 +236,8 @@ def _process_investments(team):
         Investment.game_week_id_maturity <= current_week
     ).all()
     for inv in matured:
-        team.budget += inv.payout
+        ledger.record(team, inv.payout, ledger.CAT_BOND,
+                      f'Cedola {BOND_TYPES[inv.bond_type]["label"]} maturata')
         inv.is_active = False
         notify(
             f'📈 Cedola {BOND_TYPES[inv.bond_type]["label"]} maturata! '
@@ -335,7 +339,7 @@ def market_buy():
         team_id=team.id,
     )
     db.session.add(player)
-    team.budget -= cost
+    ledger.record(team, -cost, ledger.CAT_MARKET, f'Acquisto {offer.offer_name}')
     offer.purchased = True
     db.session.commit()
 
@@ -366,7 +370,7 @@ def activate_scouting():
     if team.budget < cost:
         flash('Budget insufficiente per attivare lo scouting (1M€).', 'danger')
         return redirect(url_for('events.market'))
-    team.budget -= cost
+    ledger.record(team, -cost, ledger.CAT_SCOUTING, 'Attivazione scouting avanzato')
     team.scouting_paid_week_id = next_week_id
     team.scouting_enabled = True
     db.session.commit()
@@ -475,7 +479,8 @@ def training():
             flash(f'Budget insufficiente. Costo sessione: €{total_cost:,.0f}', 'danger')
             return redirect(url_for('events.training'))
 
-        team.budget -= total_cost
+        if total_cost > 0:
+            ledger.record(team, -total_cost, ledger.CAT_TRAINING, 'Sessione di allenamento')
         results = []
         is_saturday_post = is_saturday_mode and not regular_training
         for p, skill1, skill2, prem in sessions:
@@ -657,7 +662,7 @@ def dark_sponsor():
         flash('La tua squadra non ha forza sufficiente per attirare lo Sponsor Oscuro.', 'danger')
         return redirect(url_for('events.sponsors'))
 
-    team.budget += payout
+    ledger.record(team, payout, ledger.CAT_DARK_SPONSOR, 'Sponsor Oscuro')
     current_week = get_game_week_id()
     team.dark_sponsor_last_week_id = current_week
 
@@ -693,19 +698,19 @@ def dark_sponsor():
             flash(f'🕶️ Sponsor Oscuro: +€{payout/1_000_000:.2f}M. {desc}', 'warning')
 
     elif result == 'fine_50m':
-        team.budget -= 50_000_000
+        ledger.record(team, -50_000_000, ledger.CAT_FINE, 'Multa Federazione (Sponsor Oscuro)')
         flash(f'🕶️ Sponsor Oscuro: +€{payout/1_000_000:.2f}M. 🚨 {desc}', 'danger')
 
     elif result == 'fine_100m':
-        team.budget -= 100_000_000
+        ledger.record(team, -100_000_000, ledger.CAT_FINE, 'Multa Federazione (Sponsor Oscuro)')
         flash(f'🕶️ Sponsor Oscuro: +€{payout/1_000_000:.2f}M. 🚨 {desc}', 'danger')
 
     elif result == 'fine_200m':
-        team.budget -= 200_000_000
+        ledger.record(team, -200_000_000, ledger.CAT_FINE, 'Multa Federazione (Sponsor Oscuro)')
         flash(f'🕶️ Sponsor Oscuro: +€{payout/1_000_000:.2f}M. 🚨 {desc}', 'danger')
 
     elif result == 'lungo':
-        team.budget -= 25_000_000
+        ledger.record(team, -25_000_000, ledger.CAT_FINE, 'Processo federale (Sponsor Oscuro)')
         for player in team.players.all():
             player.porta      = round(player.porta      * 0.2, 2)
             player.difesa     = round(player.difesa     * 0.2, 2)
@@ -850,14 +855,16 @@ def _process_free_agent_auctions():
 
         if winner_bid:
             winner_team = Team.query.get(winner_bid.team_id)
-            winner_team.budget -= winner_bid.amount
+            ledger.record(winner_team, -winner_bid.amount, ledger.CAT_TRANSFER,
+                          f'Acquisto {listing.player_name}')
             # Credit seller
             days_listed = current_day - listing.list_game_day
             seller_pct = 0.75 if days_listed <= 60 else 0.50
             if listing.seller_team_id:
                 seller_team = Team.query.get(listing.seller_team_id)
                 if seller_team:
-                    seller_team.budget += round(winner_bid.amount * seller_pct, -3)
+                    ledger.record(seller_team, round(winner_bid.amount * seller_pct, -3),
+                                  ledger.CAT_TRANSFER, f'Vendita {listing.player_name}')
             # Transfer player
             if listing.player_id:
                 player = Player.query.get(listing.player_id)
@@ -1161,7 +1168,7 @@ def finance_borrow():
         weeks_paid=0,
         last_paid_week_id=get_game_week_id(),  # first payment next week
     )
-    team.budget += principal
+    ledger.record(team, principal, ledger.CAT_LOAN_IN, f'Prestito {tier["label"]}')
     db.session.add(loan)
     db.session.commit()
 
@@ -1513,7 +1520,8 @@ def wellness_ritiro():
         return redirect(url_for('events.wellness'))
 
     # Deduct base cost
-    team.budget -= RITIRO_BASE_COST
+    ledger.record(team, -RITIRO_BASE_COST, ledger.CAT_RETREAT,
+                  f'Ritiro estivo: {RITIRO_OPTIONS[rtype]["label"]}')
 
     # Start effects: positive freshness → 0
     for p in team.players.all():
@@ -1560,23 +1568,27 @@ def wellness_buy_sessions():
         flash('Budget insufficiente.', 'danger')
         return redirect(url_for('events.wellness'))
 
-    team.budget -= cost
+    # Validate caps BEFORE charging (avoids losing money on a rejected purchase)
+    if option == 'health1' and team.health_sessions >= MAX_HEALTH:
+        flash('Hai già il massimo di sessioni salute.', 'warning')
+        return redirect(url_for('events.wellness'))
+    if option in ('physio1', 'physio2', 'physio3'):
+        qty = int(option[-1])
+        if team.physio_sessions + qty > MAX_PHYSIO:
+            flash(f'Non puoi superare {MAX_PHYSIO} sessioni fisioterapia.', 'warning')
+            return redirect(url_for('events.wellness'))
+
+    ledger.record(team, -cost, ledger.CAT_WELLNESS, f'Benessere: {option}')
     if option == 'diet':
         players = team.players.all()
         for p in players:
             p.freshness = round(p.freshness + 0.2, 2)
         flash(f'🥗 Dieta bilanciata: +0.2 freschezza a tutti i {len(players)} giocatori.', 'success')
     elif option == 'health1':
-        if team.health_sessions >= MAX_HEALTH:
-            flash('Hai già il massimo di sessioni salute.', 'warning')
-            return redirect(url_for('events.wellness'))
         team.health_sessions = min(MAX_HEALTH, team.health_sessions + 1)
         flash('✅ 1 sessione salute acquistata.', 'success')
     else:
         qty = int(option[-1])
-        if team.physio_sessions + qty > MAX_PHYSIO:
-            flash(f'Non puoi superare {MAX_PHYSIO} sessioni fisioterapia.', 'warning')
-            return redirect(url_for('events.wellness'))
         team.physio_sessions = min(MAX_PHYSIO, team.physio_sessions + qty)
         flash(f'✅ {qty} sessione/i fisioterapia acquistate.', 'success')
 
@@ -1702,7 +1714,7 @@ def wellness_shop():
         if team.budget < 5_000_000:
             flash('Budget insufficiente (5M€).', 'danger')
             return redirect(url_for('events.wellness'))
-        team.budget -= 5_000_000
+        ledger.record(team, -5_000_000, ledger.CAT_WELLNESS, 'Scarpe Soccer Pro')
         team.soccer_pro_end_week_id = current_week + 13
         db.session.commit()
         flash('👟 Scarpe Soccer Pro attivate! +3 sessioni fisioterapia/settimana per 13 settimane.', 'success')
@@ -1741,7 +1753,7 @@ def wellness_shop():
         if team.budget < 20_000_000:
             flash('Budget insufficiente (20M€).', 'danger')
             return redirect(url_for('events.wellness'))
-        team.budget -= 20_000_000
+        ledger.record(team, -20_000_000, ledger.CAT_WELLNESS, 'Scarpe Soccer Future')
         team.soccer_future_end_week_id = current_week + 20
         team.soccer_future_skill_boosted = False   # reset so skill boost fires next processing
         db.session.commit()
@@ -1812,7 +1824,7 @@ def finance_invest():
         game_week_id_bought=current_week,
         game_week_id_maturity=current_week + actual_weeks,
     )
-    team.budget -= bt['cost']
+    ledger.record(team, -bt['cost'], ledger.CAT_BOND, f'Acquisto cedola {bt["label"]}')
     db.session.add(inv)
     db.session.commit()
 

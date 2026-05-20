@@ -622,7 +622,9 @@ def finalize_match(match):
     # Streaming revenue: home team earns 100k per facility_stream star
     home_team = Team.query.get(match.home_team_id)
     if home_team and home_team.facility_stream > 0:
-        home_team.budget += home_team.facility_stream * 100_000
+        from app.utils import ledger
+        ledger.record(home_team, home_team.facility_stream * 100_000,
+                      ledger.CAT_STREAMING, 'Ricavi streaming partita')
 
     db.session.commit()
 
