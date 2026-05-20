@@ -1428,13 +1428,13 @@ def wellness_shop():
             team_id=team.id,
             sponsor_name=shoe_name,
             weekly_amount=0,
-            remaining_weeks=5,
+            remaining_weeks=50,
             type='shoe',
             last_paid_week_id=current_week,
         )
         db.session.add(shoe_sp)
         db.session.commit()
-        flash(f'👟 Scarpe Soccer Sponsor attivate! Sponsor tecnico: {shoe_name} (5 settimane, non rimovibile) · +20 sessioni fisioterapia.', 'success')
+        flash(f'👟 Scarpe Soccer Sponsor attivate! Sponsor tecnico: {shoe_name} (50 settimane, non rimovibile) · +20 sessioni fisioterapia.', 'success')
 
     elif item == 'future':
         # Scarpe Soccer Future: 20M, +5 physio +1 health/week for 20 weeks, +0.1 skill once, cooldown 20 weeks

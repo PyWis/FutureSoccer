@@ -383,7 +383,15 @@
     <div class="nav-section-label" style="margin-top:.5rem;">Finanza</div>
     <a href="{{ url_for('events.finance') }}"
        class="nav-item {% if request.endpoint == 'events.finance' %}active{% endif %}">
-      <span class="nav-icon">💳</span><span class="nav-label">Prestiti</span>
+      <span class="nav-icon">💳</span>
+      <span class="nav-label">Prestiti</span>
+      {% if g_fed_streak > 0 %}
+      <span style="margin-left:auto;font-size:.62rem;font-weight:700;padding:.1rem .35rem;border-radius:8px;
+        background:{% if g_fed_weeks_left <= 5 %}rgba(255,60,60,.25);color:#ff6666{% elif g_fed_weeks_left <= 10 %}rgba(255,180,0,.2);color:#ffb800{% else %}rgba(255,120,0,.15);color:#ff8800{% endif %};
+        border:1px solid currentColor;white-space:nowrap;">
+        🏛️ {{ g_fed_weeks_left }}s
+      </span>
+      {% endif %}
     </a>
 
     <div class="nav-section-label" style="margin-top:.5rem;">Mercato</div>
