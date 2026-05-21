@@ -257,6 +257,7 @@ def player_new():
         ptype = request.form.get('type', 'uomo')
         if ptype not in PLAYER_TYPES:
             ptype = 'uomo'
+        from app.utils.social import roll_carisma
         player = Player(
             name=request.form.get('name', '').strip(),
             type=ptype,
@@ -265,6 +266,7 @@ def player_new():
             difesa=parse_float(request.form.get('difesa'), 3.0, SKILL_MIN, SKILL_MAX),
             attacco=parse_float(request.form.get('attacco'), 3.0, SKILL_MIN, SKILL_MAX),
             resistenza=parse_float(request.form.get('resistenza'), 3.0, SKILL_MIN, SKILL_MAX),
+            carisma=roll_carisma(ptype),
         )
         team_id = parse_int(request.form.get('team_id'), 0)
         if team_id:

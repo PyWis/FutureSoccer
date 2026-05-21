@@ -248,6 +248,63 @@ def _process_investments(team):
         db.session.commit()
 
 
+def _grant_free_green_bond(team):
+    """Create a free Green bond (cost 0) that matures normally via investments."""
+    bt = BOND_TYPES['green']
+    current_week = get_game_week_id()
+    inv = Investment(
+        team_id=team.id, bond_type='green', original_type='green', degraded=False,
+        cost=0.0, payout=bt['payout'], weeks_total=bt['weeks'],
+        game_week_id_bought=current_week, game_week_id_maturity=current_week + bt['weeks'],
+    )
+    db.session.add(inv)
+
+
+def _process_social_weekly(team):
+    """On a new game week (Monday), drain 0.5 freshness per open channel.
+    Skipped during a ritiro, when freshness is frozen."""
+    if team.ritiro_end_day > 0:
+        return
+    current_week = get_game_week_id()
+    if team.social_last_week_id == current_week:
+        return
+    from app.utils.social import channel_count, CHANNEL_FRESHNESS_COST
+    for p in team.players.all():
+        n = channel_count(p)
+        if n > 0:
+            p.freshness = round(p.freshness - CHANNEL_FRESHNESS_COST * n, 2)
+    team.social_last_week_id = current_week
+    db.session.commit()
+
+
+def _process_social_monthly(team):
+    """On the 1st of a new game month, apply active social effects' monthly bonuses."""
+    current_month = get_game_month_id()
+    if team.social_last_month_id >= current_month:
+        return
+    from app.utils import social
+    points = social.team_influence_points(team)
+    granted = []
+    for key in social.get_active_effects(team):
+        if not social.effect_applies(team, key, points):
+            continue
+        spec = social.SOCIAL_EFFECTS[key]
+        if spec['monthly_money']:
+            ledger.record(team, spec['monthly_money'], ledger.CAT_SOCIAL, f"{spec['label']} (mensile)")
+            granted.append(f"+€{spec['monthly_money']/1_000_000:.1f}M")
+        if spec['monthly_resistenza']:
+            for p in team.players.all():
+                p.resistenza = min(10.0, round(p.resistenza + spec['monthly_resistenza'], 2))
+            granted.append(f"+{spec['monthly_resistenza']} resistenza")
+        if spec['monthly_green_bond']:
+            _grant_free_green_bond(team)
+            granted.append("cedola Green")
+    team.social_last_month_id = current_month
+    db.session.commit()
+    if granted:
+        notify('🥂 Bonus social mensili: ' + ', '.join(granted) + '.', 'success')
+
+
 # ─── MARKET ────────────────────────────────────────────────────────────────────
 
 @events_bp.route('/market')
@@ -327,6 +384,7 @@ def market_buy():
         flash(f'Budget insufficiente. Costo: €{cost:,.0f}', 'danger')
         return redirect(url_for('events.market'))
 
+    from app.utils.social import roll_carisma
     player = Player(
         name=offer.offer_name,
         type=offer.offer_type,
@@ -335,6 +393,7 @@ def market_buy():
         difesa=offer.offer_difesa,
         attacco=offer.offer_attacco,
         resistenza=offer.offer_resistenza,
+        carisma=roll_carisma(offer.offer_type),
         is_free_agent=False,
         team_id=team.id,
     )
@@ -1969,6 +2028,8 @@ def process_due_team_events(team):
 
     # Non-financial / mixed
     _process_wellness(team)
+    _process_social_weekly(team)
+    _process_social_monthly(team)
     _process_stadium_degradation(team)
     _process_annual_events(team)
     _process_team_freshness(team)

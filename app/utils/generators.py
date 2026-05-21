@@ -24,6 +24,7 @@ def _generate_skills(target_avg, max_val=MAX_SKILL_INITIAL, min_val=0.5):
 def generate_new_team_player(team_id):
     """Player for auto-assignment on team creation (avg 3.0, age 18-21)."""
     from app.models.team import Player
+    from app.utils.social import roll_carisma
     ptype = _random_type()
     skills = _generate_skills(3.0)
     return Player(
@@ -34,6 +35,7 @@ def generate_new_team_player(team_id):
         difesa=skills[1],
         attacco=skills[2],
         resistenza=skills[3],
+        carisma=roll_carisma(ptype),
         is_free_agent=False,
         team_id=team_id,
     )

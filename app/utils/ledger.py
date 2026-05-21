@@ -24,6 +24,7 @@ CAT_WELLNESS = 'benessere'
 CAT_RETREAT = 'ritiro'
 CAT_STADIUM = 'stadio'
 CAT_FINE = 'multa'
+CAT_SOCIAL = 'social'
 
 # label + icon for display in the bilancio page
 CATEGORIES = {
@@ -42,6 +43,7 @@ CATEGORIES = {
     CAT_RETREAT:      ('Ritiro estivo', '🏕️'),
     CAT_STADIUM:      ('Stadio', '🏗️'),
     CAT_FINE:         ('Multe', '🚨'),
+    CAT_SOCIAL:       ('Social / Influenza', '🥂'),
 }
 
 
