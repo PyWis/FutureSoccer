@@ -1,4 +1,5 @@
 import json
+import os
 from flask import Blueprint, render_template, redirect, url_for, flash, request, abort
 from flask_login import login_required, current_user
 from app import db
@@ -9,7 +10,7 @@ from app.utils.gameclock import (get_game_day_number, get_game_weekday, format_g
 from datetime import datetime, timedelta
 
 match_bp = Blueprint('match', __name__)
-TURN_DURATION = 30  # seconds per turn
+TURN_DURATION = int(os.environ.get('MATCH_TURN_SECONDS', 30))  # seconds per turn
 
 
 def _get_team_or_redirect():

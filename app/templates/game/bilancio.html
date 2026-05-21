@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Bilancio — FutureSoccer{% endblock %}
+{% block topbar_title %}BILANCIO{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>💰 BILANCIO</h1>
+  <p class="text-muted">{{ game_date }} · Budget attuale:
+    <strong class="text-success">€{{ "{:,.0f}".format(team.budget) }}</strong></p>
+</div>
+
+{% macro summary_block(title, subtitle, summary) %}
+<div class="card">
+  <div class="flex flex-between flex-center mb-2">
+    <h2 style="font-size:1.05rem;">{{ title }}</h2>
+    <span class="text-muted" style="font-size:.75rem;">{{ subtitle }}</span>
+  </div>
+
+  <div class="grid-2" style="gap:1rem;">
+    <!-- ENTRATE -->
+    <div>
+      <div style="font-size:.7rem;letter-spacing:1px;color:var(--success);margin-bottom:.4rem;">▲ ENTRATE</div>
+      {% for cat, amount in summary.entrate %}
+      <div class="flex flex-between" style="padding:.3rem 0;border-bottom:1px solid var(--card-border);font-size:.85rem;">
+        <span>{{ cat_icon(cat) }} {{ cat_label(cat) }}</span>
+        <span class="text-success">+€{{ "{:,.0f}".format(amount) }}</span>
+      </div>
+      {% else %}
+      <div class="text-muted" style="font-size:.82rem;padding:.3rem 0;">Nessuna entrata.</div>
+      {% endfor %}
+      <div class="flex flex-between mt-1" style="font-weight:700;">
+        <span>Totale</span><span class="text-success">+€{{ "{:,.0f}".format(summary.tot_in) }}</span>
+      </div>
+    </div>
+
+    <!-- USCITE -->
+    <div>
+      <div style="font-size:.7rem;letter-spacing:1px;color:var(--danger);margin-bottom:.4rem;">▼ USCITE</div>
+      {% for cat, amount in summary.uscite %}
+      <div class="flex flex-between" style="padding:.3rem 0;border-bottom:1px solid var(--card-border);font-size:.85rem;">
+        <span>{{ cat_icon(cat) }} {{ cat_label(cat) }}</span>
+        <span class="text-danger">−€{{ "{:,.0f}".format(amount) }}</span>
+      </div>
+      {% else %}
+      <div class="text-muted" style="font-size:.82rem;padding:.3rem 0;">Nessuna uscita.</div>
+      {% endfor %}
+      <div class="flex flex-between mt-1" style="font-weight:700;">
+        <span>Totale</span><span class="text-danger">−€{{ "{:,.0f}".format(summary.tot_out) }}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="cyber-line"></div>
+  <div class="flex flex-between flex-center">
+    <span style="font-weight:700;letter-spacing:1px;">SALDO</span>
+    <span style="font-family:'Orbitron',monospace;font-size:1.1rem;
+      color:{% if summary.net >= 0 %}var(--success){% else %}var(--danger){% endif %};">
+      {{ '+' if summary.net >= 0 else '−' }}€{{ "{:,.0f}".format(summary.net|abs) }}
+    </span>
+  </div>
+</div>
+{% endmacro %}
+
+<div class="grid-2 mb-3">
+  {{ summary_block('Settimana precedente', 'Movimenti della settimana scorsa', prev_week_summary) }}
+  {{ summary_block('Stagione corrente', season_label ~ ' (1 set → 31 ago)', season_summary) }}
+</div>
+
+<div class="card">
+  <h2 style="font-size:1.05rem;" class="mb-2">📜 Movimenti recenti (stagione {{ season_label }})</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>CATEGORIA</th><th>DESCRIZIONE</th><th style="text-align:right;">IMPORTO</th></tr>
+      </thead>
+      <tbody>
+        {% for tx in recent_txs %}
+        <tr>
+          <td>{{ cat_icon(tx.category) }} {{ cat_label(tx.category) }}</td>
+          <td style="font-size:.82rem;color:var(--muted);">{{ tx.description }}</td>
+          <td style="text-align:right;font-weight:700;
+            color:{% if tx.amount >= 0 %}var(--success){% else %}var(--danger){% endif %};">
+            {{ '+' if tx.amount >= 0 else '−' }}€{{ "{:,.0f}".format(tx.amount|abs) }}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" class="text-center text-muted" style="padding:2rem;">
+          Nessun movimento registrato in questa stagione.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

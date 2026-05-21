@@ -7,8 +7,9 @@ import random
 
 
 def get_goal_coeff():
-    """Base probability multiplier per valore_goal (default 0.3)."""
-    return float(os.environ.get('GOAL_COEFF', 0.3))
+    """Goal-formula coefficient. With the threshold model (goal when value >= 1)
+    a value around 1.0 yields realistic scoring (default 1.0)."""
+    return float(os.environ.get('GOAL_COEFF', 1.0))
 
 
 def get_injury_base():
@@ -511,17 +512,21 @@ def process_turn(match, facility_field_stars=0):
     home_str = compute_strength(home_lineup)
     away_str = compute_strength(away_lineup)
 
-    # 7. Compute valore_goal
-    home_denom = away_str['difesa'] + away_str['attacco']
-    away_denom = home_str['difesa'] + home_str['attacco']
-
-    home_vg = home_str['attacco'] / home_denom if home_denom > 0 else 2.0
-    away_vg = away_str['attacco'] / away_denom if away_denom > 0 else 2.0
-
-    # 8. Roll goals
+    # 7-8. Goal model (per turn, team-aggregate):
+    #   Goal = GOAL_COEFF * AttaccoSquadra * rand(0,2) / (DifesaAvv + PortaAvv)
+    #   A goal is scored when Goal >= 1. Max one goal per team per turn.
     gc = get_goal_coeff()
-    home_scores = (random.random() < min(gc * home_vg, 0.95)) and (home_vg < 2.0)
-    away_scores = (random.random() < min(gc * away_vg, 0.95)) and (away_vg < 2.0)
+
+    def _goal(att_strength, opp_def, opp_porta):
+        denom = opp_def + opp_porta
+        rand_factor = random.uniform(0.0, 2.0)
+        if denom <= 0:
+            return True, float('inf')  # uncontested attack
+        value = gc * att_strength * rand_factor / denom
+        return value >= 1.0, round(value, 3)
+
+    home_scores, home_goal_val = _goal(home_str['attacco'], away_str['difesa'], away_str['porta'])
+    away_scores, away_goal_val = _goal(away_str['attacco'], home_str['difesa'], home_str['porta'])
 
     if home_scores:
         match.home_score += 1
@@ -558,8 +563,8 @@ def process_turn(match, facility_field_stars=0):
         'turn': match.current_turn,
         'home_str': home_str,
         'away_str': away_str,
-        'home_vg': round(home_vg, 3),
-        'away_vg': round(away_vg, 3),
+        'home_goal_val': home_goal_val if home_goal_val != float('inf') else None,
+        'away_goal_val': away_goal_val if away_goal_val != float('inf') else None,
         'home_goal': home_scores,
         'away_goal': away_scores,
         'events': events,
@@ -617,6 +622,33 @@ def finalize_match(match):
     # Streaming revenue: home team earns 100k per facility_stream star
     home_team = Team.query.get(match.home_team_id)
     if home_team and home_team.facility_stream > 0:
-        home_team.budget += home_team.facility_stream * 100_000
+        from app.utils import ledger
+        ledger.record(home_team, home_team.facility_stream * 100_000,
+                      ledger.CAT_STREAMING, 'Ricavi streaming partita')
 
     db.session.commit()
+
+
+def _home_ground_stars(match):
+    return match.home_team.facility_ground if match.home_team else 0
+
+
+def advance_match_if_due(match, turn_seconds):
+    """Advance one turn if the turn timer has elapsed. Used by the live view and
+    by the scheduler so abandoned matches still progress turn by turn."""
+    from datetime import datetime as _dt, timedelta as _td
+    if match.status != 'active' or match.last_turn_at is None:
+        return False
+    if _dt.utcnow() >= match.last_turn_at + _td(seconds=turn_seconds):
+        process_turn(match, _home_ground_stars(match))
+        return True
+    return False
+
+
+def simulate_match_to_completion(match, max_turns=50):
+    """Run all remaining turns instantly until the match is completed.
+    Used to auto-resolve a Sunday match when neither manager connects."""
+    guard = 0
+    while match.status == 'active' and guard < max_turns:
+        process_turn(match, _home_ground_stars(match))
+        guard += 1

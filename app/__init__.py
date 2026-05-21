@@ -69,6 +69,26 @@ def create_app():
     app.register_blueprint(events_bp, url_prefix='/events')
     app.register_blueprint(match_bp, url_prefix='/match')
 
+    @app.before_request
+    def _apply_due_team_events():
+        """Process all matured day-tick events for the active manager's team,
+        on every page, so sponsor/loan/etc. always fire when the game day advances."""
+        from flask import request
+        from flask_login import current_user
+        if request.endpoint in (None, 'static'):
+            return
+        if not current_user.is_authenticated:
+            return
+        team = getattr(current_user, 'team', None)
+        if not team:
+            return
+        from app.routes.events import process_due_team_events
+        try:
+            process_due_team_events(team)
+        except Exception:
+            # Never let event processing brick a page load; leave DB clean.
+            db.session.rollback()
+
     @app.context_processor
     def inject_game_globals():
         from app.utils.gameclock import (

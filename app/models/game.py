@@ -298,6 +298,26 @@ class Loan(db.Model):
     team = db.relationship('Team', foreign_keys=[team_id], backref='loans')
 
 
+class BudgetTransaction(db.Model):
+    """Signed ledger entry for every change to a team's budget.
+
+    amount > 0 = entrata (income), amount < 0 = uscita (expense).
+    Lets us reconstruct entrate/uscite per week and per season.
+    """
+    __tablename__ = 'budget_transactions'
+    id = db.Column(db.Integer, primary_key=True)
+    team_id = db.Column(db.Integer, db.ForeignKey('teams.id'), nullable=False, index=True)
+    amount = db.Column(db.Float, nullable=False)
+    category = db.Column(db.String(30), nullable=False)
+    description = db.Column(db.String(200), default='')
+    game_day = db.Column(db.Integer, nullable=False)
+    game_week_id = db.Column(db.Integer, nullable=False, index=True)
+    season = db.Column(db.Integer, nullable=False, index=True)   # year the season started (Sep 1)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    team = db.relationship('Team', foreign_keys=[team_id], backref='transactions')
+
+
 class Investment(db.Model):
     """Bond/cedola investment by a team."""
     __tablename__ = 'investments'

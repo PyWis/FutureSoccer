@@ -10,8 +10,11 @@ MONTH_IT = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno',
 
 
 def get_clock_ratio():
-    """Real seconds per game day (default 300 = 5 minutes)."""
-    return int(os.environ.get('GAME_CLOCK_RATIO', 300))
+    """Real seconds per game day (default 3600 = 1 hour).
+
+    A longer day makes the 2-minute Sunday connect window a small slice of the
+    day rather than most of it; tune via GAME_CLOCK_RATIO."""
+    return int(os.environ.get('GAME_CLOCK_RATIO', 3600))
 
 
 def get_game_datetime():
@@ -42,6 +45,11 @@ def get_game_week_id():
 def get_game_day_number():
     """Days elapsed since game start."""
     return (get_game_date() - GAME_START_DATE).days
+
+
+def game_day_to_date(day_number):
+    """Convert a game-day number (days since start) back to a calendar date."""
+    return GAME_START_DATE + timedelta(days=day_number)
 
 
 def format_game_date(d=None):
@@ -104,3 +112,19 @@ def get_game_month_id():
     """Unique int for the current game month: year*100 + month."""
     gd = get_game_date()
     return gd.year * 100 + gd.month
+
+
+def get_game_season(d=None):
+    """Season identifier = the calendar year in which the season started.
+
+    Seasons run 1 September → 31 August. So Sep–Dec belong to year Y,
+    Jan–Aug belong to season Y-1."""
+    if d is None:
+        d = get_game_date()
+    return d.year if d.month >= 9 else d.year - 1
+
+
+def format_game_season(season=None):
+    if season is None:
+        season = get_game_season()
+    return f"{season}/{season + 1}"

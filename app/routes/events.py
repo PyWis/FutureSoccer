@@ -1,8 +1,19 @@
 import random
 import random as _random
-from flask import Blueprint, render_template, redirect, url_for, flash, request
+from flask import Blueprint, render_template, redirect, url_for, flash, request, has_request_context
 from flask_login import login_required, current_user
 from app import db
+
+
+def notify(message, category='info'):
+    """Flash a message only when inside a request context.
+
+    Event processors run both during web requests (where the manager should
+    see the message) and from the background scheduler (where there is no
+    session to flash into). This keeps them safe in both contexts.
+    """
+    if has_request_context():
+        flash(message, category)
 from app.models.team import Team, Player
 from app.models.game import TeamWeeklyOffer, TrainingRecord, SponsorOffer, ActiveSponsor, FreeAgentListing, FreeAgentBid, Loan, Investment
 from app.utils.gameclock import (
@@ -14,6 +25,7 @@ from app.utils.gameclock import (
 from app.utils.generators import (
     generate_market_offer_data, generate_sponsor_offer_data,
 )
+from app.utils import ledger
 
 events_bp = Blueprint('events', __name__)
 
@@ -92,14 +104,14 @@ def _process_scouting_payment(team):
         return
     cost = 1_000_000
     if team.budget >= cost:
-        team.budget -= cost
+        ledger.record(team, -cost, ledger.CAT_SCOUTING, 'Scouting avanzato settimanale')
         team.scouting_paid_week_id = current_week
         db.session.commit()
-        flash('💰 Scouting avanzato: €1.000.000 addebitati per questa settimana.', 'info')
+        notify('💰 Scouting avanzato: €1.000.000 addebitati per questa settimana.', 'info')
     else:
         team.scouting_enabled = False
         db.session.commit()
-        flash('⚠️ Scouting avanzato disattivato: budget insufficiente per il pagamento settimanale.', 'warning')
+        notify('⚠️ Scouting avanzato disattivato: budget insufficiente per il pagamento settimanale.', 'warning')
 
 
 def _process_sponsor_payments(team):
@@ -116,7 +128,8 @@ def _process_sponsor_payments(team):
         if weeks_due > 0:
             to_pay = min(weeks_due, sp.remaining_weeks)
             rate = sp.weekly_amount if sp.type == 'main' else sp.weekly_amount * 0.3
-            team.budget += rate * to_pay
+            ledger.record(team, rate * to_pay, ledger.CAT_SPONSOR,
+                          f'{sp.sponsor_name} ({to_pay} sett.)')
             sp.remaining_weeks -= to_pay
             sp.last_paid_week_id = current_week
             paid_any = True
@@ -151,7 +164,8 @@ def _process_loan_payments(team):
         # Cap to remaining installments
         remaining = loan.weeks_total - loan.weeks_paid
         installments_due = min(weeks_overdue, remaining)
-        team.budget -= loan.weekly_payment * installments_due
+        ledger.record(team, -loan.weekly_payment * installments_due, ledger.CAT_LOAN_PAY,
+                      f'Rata prestito {loan.loan_type} ×{installments_due}')
         loan.weeks_paid += installments_due
         loan.last_paid_week_id = current_week
         if loan.weeks_paid >= loan.weeks_total:
@@ -188,13 +202,13 @@ def _check_federation_loan(team):
         weeks_paid=0,
         last_paid_week_id=get_game_week_id(),
     )
-    team.budget += amount
+    ledger.record(team, amount, ledger.CAT_FEDERATION, 'Aiuto dalla Federazione')
     team.federation_loan_streak += 1
     db.session.add(loan)
 
     if team.federation_loan_streak >= 25:
         # Federazione dona 50M ma i giocatori devono fare la "lunga promozione"
-        team.budget += 50_000_000
+        ledger.record(team, 50_000_000, ledger.CAT_FEDERATION, 'Donazione federale (Lunga Promozione)')
         team.federation_loan_streak = 0
         for player in team.players.all():
             player.porta       = round(player.porta       * 0.5, 2)
@@ -202,11 +216,11 @@ def _check_federation_loan(team):
             player.attacco     = round(player.attacco     * 0.5, 2)
             player.resistenza  = round(player.resistenza  * 0.5, 2)
         db.session.commit()
-        flash('🏛️ La Federazione ha donato €50M — ma la "Lunga Promozione" ha dimezzato tutte le skill dei giocatori.', 'warning')
+        notify('🏛️ La Federazione ha donato €50M — ma la "Lunga Promozione" ha dimezzato tutte le skill dei giocatori.', 'warning')
     else:
         db.session.commit()
         streak_left = 25 - team.federation_loan_streak
-        flash(
+        notify(
             f'🚨 Aiuto dalla Federazione attivato: €{amount/1_000_000:.2f}M '
             f'(+1% = €{total_due/1_000_000:.2f}M da restituire). '
             f'Crisi finanziaria: settimana {team.federation_loan_streak}/25 '
@@ -222,9 +236,10 @@ def _process_investments(team):
         Investment.game_week_id_maturity <= current_week
     ).all()
     for inv in matured:
-        team.budget += inv.payout
+        ledger.record(team, inv.payout, ledger.CAT_BOND,
+                      f'Cedola {BOND_TYPES[inv.bond_type]["label"]} maturata')
         inv.is_active = False
-        flash(
+        notify(
             f'📈 Cedola {BOND_TYPES[inv.bond_type]["label"]} maturata! '
             f'+€{inv.payout/1_000_000:.2f}M accreditati.',
             'success'
@@ -324,7 +339,7 @@ def market_buy():
         team_id=team.id,
     )
     db.session.add(player)
-    team.budget -= cost
+    ledger.record(team, -cost, ledger.CAT_MARKET, f'Acquisto {offer.offer_name}')
     offer.purchased = True
     db.session.commit()
 
@@ -355,7 +370,7 @@ def activate_scouting():
     if team.budget < cost:
         flash('Budget insufficiente per attivare lo scouting (1M€).', 'danger')
         return redirect(url_for('events.market'))
-    team.budget -= cost
+    ledger.record(team, -cost, ledger.CAT_SCOUTING, 'Attivazione scouting avanzato')
     team.scouting_paid_week_id = next_week_id
     team.scouting_enabled = True
     db.session.commit()
@@ -464,7 +479,8 @@ def training():
             flash(f'Budget insufficiente. Costo sessione: €{total_cost:,.0f}', 'danger')
             return redirect(url_for('events.training'))
 
-        team.budget -= total_cost
+        if total_cost > 0:
+            ledger.record(team, -total_cost, ledger.CAT_TRAINING, 'Sessione di allenamento')
         results = []
         is_saturday_post = is_saturday_mode and not regular_training
         for p, skill1, skill2, prem in sessions:
@@ -646,7 +662,7 @@ def dark_sponsor():
         flash('La tua squadra non ha forza sufficiente per attirare lo Sponsor Oscuro.', 'danger')
         return redirect(url_for('events.sponsors'))
 
-    team.budget += payout
+    ledger.record(team, payout, ledger.CAT_DARK_SPONSOR, 'Sponsor Oscuro')
     current_week = get_game_week_id()
     team.dark_sponsor_last_week_id = current_week
 
@@ -682,19 +698,19 @@ def dark_sponsor():
             flash(f'🕶️ Sponsor Oscuro: +€{payout/1_000_000:.2f}M. {desc}', 'warning')
 
     elif result == 'fine_50m':
-        team.budget -= 50_000_000
+        ledger.record(team, -50_000_000, ledger.CAT_FINE, 'Multa Federazione (Sponsor Oscuro)')
         flash(f'🕶️ Sponsor Oscuro: +€{payout/1_000_000:.2f}M. 🚨 {desc}', 'danger')
 
     elif result == 'fine_100m':
-        team.budget -= 100_000_000
+        ledger.record(team, -100_000_000, ledger.CAT_FINE, 'Multa Federazione (Sponsor Oscuro)')
         flash(f'🕶️ Sponsor Oscuro: +€{payout/1_000_000:.2f}M. 🚨 {desc}', 'danger')
 
     elif result == 'fine_200m':
-        team.budget -= 200_000_000
+        ledger.record(team, -200_000_000, ledger.CAT_FINE, 'Multa Federazione (Sponsor Oscuro)')
         flash(f'🕶️ Sponsor Oscuro: +€{payout/1_000_000:.2f}M. 🚨 {desc}', 'danger')
 
     elif result == 'lungo':
-        team.budget -= 25_000_000
+        ledger.record(team, -25_000_000, ledger.CAT_FINE, 'Processo federale (Sponsor Oscuro)')
         for player in team.players.all():
             player.porta      = round(player.porta      * 0.2, 2)
             player.difesa     = round(player.difesa     * 0.2, 2)
@@ -839,14 +855,16 @@ def _process_free_agent_auctions():
 
         if winner_bid:
             winner_team = Team.query.get(winner_bid.team_id)
-            winner_team.budget -= winner_bid.amount
+            ledger.record(winner_team, -winner_bid.amount, ledger.CAT_TRANSFER,
+                          f'Acquisto {listing.player_name}')
             # Credit seller
             days_listed = current_day - listing.list_game_day
             seller_pct = 0.75 if days_listed <= 60 else 0.50
             if listing.seller_team_id:
                 seller_team = Team.query.get(listing.seller_team_id)
                 if seller_team:
-                    seller_team.budget += round(winner_bid.amount * seller_pct, -3)
+                    ledger.record(seller_team, round(winner_bid.amount * seller_pct, -3),
+                                  ledger.CAT_TRANSFER, f'Vendita {listing.player_name}')
             # Transfer player
             if listing.player_id:
                 player = Player.query.get(listing.player_id)
@@ -1150,7 +1168,7 @@ def finance_borrow():
         weeks_paid=0,
         last_paid_week_id=get_game_week_id(),  # first payment next week
     )
-    team.budget += principal
+    ledger.record(team, principal, ledger.CAT_LOAN_IN, f'Prestito {tier["label"]}')
     db.session.add(loan)
     db.session.commit()
 
@@ -1320,14 +1338,17 @@ def _apply_ritiro_end_effects(team):
         )
         db.session.add(loan)
 
-    # Cap all skills at 10.0 (common end effect)
+    # Cap all skills at 10.0 (common end effect) and re-anchor freshness recovery
+    # to today so the frozen retreat days aren't recovered retroactively.
+    end_day = get_game_day_number()
     for p in players:
         for sk in SKILLS:
             if getattr(p, sk) > 10.0:
                 setattr(p, sk, 10.0)
+        p.last_freshness_day = end_day
 
     db.session.commit()
-    flash(f'🏕️ Ritiro completato! ({RITIRO_OPTIONS[rtype]["label"]}) — effetti applicati a tutti i giocatori.', 'success')
+    notify(f'🏕️ Ritiro completato! ({RITIRO_OPTIONS[rtype]["label"]}) — effetti applicati a tutti i giocatori.', 'success')
 
 
 def _process_annual_events(team):
@@ -1351,7 +1372,7 @@ def _process_annual_events(team):
                 setattr(p, sk, round(getattr(p, sk) * 0.8, 2))
         team.ritiro_year = current_year
         db.session.commit()
-        flash('📉 La squadra non è andata in ritiro estivo — tutte le skill −20%.', 'danger')
+        notify('📉 La squadra non è andata in ritiro estivo — tutte le skill −20%.', 'danger')
 
     # ── January: age increment (squad + HoF) ──────────────────────────────────
     if current_year > team.last_age_year:
@@ -1369,7 +1390,7 @@ def _process_annual_events(team):
         team.last_age_year = current_year
         db.session.commit()
         if hof_removed:
-            flash(f'⚰️ Hall of Fame: {", ".join(hof_removed)} rimoss{"i" if len(hof_removed)>1 else "o"} (età massima raggiunta).', 'info')
+            notify(f'⚰️ Hall of Fame: {", ".join(hof_removed)} rimoss{"i" if len(hof_removed)>1 else "o"} (età massima raggiunta).', 'info')
 
     # ── August: retirement events (squad only, not cyber) ────────────────────
     if current_year > team.last_retire_year and current_month >= 8:
@@ -1393,11 +1414,11 @@ def _process_annual_events(team):
         team.last_retire_year = current_year
         db.session.commit()
         if removed:
-            flash(f'🏁 Ritirati (35+): {", ".join(removed)}.', 'warning')
+            notify(f'🏁 Ritirati (35+): {", ".join(removed)}.', 'warning')
         if skill_loss:
-            flash(f'📉 Calo skill 30% (32+): {", ".join(skill_loss)}.', 'warning')
+            notify(f'📉 Calo skill 30% (32+): {", ".join(skill_loss)}.', 'warning')
         if released:
-            flash(f'👋 Svincolati (30+): {", ".join(released)}.', 'info')
+            notify(f'👋 Svincolati (30+): {", ".join(released)}.', 'info')
 
 
 # ─── WELLNESS ──────────────────────────────────────────────────────────────────
@@ -1502,7 +1523,8 @@ def wellness_ritiro():
         return redirect(url_for('events.wellness'))
 
     # Deduct base cost
-    team.budget -= RITIRO_BASE_COST
+    ledger.record(team, -RITIRO_BASE_COST, ledger.CAT_RETREAT,
+                  f'Ritiro estivo: {RITIRO_OPTIONS[rtype]["label"]}')
 
     # Start effects: positive freshness → 0
     for p in team.players.all():
@@ -1544,28 +1566,36 @@ def wellness_buy_sessions():
         flash('Opzione non valida.', 'danger')
         return redirect(url_for('events.wellness'))
 
+    if option == 'diet' and team.ritiro_end_day > 0:
+        flash('Durante il ritiro la freschezza è bloccata: dieta non disponibile.', 'warning')
+        return redirect(url_for('events.wellness'))
+
     cost = costs[option]
     if team.budget < cost:
         flash('Budget insufficiente.', 'danger')
         return redirect(url_for('events.wellness'))
 
-    team.budget -= cost
+    # Validate caps BEFORE charging (avoids losing money on a rejected purchase)
+    if option == 'health1' and team.health_sessions >= MAX_HEALTH:
+        flash('Hai già il massimo di sessioni salute.', 'warning')
+        return redirect(url_for('events.wellness'))
+    if option in ('physio1', 'physio2', 'physio3'):
+        qty = int(option[-1])
+        if team.physio_sessions + qty > MAX_PHYSIO:
+            flash(f'Non puoi superare {MAX_PHYSIO} sessioni fisioterapia.', 'warning')
+            return redirect(url_for('events.wellness'))
+
+    ledger.record(team, -cost, ledger.CAT_WELLNESS, f'Benessere: {option}')
     if option == 'diet':
         players = team.players.all()
         for p in players:
             p.freshness = round(p.freshness + 0.2, 2)
         flash(f'🥗 Dieta bilanciata: +0.2 freschezza a tutti i {len(players)} giocatori.', 'success')
     elif option == 'health1':
-        if team.health_sessions >= MAX_HEALTH:
-            flash('Hai già il massimo di sessioni salute.', 'warning')
-            return redirect(url_for('events.wellness'))
         team.health_sessions = min(MAX_HEALTH, team.health_sessions + 1)
         flash('✅ 1 sessione salute acquistata.', 'success')
     else:
         qty = int(option[-1])
-        if team.physio_sessions + qty > MAX_PHYSIO:
-            flash(f'Non puoi superare {MAX_PHYSIO} sessioni fisioterapia.', 'warning')
-            return redirect(url_for('events.wellness'))
         team.physio_sessions = min(MAX_PHYSIO, team.physio_sessions + qty)
         flash(f'✅ {qty} sessione/i fisioterapia acquistate.', 'success')
 
@@ -1615,6 +1645,10 @@ def wellness_use():
     if redir:
         return redir
     team = current_user.team
+
+    if team.ritiro_end_day > 0:
+        flash('Durante il ritiro la freschezza è bloccata: nessuna sessione fino al termine.', 'warning')
+        return redirect(url_for('events.wellness'))
 
     from app.models.team import Player
     session_type = request.form.get('session_type')  # 'physio','health','cyber'
@@ -1691,7 +1725,7 @@ def wellness_shop():
         if team.budget < 5_000_000:
             flash('Budget insufficiente (5M€).', 'danger')
             return redirect(url_for('events.wellness'))
-        team.budget -= 5_000_000
+        ledger.record(team, -5_000_000, ledger.CAT_WELLNESS, 'Scarpe Soccer Pro')
         team.soccer_pro_end_week_id = current_week + 13
         db.session.commit()
         flash('👟 Scarpe Soccer Pro attivate! +3 sessioni fisioterapia/settimana per 13 settimane.', 'success')
@@ -1730,7 +1764,7 @@ def wellness_shop():
         if team.budget < 20_000_000:
             flash('Budget insufficiente (20M€).', 'danger')
             return redirect(url_for('events.wellness'))
-        team.budget -= 20_000_000
+        ledger.record(team, -20_000_000, ledger.CAT_WELLNESS, 'Scarpe Soccer Future')
         team.soccer_future_end_week_id = current_week + 20
         team.soccer_future_skill_boosted = False   # reset so skill boost fires next processing
         db.session.commit()
@@ -1801,7 +1835,7 @@ def finance_invest():
         game_week_id_bought=current_week,
         game_week_id_maturity=current_week + actual_weeks,
     )
-    team.budget -= bt['cost']
+    ledger.record(team, -bt['cost'], ledger.CAT_BOND, f'Acquisto cedola {bt["label"]}')
     db.session.add(inv)
     db.session.commit()
 
@@ -1902,4 +1936,40 @@ def hof_remove():
     db.session.commit()
     flash(f'🗑️ {name} rimosso dalla Hall of Fame.', 'info')
     return redirect(url_for('events.hall_of_fame'))
+
+
+# ─── CENTRALIZED DAY-TICK PROCESSING ─────────────────────────────────────────────
+
+def process_due_team_events(team):
+    """Apply every game event that has come due for a team.
+
+    Invoked on each authenticated request (see app before_request) so that
+    day/week-tick events — sponsor income, loan installments, investments,
+    stadium degradation, wellness grants, annual events — always fire as soon
+    as the game day advances, regardless of which page the manager opens.
+
+    Every underlying processor is idempotent (guarded by week/day/month/year
+    ids), so repeated calls within the same period are no-ops. Income is
+    credited before costs so the federation emergency loan only triggers when
+    the team is genuinely insolvent.
+    """
+    from app.routes.game import _process_team_freshness
+
+    # Global: resolve any auctions whose windows have closed (may credit/debit
+    # this team as buyer or seller).
+    _process_free_agent_auctions()
+
+    # Income first
+    _process_sponsor_payments(team)
+    _process_investments(team)
+
+    # Then costs (loans run last among financials → federation check sees final budget)
+    _process_scouting_payment(team)
+    _process_loan_payments(team)
+
+    # Non-financial / mixed
+    _process_wellness(team)
+    _process_stadium_degradation(team)
+    _process_annual_events(team)
+    _process_team_freshness(team)
 
