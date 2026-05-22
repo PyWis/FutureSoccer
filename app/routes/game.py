@@ -8,7 +8,7 @@ from app.utils.generators import generate_new_team_player
 from app.utils.gameclock import (format_game_date, get_game_weekday, is_training_day,
                                  is_sponsor_day, get_game_day_number, get_game_week_id,
                                  get_prev_game_week_id, get_game_season, format_game_season,
-                                 game_day_to_date)
+                                 game_day_to_date, get_game_date)
 from app.utils.validators import valid_hex_color
 from app.utils import ledger
 from app.utils import social
@@ -106,9 +106,27 @@ def create_team():
 
         for _ in range(10):
             db.session.add(generate_new_team_player(team.id))
+        db.session.flush()
+
+        # Teams registering in August start in a paid SSS retreat.
+        gd = get_game_date()
+        if gd.month == 8:
+            from app.routes.events import RITIRO_BASE_COST
+            ledger.record(team, -RITIRO_BASE_COST, ledger.CAT_RETREAT,
+                          'Iscrizione ad agosto: ritiro SSS')
+            for p in team.players.all():
+                if p.freshness > 0:
+                    p.freshness = 0.0
+            team.ritiro_type = 'sss'
+            team.ritiro_year = gd.year
+            team.ritiro_end_day = get_game_day_number() + 21
 
         db.session.commit()
-        flash(f'Squadra "{name}" fondata con 10 giocatori! Buona fortuna, Manager.', 'success')
+        if gd.month == 8:
+            flash(f'Squadra "{name}" fondata con 10 giocatori! 🚀 Iscrizione ad agosto: '
+                  f'parti in ritiro alla SSS (costo addebitato).', 'success')
+        else:
+            flash(f'Squadra "{name}" fondata con 10 giocatori! Buona fortuna, Manager.', 'success')
         return redirect(url_for('game.dashboard'))
 
     return render_template('game/create_team.html')
@@ -422,18 +440,22 @@ def social_page():
         return redirect(url_for('game.create_team'))
     team = current_user.team
     players = sorted(team.players.all(), key=lambda p: p.avg_skill, reverse=True)
-    points = social.team_influence_points(team)
-    all_women = social.is_all_women(team)
-    active = social.get_active_effects(team)
+    state = social.compute_state(team)
+    active = state['active']
 
     effects_view = []
     for key, spec in sorted(social.SOCIAL_EFFECTS.items(), key=lambda kv: kv[1]['threshold']):
-        meets = points >= spec['threshold'] and (not spec['women_only'] or all_women)
+        constraint_ok = social.meets_constraint(team, spec.get('requires'))
+        is_active = key in active
+        # Can activate if not active, slot free, constraint ok, and enough available influence
+        can_activate = (not is_active and len(active) < social.MAX_ACTIVE_EFFECTS
+                        and constraint_ok and state['available'] >= spec['threshold'])
         effects_view.append({
             'key': key, 'spec': spec,
-            'is_active': key in active,
-            'meets': meets,
-            'applies': social.effect_applies(team, key, points),
+            'is_active': is_active,
+            'constraint_ok': constraint_ok,
+            'can_activate': can_activate,
+            'applies': state['applies'].get(key, False),
         })
 
     return render_template('game/social.html',
@@ -442,8 +464,10 @@ def social_page():
                            players=players,
                            channels=social.SOCIAL_CHANNELS,
                            channel_count=social.channel_count,
-                           points=points,
-                           all_women=all_women,
+                           points=state['total'],
+                           committed=state['committed'],
+                           available=state['available'],
+                           multiplier=state['multiplier'],
                            active_count=len(active),
                            max_active=social.MAX_ACTIVE_EFFECTS,
                            effects=effects_view)
@@ -496,12 +520,16 @@ def social_effect(key, action):
         if len(active) >= social.MAX_ACTIVE_EFFECTS:
             flash(f'Puoi avere al massimo {social.MAX_ACTIVE_EFFECTS} effetti attivi.', 'danger')
             return redirect(url_for('game.social_page'))
-        points = social.team_influence_points(team)
-        if points < spec['threshold']:
-            flash(f'Servono {spec["threshold"]} punti influenza (ne hai {points}).', 'danger')
+        if not social.meets_constraint(team, spec.get('requires')):
+            msg = {'women': 'squadra composta solo da donne',
+                   'cyber': 'squadra composta solo da cyber',
+                   'lite': f'squadra con {social.LITE_MAX_PLAYERS} o meno componenti'}.get(spec.get('requires'))
+            flash(f'Questo effetto richiede una {msg}.', 'danger')
             return redirect(url_for('game.social_page'))
-        if spec['women_only'] and not social.is_all_women(team):
-            flash('Questo effetto è attivabile solo con una squadra composta solo da donne.', 'danger')
+        state = social.compute_state(team)
+        if state['available'] < spec['threshold']:
+            flash(f'Influenza disponibile insufficiente: servono {spec["threshold"]} punti '
+                  f'(disponibili {state["available"]}).', 'danger')
             return redirect(url_for('game.social_page'))
         active.append(key)
         social.set_active_effects(team, active)

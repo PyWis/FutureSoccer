@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% block title %}Partita — FutureSoccer{% endblock %}
 {% block extra_head %}
-{% if is_sunday and not sunday_unlocked %}
-<meta http-equiv="refresh" content="{{ sunday_countdown + 2 }}">
+{% if is_match_day and not match_unlocked %}
+<meta http-equiv="refresh" content="{{ match_countdown + 2 }}">
 {% endif %}
 <style>
   .lobby-header{text-align:center;margin-bottom:2rem;}
@@ -24,10 +24,10 @@
 
 <div class="lobby-header">
   <h1>🏟️ PARTITA AMICHEVOLE</h1>
-  {% if is_sunday %}
-  <div class="day-badge sunday">DOMENICA — GIOCA LE PARTITE PRENOTATE</div>
+  {% if is_match_day %}
+  <div class="day-badge sunday">GIORNO PARTITA — GIOCA LE PARTITE PRENOTATE</div>
   {% else %}
-  <div class="day-badge not-sunday">Sfida squadre Lun–Sab · Gioca domenica</div>
+  <div class="day-badge not-sunday">Sfida le squadre · Si gioca Mercoledì e Domenica</div>
   {% endif %}
 </div>
 
@@ -66,7 +66,7 @@
   <div class="challenge-card">
     <div>
       <strong>{{ ch.challenger.name }}</strong>
-      <div style="font-size:.75rem;color:var(--muted);">ti ha sfidato a una partita domenicale</div>
+      <div style="font-size:.75rem;color:var(--muted);">ti ha sfidato a una partita</div>
     </div>
     <div class="btn-group">
       <form method="POST" action="{{ url_for('match.accept_challenge', challenge_id=ch.id) }}">
@@ -83,13 +83,13 @@
 </div>
 {% endif %}
 
-{% if is_sunday %}
+{% if is_match_day %}
 
 <!-- ── COUNTDOWN or CONFIRMED MATCHES ── -->
-{% if not sunday_unlocked %}
+{% if not match_unlocked %}
 <div class="card mb-3" style="text-align:center;padding:1.5rem;border-color:rgba(123,47,255,.4);">
   <div style="font-size:.75rem;color:var(--muted);letter-spacing:1px;margin-bottom:.4rem;">LE PARTITE INIZIANO TRA</div>
-  <div id="lobbyCountdown" style="font-family:'Orbitron',monospace;font-size:2.5rem;font-weight:900;color:var(--purple);">{{ sunday_countdown }}s</div>
+  <div id="lobbyCountdown" style="font-family:'Orbitron',monospace;font-size:2.5rem;font-weight:900;color:var(--purple);">{{ match_countdown }}s</div>
   <div style="font-size:.75rem;color:var(--muted);margin-top:.4rem;">La pagina si aggiorna automaticamente.</div>
   {% if accepted_challenges %}
   <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--card-border);">
@@ -141,7 +141,7 @@
 <!-- ── CONFIRMED MATCHES (Mon-Sat) ── -->
 {% if accepted_challenges %}
 <div class="card mb-3" style="border-color:rgba(0,245,255,.3);">
-  <div class="section-title" style="color:var(--cyan);">📅 Partita Confermata per Domenica</div>
+  <div class="section-title" style="color:var(--cyan);">📅 Partita confermata</div>
   {% for ch in accepted_challenges %}
   <div class="challenge-card">
     <div style="display:flex;align-items:center;gap:.6rem;">
@@ -152,7 +152,7 @@
           <span style="color:var(--muted);margin:0 .3rem;font-size:.8rem;">vs</span>
           <strong>{{ ch.challenged.name }}</strong>
         </div>
-        <div style="font-size:.72rem;color:var(--muted);margin-top:.15rem;">Sfida confermata · Si gioca domenica</div>
+        <div style="font-size:.72rem;color:var(--muted);margin-top:.15rem;">Sfida confermata · Si gioca Mercoledì o Domenica</div>
       </div>
     </div>
     <form method="POST" action="{{ url_for('match.reject_challenge', challenge_id=ch.id) }}">
@@ -168,7 +168,7 @@
 {% if can_challenge %}
 {% if other_teams %}
 <div class="card mb-3">
-  <div class="section-title">📨 Sfida una Squadra per Domenica</div>
+  <div class="section-title">📨 Sfida una Squadra</div>
   {% for t in other_teams %}
   <div class="team-row">
     <div>
@@ -192,10 +192,10 @@
 <!-- INFO: matches on Sunday -->
 <div class="card" style="text-align:center;padding:1.5rem;border-color:var(--purple);">
   <div style="font-size:1.5rem;margin-bottom:.4rem;">📅</div>
-  <div style="font-weight:700;margin-bottom:.3rem;">Le partite si giocano Domenica</div>
+  <div style="font-weight:700;margin-bottom:.3rem;">Le partite si giocano Mercoledì e Domenica</div>
   <div style="color:var(--muted);font-size:.83rem;">
     Puoi inviare e accettare sfide da lunedì a sabato.<br>
-    Domenica troverai qui le partite da giocare, oppure potrai giocare contro la Squadra del Bar.
+    Nei giorni partita (Mercoledì e Domenica) troverai qui le partite da giocare, oppure potrai giocare contro la Squadra del Bar.
   </div>
 </div>
 
@@ -203,10 +203,10 @@
 
 {% endblock %}
 {% block extra_js %}
-{% if is_sunday and not sunday_unlocked %}
+{% if is_match_day and not match_unlocked %}
 <script>
 (function() {
-  let sec = {{ sunday_countdown }};
+  let sec = {{ match_countdown }};
   const el = document.getElementById('lobbyCountdown');
   if (!el) return;
   const iv = setInterval(() => {
