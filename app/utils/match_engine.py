@@ -176,13 +176,15 @@ def generate_bot_lineup():
     def1 = _bot_player('bot_def_1', rname())
     att0 = _bot_player('bot_att_0', rname())
     att1 = _bot_player('bot_att_1', rname())
+    res0 = _bot_player('bot_res_0', rname())
+    res1 = _bot_player('bot_res_1', rname())
 
     return {
         'engagement': 'normale',
         'goalkeeper': gk,
         'defenders': [def0, def1],
         'attackers': [att0, att1],
-        'reserves': [],
+        'reserves': [res0, res1],
     }
 
 
@@ -584,6 +586,43 @@ def process_turn(match, facility_field_stars=0):
         home_lineup, facility_field_stars, injury_add=engagement_injury_add(home_eng))
     away_lineup, away_injuries = roll_injuries(
         away_lineup, 0, injury_add=engagement_injury_add(away_eng))
+
+    # 5b. Forfeit: a team with fewer than 5 players on the field loses 0-3.
+    def _on_field(lu):
+        return ((1 if lu.get('goalkeeper') else 0)
+                + len(lu.get('defenders') or [])
+                + len(lu.get('attackers') or []))
+
+    home_n = _on_field(home_lineup)
+    away_n = _on_field(away_lineup)
+    if home_n < 5 or away_n < 5:
+        events = []
+        if away_n < 5 and home_n >= 5:
+            match.home_score, match.away_score = 3, 0
+            events.append({'team': 'home', 'type': 'forfeit',
+                           'text': 'Vittoria a tavolino 3-0: avversario con meno di 5 giocatori in campo.'})
+        else:
+            match.home_score, match.away_score = 0, 3
+            events.append({'team': 'away', 'type': 'forfeit',
+                           'text': 'Sconfitta a tavolino 0-3: meno di 5 giocatori in campo.'})
+        turns = json.loads(match.turns_json or '[]')
+        turns.append({
+            'turn': match.current_turn,
+            'home_str': compute_strength(home_lineup),
+            'away_str': compute_strength(away_lineup),
+            'home_goal_val': None, 'away_goal_val': None,
+            'home_goal': False, 'away_goal': False,
+            'events': events, 'forfeit': True,
+        })
+        match.home_lineup_json = json.dumps(home_lineup)
+        match.away_lineup_json = json.dumps(away_lineup)
+        match.turns_json = json.dumps(turns)
+        match.home_pending_subs_json = '{}'
+        match.away_pending_subs_json = '{}'
+        match.last_turn_at = datetime.utcnow()
+        match.status = 'completed'
+        finalize_match(match)
+        return
 
     # 6. Compute strengths
     home_str = compute_strength(home_lineup)
