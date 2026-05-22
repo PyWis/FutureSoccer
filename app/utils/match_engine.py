@@ -186,6 +186,19 @@ def generate_bot_lineup():
     }
 
 
+def _pick_scorer(lineup_dict):
+    """Pick a random scorer name from players currently on the field, preferring
+    attackers, then defenders, then the goalkeeper."""
+    for slot in ('attackers', 'defenders'):
+        pool = [p for p in (lineup_dict.get(slot) or []) if p and p.get('name')]
+        if pool:
+            return random.choice(pool)['name']
+    gk = lineup_dict.get('goalkeeper')
+    if gk and gk.get('name'):
+        return gk['name']
+    return None
+
+
 def compute_strength(lineup_dict):
     """Compute {'porta', 'difesa', 'attacco'} for a lineup dict."""
     gk = lineup_dict.get('goalkeeper')
@@ -562,6 +575,11 @@ def process_turn(match, facility_field_stars=0):
     home_scores, home_goal_val = _goal(home_str['attacco'], away_str['difesa'], away_str['porta'])
     away_scores, away_goal_val = _goal(away_str['attacco'], home_str['difesa'], home_str['porta'])
 
+    # No scoring on the opening turn (T0): the match is just kicking off.
+    if match.current_turn == 0:
+        home_scores = False
+        away_scores = False
+
     if home_scores:
         match.home_score += 1
     if away_scores:
@@ -570,9 +588,13 @@ def process_turn(match, facility_field_stars=0):
     # 9. Build events list
     events = []
     if home_scores:
-        events.append({'team': 'home', 'type': 'goal', 'text': 'GOAL! La squadra di casa segna!'})
+        scorer = _pick_scorer(home_lineup)
+        text = f'GOAL! {scorer} segna per la squadra di casa!' if scorer else 'GOAL! La squadra di casa segna!'
+        events.append({'team': 'home', 'type': 'goal', 'text': text})
     if away_scores:
-        events.append({'team': 'away', 'type': 'goal', 'text': 'GOAL! La squadra ospite segna!'})
+        scorer = _pick_scorer(away_lineup)
+        text = f'GOAL! {scorer} segna per la squadra ospite!' if scorer else 'GOAL! La squadra ospite segna!'
+        events.append({'team': 'away', 'type': 'goal', 'text': text})
 
     for name in home_excluded:
         events.append({'team': 'home', 'type': 'freshness', 'text': f'{name} escluso per stanchezza'})
