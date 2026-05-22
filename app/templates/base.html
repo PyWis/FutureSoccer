@@ -410,6 +410,10 @@
        class="nav-item {% if request.endpoint == 'events.hall_of_fame' %}active{% endif %}">
       <span class="nav-icon">🏆</span><span class="nav-label">Hall of Fame</span>
     </a>
+    <a href="{{ url_for('game.social_page') }}"
+       class="nav-item {% if request.endpoint == 'game.social_page' %}active{% endif %}">
+      <span class="nav-icon">🥂</span><span class="nav-label">Social</span>
+    </a>
 
     <div class="nav-section-label" style="margin-top:.5rem;">Account</div>
     <a href="{{ url_for('game.profile') }}"

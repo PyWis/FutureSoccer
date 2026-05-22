@@ -11,6 +11,7 @@ from app.utils.gameclock import (format_game_date, get_game_weekday, is_training
                                  game_day_to_date)
 from app.utils.validators import valid_hex_color
 from app.utils import ledger
+from app.utils import social
 
 game_bp = Blueprint('game', __name__)
 
@@ -412,6 +413,104 @@ def calendario():
                            played=played,
                            upcoming=upcoming_view,
                            fmt_date=format_game_date)
+
+
+@game_bp.route('/social')
+@login_required
+def social_page():
+    if not current_user.team:
+        return redirect(url_for('game.create_team'))
+    team = current_user.team
+    players = sorted(team.players.all(), key=lambda p: p.avg_skill, reverse=True)
+    points = social.team_influence_points(team)
+    all_women = social.is_all_women(team)
+    active = social.get_active_effects(team)
+
+    effects_view = []
+    for key, spec in sorted(social.SOCIAL_EFFECTS.items(), key=lambda kv: kv[1]['threshold']):
+        meets = points >= spec['threshold'] and (not spec['women_only'] or all_women)
+        effects_view.append({
+            'key': key, 'spec': spec,
+            'is_active': key in active,
+            'meets': meets,
+            'applies': social.effect_applies(team, key, points),
+        })
+
+    return render_template('game/social.html',
+                           team=team,
+                           game_date=format_game_date(),
+                           players=players,
+                           channels=social.SOCIAL_CHANNELS,
+                           channel_count=social.channel_count,
+                           points=points,
+                           all_women=all_women,
+                           active_count=len(active),
+                           max_active=social.MAX_ACTIVE_EFFECTS,
+                           effects=effects_view)
+
+
+@game_bp.route('/social/channel/<int:player_id>/<channel>', methods=['POST'])
+@login_required
+def social_toggle_channel(player_id, channel):
+    if not current_user.team:
+        return redirect(url_for('game.create_team'))
+    if channel not in social.CHANNEL_KEYS:
+        flash('Canale non valido.', 'danger')
+        return redirect(url_for('game.social_page'))
+    player = Player.query.get_or_404(player_id)
+    if player.team_id != current_user.team.id:
+        flash('Giocatore non nella tua squadra.', 'danger')
+        return redirect(url_for('game.social_page'))
+    attr = f'social_{channel}'
+    setattr(player, attr, not getattr(player, attr))
+    db.session.commit()
+    state = 'aperto' if getattr(player, attr) else 'chiuso'
+    flash(f'Canale {channel} {state} per {player.name}.', 'info')
+    return redirect(url_for('game.social_page'))
+
+
+@game_bp.route('/social/effect/<key>/<action>', methods=['POST'])
+@login_required
+def social_effect(key, action):
+    if not current_user.team:
+        return redirect(url_for('game.create_team'))
+    team = current_user.team
+    if key not in social.SOCIAL_EFFECTS:
+        flash('Effetto non valido.', 'danger')
+        return redirect(url_for('game.social_page'))
+    spec = social.SOCIAL_EFFECTS[key]
+    active = social.get_active_effects(team)
+
+    if action == 'deactivate':
+        if key in active:
+            active.remove(key)
+            social.set_active_effects(team, active)
+            db.session.commit()
+            flash(f'{spec["label"]} disattivato.', 'info')
+        return redirect(url_for('game.social_page'))
+
+    if action == 'activate':
+        if key in active:
+            flash('Effetto già attivo.', 'warning')
+            return redirect(url_for('game.social_page'))
+        if len(active) >= social.MAX_ACTIVE_EFFECTS:
+            flash(f'Puoi avere al massimo {social.MAX_ACTIVE_EFFECTS} effetti attivi.', 'danger')
+            return redirect(url_for('game.social_page'))
+        points = social.team_influence_points(team)
+        if points < spec['threshold']:
+            flash(f'Servono {spec["threshold"]} punti influenza (ne hai {points}).', 'danger')
+            return redirect(url_for('game.social_page'))
+        if spec['women_only'] and not social.is_all_women(team):
+            flash('Questo effetto è attivabile solo con una squadra composta solo da donne.', 'danger')
+            return redirect(url_for('game.social_page'))
+        active.append(key)
+        social.set_active_effects(team, active)
+        db.session.commit()
+        flash(f'{spec["label"]} attivato! 🥂', 'success')
+        return redirect(url_for('game.social_page'))
+
+    flash('Azione non valida.', 'danger')
+    return redirect(url_for('game.social_page'))
 
 
 @game_bp.route('/profile', methods=['GET', 'POST'])

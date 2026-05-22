@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Social — FutureSoccer{% endblock %}
+{% block topbar_title %}SOCIAL{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>🥂 SOCIAL &amp; INFLUENZA</h1>
+  <p class="text-muted">{{ game_date }}</p>
+</div>
+
+<!-- ── INFLUENCE SUMMARY ── -->
+<div class="card card-glow mb-3" style="text-align:center;">
+  <div style="font-size:.7rem;letter-spacing:2px;color:var(--muted);">INFLUENZA SQUADRA</div>
+  <div style="font-family:'Orbitron',monospace;font-size:2.4rem;color:var(--cyan);line-height:1.2;">
+    {{ points }} <span style="font-size:1.4rem;">🥂</span>
+  </div>
+  <div class="text-muted" style="font-size:.8rem;">
+    Effetti attivi: {{ active_count }} / {{ max_active }}
+    {% if all_women %}· <span class="text-purple">Squadra Rosa idonea 🌹</span>{% endif %}
+  </div>
+</div>
+
+<!-- ── EFFECTS ── -->
+<div class="card mb-3">
+  <h2 style="font-size:1.05rem;" class="mb-2">Effetti attivabili</h2>
+  <div class="grid-3" style="gap:1rem;">
+    {% for e in effects %}
+    <div class="card" style="padding:1rem;border-color:{% if e.is_active and e.applies %}var(--success){% elif e.is_active %}var(--warning){% else %}var(--card-border){% endif %};">
+      <div class="flex flex-between flex-center mb-1">
+        <span style="font-size:1.5rem;">{{ e.spec.icon }}</span>
+        <span class="badge {% if e.meets %}badge-green{% else %}badge-red{% endif %}">{{ e.spec.threshold }} 🥂</span>
+      </div>
+      <div style="font-weight:700;font-size:.9rem;">{{ e.spec.label }}</div>
+      <div class="text-muted" style="font-size:.76rem;margin:.3rem 0 .6rem;">{{ e.spec.desc }}</div>
+
+      {% if e.is_active %}
+        {% if not e.applies %}
+        <div class="text-warning" style="font-size:.72rem;margin-bottom:.4rem;">⚠️ Influenza insufficiente: bonus sospesi.</div>
+        {% endif %}
+        <form method="POST" action="{{ url_for('game.social_effect', key=e.key, action='deactivate') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-secondary btn-sm btn-block">Disattiva</button>
+        </form>
+      {% elif e.meets and active_count < max_active %}
+        <form method="POST" action="{{ url_for('game.social_effect', key=e.key, action='activate') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-primary btn-sm btn-block">Attiva</button>
+        </form>
+      {% else %}
+        <button class="btn btn-secondary btn-sm btn-block" disabled style="opacity:.5;cursor:not-allowed;">
+          {% if not e.meets %}🔒 Bloccato{% else %}Slot pieni{% endif %}
+        </button>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- ── PLAYERS / CHANNELS ── -->
+<div class="card">
+  <h2 style="font-size:1.05rem;" class="mb-1">Canali dei giocatori</h2>
+  <p class="text-muted" style="font-size:.76rem;margin-bottom:1rem;">
+    Ogni canale aperto consuma 0,5 di freschezza a settimana (il lunedì). Il carisma è nascosto.
+  </p>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>GIOCATORE</th><th>MEDIA</th><th>MAX</th><th>FRESH</th>
+          {% for ckey, clabel, cicon in channels %}<th style="text-align:center;">{{ cicon }} {{ clabel }}</th>{% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in players %}
+        <tr>
+          <td><strong>{{ p.type_icon }} {{ p.name }}</strong></td>
+          <td>{{ "%.2f"|format(p.avg_skill) }}</td>
+          <td>{{ "%.1f"|format([p.porta, p.difesa, p.attacco, p.resistenza]|max) }}</td>
+          <td style="color:{% if p.freshness < 2 %}var(--danger){% elif p.freshness < 5 %}var(--warning){% else %}var(--success){% endif %};">
+            {{ "%.1f"|format(p.freshness) }}
+          </td>
+          {% for ckey, clabel, cicon in channels %}
+          {% set is_open = p['social_' ~ ckey] %}
+          <td style="text-align:center;">
+            <form method="POST" action="{{ url_for('game.social_toggle_channel', player_id=p.id, channel=ckey) }}" style="display:inline;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-sm {% if is_open %}btn-primary{% else %}btn-secondary{% endif %}"
+                      style="padding:.2rem .55rem;font-size:.72rem;">
+                {{ 'ON' if is_open else 'OFF' }}
+              </button>
+            </form>
+          </td>
+          {% endfor %}
+        </tr>
+        {% else %}
+        <tr><td colspan="{{ 4 + channels|length }}" class="text-center text-muted" style="padding:2rem;">Nessun giocatore in rosa.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

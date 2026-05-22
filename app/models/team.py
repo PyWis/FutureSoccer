@@ -48,6 +48,11 @@ class Team(db.Model):
     last_age_year    = db.Column(db.Integer, default=0)
     last_retire_year = db.Column(db.Integer, default=0)
 
+    # Social / influence
+    social_effects_json   = db.Column(db.Text, default='[]')   # active effect keys (max 3)
+    social_last_month_id  = db.Column(db.Integer, default=0)    # last month monthly bonuses applied
+    social_last_week_id   = db.Column(db.Integer, default=-1)   # last week channel freshness charged
+
     # Ritiro estivo
     ritiro_year     = db.Column(db.Integer, default=0)    # year ritiro was bought or penalty applied
     ritiro_type     = db.Column(db.String(20), nullable=True)  # sss|luna_mare|luna_dark|marte|giove
@@ -115,6 +120,13 @@ class Player(db.Model):
     is_hof = db.Column(db.Boolean, default=False)        # in Hall of Fame
     freshness = db.Column(db.Float, default=10.0)          # 0–10, starts at 10
     last_freshness_day = db.Column(db.Integer, default=0)  # game day of last freshness update
+
+    # Social: hidden charisma skill + open channels
+    carisma = db.Column(db.Integer, default=1)             # hidden: uomo 1-8, cyber 1-5, donna 4-12
+    social_instok = db.Column(db.Boolean, default=False)
+    social_sportsocial = db.Column(db.Boolean, default=False)
+    social_fantasoccer = db.Column(db.Boolean, default=False)
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     team_id = db.Column(db.Integer, db.ForeignKey('teams.id'), nullable=True)

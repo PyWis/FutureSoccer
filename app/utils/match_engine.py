@@ -626,6 +626,18 @@ def finalize_match(match):
         ledger.record(home_team, home_team.facility_stream * 100_000,
                       ledger.CAT_STREAMING, 'Ricavi streaming partita')
 
+    # Social influence: per-home-match bonuses for active effects
+    if home_team:
+        from app.utils import ledger, social
+        points = social.team_influence_points(home_team)
+        match_bonus = 0
+        for key in social.get_active_effects(home_team):
+            if social.effect_applies(home_team, key, points):
+                match_bonus += social.SOCIAL_EFFECTS[key]['match_bonus']
+        if match_bonus > 0:
+            ledger.record(home_team, match_bonus, ledger.CAT_SOCIAL,
+                          'Influenza: incasso partita in casa')
+
     db.session.commit()
 
 
