@@ -21,8 +21,9 @@ from datetime import datetime
 
 log = logging.getLogger('futuresoccer.scheduler')
 
-# Auto-resolve Sunday matches not started within the first 2 minutes (real seconds).
+# Auto-resolve match-day games not started within the first 2 minutes (real seconds).
 SUNDAY_AUTOCALC_SECONDS = 120
+MATCH_WEEKDAYS = (2, 6)  # Wednesday and Sunday
 
 _started = False
 
@@ -57,23 +58,24 @@ def run_scheduled_tasks():
             db.session.rollback()
             log.exception('advancing match %s failed', match.id)
 
-    # 3. Sunday auto-resolution
+    # 3. Match-day auto-resolution
     try:
-        _auto_resolve_sunday_matches()
+        _auto_resolve_match_day_matches()
     except Exception:
         db.session.rollback()
-        log.exception('sunday auto-resolution failed')
+        log.exception('match-day auto-resolution failed')
 
 
-def _auto_resolve_sunday_matches():
+def _auto_resolve_match_day_matches():
     from app import db
     from app.models.team import Team
     from app.models.game import FriendlyMatch, MatchChallenge, TeamFormation
     from app.utils.gameclock import (get_game_weekday, get_seconds_into_game_day,
                                       get_game_day_number)
-    from app.utils.match_engine import build_home_lineup, simulate_match_to_completion
+    from app.utils.match_engine import (build_home_lineup, simulate_match_to_completion,
+                                         team_has_match_on_day)
 
-    if get_game_weekday() != 6:
+    if get_game_weekday() not in MATCH_WEEKDAYS:
         return
     if get_seconds_into_game_day() < SUNDAY_AUTOCALC_SECONDS:
         return
@@ -95,6 +97,9 @@ def _auto_resolve_sunday_matches():
         df = TeamFormation.query.filter_by(team_id=ch.challenged_id).first()
         if not (home and away and cf and df):
             continue  # cannot simulate without both formations
+        # One friendly per day per team
+        if team_has_match_on_day(home.id, current_day) or team_has_match_on_day(away.id, current_day):
+            continue
 
         match = FriendlyMatch(
             home_team_id=home.id,

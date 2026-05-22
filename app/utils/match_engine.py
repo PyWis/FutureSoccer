@@ -59,6 +59,26 @@ def build_home_lineup(team, formation):
             return None
         return p
 
+    # Teams in a ritiro play with freshness pinned to 3 for the whole match.
+    in_ritiro = bool(getattr(team, 'ritiro_end_day', 0) and team.ritiro_end_day > 0)
+    if in_ritiro:
+        def d3(p):
+            d = player_to_dict(p)
+            d['freshness'] = 3.0
+            return d
+        gk = load_player(formation.goalkeeper_id)
+        defs = [load_player(pid) for pid in formation.defender_ids]
+        atts = [load_player(pid) for pid in formation.attacker_ids]
+        res = [load_player(pid) for pid in formation.reserve_ids]
+        return {
+            'engagement': formation.engagement,
+            'frozen_freshness': 3.0,
+            'goalkeeper': d3(gk) if gk else None,
+            'defenders': [d3(p) for p in defs if p is not None],
+            'attackers': [d3(p) for p in atts if p is not None],
+            'reserves':  [d3(p) for p in res if p is not None],
+        }
+
     # Load all players from formation
     gk_player = load_player(formation.goalkeeper_id)
     defender_players = [load_player(pid) for pid in formation.defender_ids]
@@ -166,6 +186,19 @@ def generate_bot_lineup():
     }
 
 
+def _pick_scorer(lineup_dict):
+    """Pick a random scorer name from players currently on the field, preferring
+    attackers, then defenders, then the goalkeeper."""
+    for slot in ('attackers', 'defenders'):
+        pool = [p for p in (lineup_dict.get(slot) or []) if p and p.get('name')]
+        if pool:
+            return random.choice(pool)['name']
+    gk = lineup_dict.get('goalkeeper')
+    if gk and gk.get('name'):
+        return gk['name']
+    return None
+
+
 def compute_strength(lineup_dict):
     """Compute {'porta', 'difesa', 'attacco'} for a lineup dict."""
     gk = lineup_dict.get('goalkeeper')
@@ -198,8 +231,22 @@ def compute_strength(lineup_dict):
     }
 
 
-def apply_freshness_loss(lineup_dict, delta=-0.2):
-    """Reduce freshness of all starters (not reserves) by delta (min 0). Modifies in-place."""
+def apply_freshness_loss(lineup_dict, delta=-0.3):
+    """Reduce freshness of all starters (not reserves) by delta (min 0). Modifies in-place.
+
+    Teams in a ritiro have freshness pinned (frozen_freshness) for the whole
+    match, so they neither lose freshness nor get excluded."""
+    frozen = lineup_dict.get('frozen_freshness')
+    if frozen is not None:
+        gk = lineup_dict.get('goalkeeper')
+        if gk:
+            gk['freshness'] = frozen
+        for p in lineup_dict.get('defenders') or []:
+            p['freshness'] = frozen
+        for p in lineup_dict.get('attackers') or []:
+            p['freshness'] = frozen
+        return lineup_dict
+
     gk = lineup_dict.get('goalkeeper')
     if gk:
         gk['freshness'] = round(max(0.0, gk['freshness'] + delta), 2)
@@ -496,9 +543,9 @@ def process_turn(match, facility_field_stars=0):
             away_lineup = apply_pending_subs(away_lineup, away_subs)
             away_lineup = apply_role_changes(away_lineup, away_subs.get('role_changes', {}))
 
-    # 3. Apply freshness loss for both lineups
-    home_lineup = apply_freshness_loss(home_lineup, delta=-0.2)
-    away_lineup = apply_freshness_loss(away_lineup, delta=-0.2)
+    # 3. Apply freshness loss for both lineups (-0.3 per turn)
+    home_lineup = apply_freshness_loss(home_lineup, delta=-0.3)
+    away_lineup = apply_freshness_loss(away_lineup, delta=-0.3)
 
     # 4. Check freshness exclusions
     home_lineup, home_excluded = check_freshness_exclusions(home_lineup)
@@ -528,6 +575,11 @@ def process_turn(match, facility_field_stars=0):
     home_scores, home_goal_val = _goal(home_str['attacco'], away_str['difesa'], away_str['porta'])
     away_scores, away_goal_val = _goal(away_str['attacco'], home_str['difesa'], home_str['porta'])
 
+    # No scoring on the opening turn (T0): the match is just kicking off.
+    if match.current_turn == 0:
+        home_scores = False
+        away_scores = False
+
     if home_scores:
         match.home_score += 1
     if away_scores:
@@ -536,9 +588,13 @@ def process_turn(match, facility_field_stars=0):
     # 9. Build events list
     events = []
     if home_scores:
-        events.append({'team': 'home', 'type': 'goal', 'text': 'GOAL! La squadra di casa segna!'})
+        scorer = _pick_scorer(home_lineup)
+        text = f'GOAL! {scorer} segna per la squadra di casa!' if scorer else 'GOAL! La squadra di casa segna!'
+        events.append({'team': 'home', 'type': 'goal', 'text': text})
     if away_scores:
-        events.append({'team': 'away', 'type': 'goal', 'text': 'GOAL! La squadra ospite segna!'})
+        scorer = _pick_scorer(away_lineup)
+        text = f'GOAL! {scorer} segna per la squadra ospite!' if scorer else 'GOAL! La squadra ospite segna!'
+        events.append({'team': 'away', 'type': 'goal', 'text': text})
 
     for name in home_excluded:
         events.append({'team': 'home', 'type': 'freshness', 'text': f'{name} escluso per stanchezza'})
@@ -609,6 +665,31 @@ def finalize_match(match):
     from app import db
     from app.models.team import Player, Team
 
+    # Persist the in-match freshness loss (-0.3/turn) to real players.
+    # Skip ritiro lineups (freshness frozen) and bot lineups (no real team).
+    def persist_freshness(lineup_json, team_id):
+        if team_id is None:
+            return
+        lineup = json.loads(lineup_json or '{}')
+        if lineup.get('frozen_freshness') is not None:
+            return
+        slots = []
+        gk = lineup.get('goalkeeper')
+        if gk:
+            slots.append(gk)
+        slots += lineup.get('defenders') or []
+        slots += lineup.get('attackers') or []
+        slots += lineup.get('reserves') or []
+        for pd in slots:
+            pid = pd.get('player_id')
+            if isinstance(pid, int):
+                player = Player.query.get(pid)
+                if player:
+                    player.freshness = round(pd.get('freshness', player.freshness), 1)
+
+    persist_freshness(match.home_lineup_json, match.home_team_id)
+    persist_freshness(match.away_lineup_json, match.away_team_id)
+
     # Apply injury maluses (can go negative)
     injuries = json.loads(match.injuries_json or '[]')
     for inj in injuries:
@@ -629,11 +710,13 @@ def finalize_match(match):
     # Social influence: per-home-match bonuses for active effects
     if home_team:
         from app.utils import ledger, social
-        points = social.team_influence_points(home_team)
+        state = social.compute_state(home_team)
+        mult = state['multiplier']
         match_bonus = 0
-        for key in social.get_active_effects(home_team):
-            if social.effect_applies(home_team, key, points):
+        for key in state['active']:
+            if state['applies'][key] and not social.SOCIAL_EFFECTS[key].get('doubler'):
                 match_bonus += social.SOCIAL_EFFECTS[key]['match_bonus']
+        match_bonus *= mult
         if match_bonus > 0:
             ledger.record(home_team, match_bonus, ledger.CAT_SOCIAL,
                           'Influenza: incasso partita in casa')
@@ -643,6 +726,18 @@ def finalize_match(match):
 
 def _home_ground_stars(match):
     return match.home_team.facility_ground if match.home_team else 0
+
+
+def team_has_match_on_day(team_id, game_day):
+    """True if the team already has a friendly (any status) on this game day.
+    Used to enforce one friendly per day."""
+    from app import db
+    from app.models.game import FriendlyMatch
+    return db.session.query(FriendlyMatch.id).filter(
+        FriendlyMatch.game_day == game_day,
+        db.or_(FriendlyMatch.home_team_id == team_id,
+               FriendlyMatch.away_team_id == team_id),
+    ).first() is not None
 
 
 def advance_match_if_due(match, turn_seconds):

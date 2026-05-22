@@ -283,22 +283,28 @@ def _process_social_monthly(team):
     if team.social_last_month_id >= current_month:
         return
     from app.utils import social
-    points = social.team_influence_points(team)
+    state = social.compute_state(team)
+    mult = state['multiplier']
     granted = []
-    for key in social.get_active_effects(team):
-        if not social.effect_applies(team, key, points):
+    for key in state['active']:
+        if not state['applies'][key]:
             continue
         spec = social.SOCIAL_EFFECTS[key]
+        if spec.get('doubler'):
+            continue  # doublers have no direct bonus
         if spec['monthly_money']:
-            ledger.record(team, spec['monthly_money'], ledger.CAT_SOCIAL, f"{spec['label']} (mensile)")
-            granted.append(f"+€{spec['monthly_money']/1_000_000:.1f}M")
+            amount = spec['monthly_money'] * mult
+            ledger.record(team, amount, ledger.CAT_SOCIAL, f"{spec['label']} (mensile)")
+            granted.append(f"+€{amount/1_000_000:.1f}M")
         if spec['monthly_resistenza']:
+            bump = spec['monthly_resistenza'] * mult
             for p in team.players.all():
-                p.resistenza = min(10.0, round(p.resistenza + spec['monthly_resistenza'], 2))
-            granted.append(f"+{spec['monthly_resistenza']} resistenza")
+                p.resistenza = min(10.0, round(p.resistenza + bump, 2))
+            granted.append(f"+{bump} resistenza")
         if spec['monthly_green_bond']:
-            _grant_free_green_bond(team)
-            granted.append("cedola Green")
+            for _ in range(mult):
+                _grant_free_green_bond(team)
+            granted.append(f"cedola Green ×{mult}" if mult > 1 else "cedola Green")
     team.social_last_month_id = current_month
     db.session.commit()
     if granted:

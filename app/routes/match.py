@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 
 match_bp = Blueprint('match', __name__)
 TURN_DURATION = int(os.environ.get('MATCH_TURN_SECONDS', 30))  # seconds per turn
+MATCH_WEEKDAYS = (2, 6)  # friendlies are played on Wednesday and Sunday
 
 
 def _get_team_or_redirect():
@@ -18,10 +19,10 @@ def _get_team_or_redirect():
     return current_user.team if current_user.is_authenticated else None
 
 
-def _require_sunday():
-    """Flash + return False if not Sunday (weekday == 6)."""
-    if get_game_weekday() != 6:
-        flash('Le partite amichevoli si giocano solo la Domenica.', 'warning')
+def _require_match_day():
+    """Flash + return False if today is not a match day (Wed or Sun)."""
+    if get_game_weekday() not in MATCH_WEEKDAYS:
+        flash('Le partite amichevoli si giocano solo Mercoledì e Domenica.', 'warning')
         return False
     return True
 
@@ -39,7 +40,7 @@ def lobby():
         return redirect(url_for('game.create_team'))
 
     weekday = get_game_weekday()
-    is_sunday = (weekday == 6)
+    is_match_day = weekday in MATCH_WEEKDAYS
     current_day = get_game_day_number()
     week_id = get_game_week_id()
     week_monday = _week_monday_game_day()
@@ -93,7 +94,7 @@ def lobby():
     }
 
     # All other teams (exclude own, exclude already challenged this week)
-    can_challenge = not is_sunday  # challenges only Mon-Sat
+    can_challenge = not is_match_day  # challenges only on non-match days
     other_teams = []
     if can_challenge:
         other_teams = Team.query.filter(
@@ -101,21 +102,25 @@ def lobby():
             ~Team.id.in_(already_challenged_ids),
         ).all()
 
-    # Sunday match auto-start logic: matches start 60 real seconds after Sunday begins
-    SUNDAY_DELAY = 60  # seconds
-    seconds_into_sunday = get_seconds_into_game_day() if is_sunday else 0
-    sunday_unlocked = is_sunday and seconds_into_sunday >= SUNDAY_DELAY
-    sunday_countdown = max(0, int(SUNDAY_DELAY - seconds_into_sunday)) if is_sunday else 0
+    # Match-day auto-start: matches begin 60 real seconds after the match day begins
+    MATCH_DELAY = 60  # seconds
+    seconds_into_day = get_seconds_into_game_day() if is_match_day else 0
+    match_unlocked = is_match_day and seconds_into_day >= MATCH_DELAY
+    match_countdown = max(0, int(MATCH_DELAY - seconds_into_day)) if is_match_day else 0
 
-    # Auto-start accepted challenges once Sunday is unlocked
-    if sunday_unlocked:
-        from app.utils.match_engine import build_home_lineup
+    # Auto-start accepted challenges once the match day is unlocked
+    if match_unlocked:
+        from app.utils.match_engine import build_home_lineup, team_has_match_on_day
         for ch in list(accepted_challenges):
             if ch.match_id is not None:
                 continue
             challenger_team = Team.query.get(ch.challenger_id)
             challenged_team = Team.query.get(ch.challenged_id)
             if not challenger_team or not challenged_team:
+                continue
+            # One friendly per day per team
+            if team_has_match_on_day(challenger_team.id, current_day) or \
+               team_has_match_on_day(challenged_team.id, current_day):
                 continue
             cf = TeamFormation.query.filter_by(team_id=challenger_team.id).first()
             df = TeamFormation.query.filter_by(team_id=challenged_team.id).first()
@@ -155,9 +160,9 @@ def lobby():
     return render_template(
         'match/lobby.html',
         team=team,
-        is_sunday=is_sunday,
-        sunday_unlocked=sunday_unlocked,
-        sunday_countdown=sunday_countdown,
+        is_match_day=is_match_day,
+        match_unlocked=match_unlocked,
+        match_countdown=match_countdown,
         can_challenge=can_challenge,
         pending_challenges=pending_challenges,
         accepted_challenges=accepted_challenges,
@@ -173,12 +178,12 @@ def start_bot():
     team = _get_team_or_redirect()
     if not team:
         return redirect(url_for('game.create_team'))
-    if not _require_sunday():
+    if not _require_match_day():
         return redirect(url_for('match.lobby'))
 
     current_day = get_game_day_number()
 
-    # Check no active match exists today
+    # Redirect to any match still in progress today
     existing = FriendlyMatch.query.filter(
         FriendlyMatch.game_day == current_day,
         FriendlyMatch.status == 'active',
@@ -190,6 +195,12 @@ def start_bot():
     if existing:
         flash('Hai già una partita in corso.', 'warning')
         return redirect(url_for('match.view', match_id=existing.id))
+
+    # One friendly per day
+    from app.utils.match_engine import team_has_match_on_day
+    if team_has_match_on_day(team.id, current_day):
+        flash('Hai già giocato un\'amichevole oggi (massimo una al giorno).', 'warning')
+        return redirect(url_for('match.lobby'))
 
     # Check team has a saved formation
     formation = TeamFormation.query.filter_by(team_id=team.id).first()
@@ -243,8 +254,8 @@ def send_challenge(team_id):
     if not team:
         return redirect(url_for('game.create_team'))
 
-    if get_game_weekday() == 6:
-        flash('Le sfide si inviano da lunedì a sabato. La partita si giocherà domenica.', 'warning')
+    if get_game_weekday() in MATCH_WEEKDAYS:
+        flash('Le sfide si inviano nei giorni senza partita. Si gioca Mercoledì e Domenica.', 'warning')
         return redirect(url_for('match.lobby'))
 
     target = Team.query.get_or_404(team_id)
@@ -303,7 +314,7 @@ def start_challenge(challenge_id):
     team = _get_team_or_redirect()
     if not team:
         return redirect(url_for('game.create_team'))
-    if not _require_sunday():
+    if not _require_match_day():
         return redirect(url_for('match.lobby'))
 
     challenge = MatchChallenge.query.get_or_404(challenge_id)
@@ -317,14 +328,18 @@ def start_challenge(challenge_id):
     challenger_team = Team.query.get_or_404(challenge.challenger_id)
     challenged_team = Team.query.get_or_404(challenge.challenged_id)
 
+    from app.utils.match_engine import build_home_lineup, team_has_match_on_day
+    if team_has_match_on_day(challenger_team.id, current_day) or \
+       team_has_match_on_day(challenged_team.id, current_day):
+        flash('Una delle due squadre ha già giocato un\'amichevole oggi.', 'warning')
+        return redirect(url_for('match.lobby'))
+
     challenger_formation = TeamFormation.query.filter_by(team_id=challenger_team.id).first()
     challenged_formation = TeamFormation.query.filter_by(team_id=challenged_team.id).first()
 
     if not challenger_formation or not challenged_formation:
         flash('Una delle squadre non ha una formazione salvata.', 'danger')
         return redirect(url_for('match.lobby'))
-
-    from app.utils.match_engine import build_home_lineup
 
     home_lineup = build_home_lineup(challenger_team, challenger_formation)
     away_lineup = build_home_lineup(challenged_team, challenged_formation)
