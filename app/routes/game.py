@@ -59,7 +59,7 @@ def dashboard():
 
 
 def _process_team_freshness(team):
-    """Add daily recovery (+0.3/day, cap 10) for all players based on days elapsed.
+    """Add daily recovery (+0.2/day, cap 10) for all players based on days elapsed.
 
     During an active summer retreat (ritiro) freshness is frozen: players stay
     at 0 / negative until the retreat ends. We still advance last_freshness_day
@@ -71,7 +71,7 @@ def _process_team_freshness(team):
         days = max(0, current_day - player.last_freshness_day)
         if days > 0:
             if not ritiro_active:
-                player.freshness = min(10.0, round(player.freshness + days * 0.3, 1))
+                player.freshness = min(10.0, round(player.freshness + days * 0.2, 1))
             player.last_freshness_day = current_day
             changed = True
     if changed:

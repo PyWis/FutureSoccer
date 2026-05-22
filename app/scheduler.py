@@ -72,7 +72,8 @@ def _auto_resolve_match_day_matches():
     from app.models.game import FriendlyMatch, MatchChallenge, TeamFormation
     from app.utils.gameclock import (get_game_weekday, get_seconds_into_game_day,
                                       get_game_day_number)
-    from app.utils.match_engine import build_home_lineup, simulate_match_to_completion
+    from app.utils.match_engine import (build_home_lineup, simulate_match_to_completion,
+                                         team_has_match_on_day)
 
     if get_game_weekday() not in MATCH_WEEKDAYS:
         return
@@ -96,6 +97,9 @@ def _auto_resolve_match_day_matches():
         df = TeamFormation.query.filter_by(team_id=ch.challenged_id).first()
         if not (home and away and cf and df):
             continue  # cannot simulate without both formations
+        # One friendly per day per team
+        if team_has_match_on_day(home.id, current_day) or team_has_match_on_day(away.id, current_day):
+            continue
 
         match = FriendlyMatch(
             home_team_id=home.id,

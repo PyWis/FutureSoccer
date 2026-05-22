@@ -110,13 +110,17 @@ def lobby():
 
     # Auto-start accepted challenges once the match day is unlocked
     if match_unlocked:
-        from app.utils.match_engine import build_home_lineup
+        from app.utils.match_engine import build_home_lineup, team_has_match_on_day
         for ch in list(accepted_challenges):
             if ch.match_id is not None:
                 continue
             challenger_team = Team.query.get(ch.challenger_id)
             challenged_team = Team.query.get(ch.challenged_id)
             if not challenger_team or not challenged_team:
+                continue
+            # One friendly per day per team
+            if team_has_match_on_day(challenger_team.id, current_day) or \
+               team_has_match_on_day(challenged_team.id, current_day):
                 continue
             cf = TeamFormation.query.filter_by(team_id=challenger_team.id).first()
             df = TeamFormation.query.filter_by(team_id=challenged_team.id).first()
@@ -179,7 +183,7 @@ def start_bot():
 
     current_day = get_game_day_number()
 
-    # Check no active match exists today
+    # Redirect to any match still in progress today
     existing = FriendlyMatch.query.filter(
         FriendlyMatch.game_day == current_day,
         FriendlyMatch.status == 'active',
@@ -191,6 +195,12 @@ def start_bot():
     if existing:
         flash('Hai già una partita in corso.', 'warning')
         return redirect(url_for('match.view', match_id=existing.id))
+
+    # One friendly per day
+    from app.utils.match_engine import team_has_match_on_day
+    if team_has_match_on_day(team.id, current_day):
+        flash('Hai già giocato un\'amichevole oggi (massimo una al giorno).', 'warning')
+        return redirect(url_for('match.lobby'))
 
     # Check team has a saved formation
     formation = TeamFormation.query.filter_by(team_id=team.id).first()
@@ -318,14 +328,18 @@ def start_challenge(challenge_id):
     challenger_team = Team.query.get_or_404(challenge.challenger_id)
     challenged_team = Team.query.get_or_404(challenge.challenged_id)
 
+    from app.utils.match_engine import build_home_lineup, team_has_match_on_day
+    if team_has_match_on_day(challenger_team.id, current_day) or \
+       team_has_match_on_day(challenged_team.id, current_day):
+        flash('Una delle due squadre ha già giocato un\'amichevole oggi.', 'warning')
+        return redirect(url_for('match.lobby'))
+
     challenger_formation = TeamFormation.query.filter_by(team_id=challenger_team.id).first()
     challenged_formation = TeamFormation.query.filter_by(team_id=challenged_team.id).first()
 
     if not challenger_formation or not challenged_formation:
         flash('Una delle squadre non ha una formazione salvata.', 'danger')
         return redirect(url_for('match.lobby'))
-
-    from app.utils.match_engine import build_home_lineup
 
     home_lineup = build_home_lineup(challenger_team, challenger_formation)
     away_lineup = build_home_lineup(challenged_team, challenged_formation)
