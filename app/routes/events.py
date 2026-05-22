@@ -248,16 +248,26 @@ def _process_investments(team):
         db.session.commit()
 
 
-def _grant_free_green_bond(team):
-    """Create a free Green bond (cost 0) that matures normally via investments."""
-    bt = BOND_TYPES['green']
+def _grant_free_white_bond(team):
+    """Create a free White bond (cost 0) that matures normally via investments."""
+    bt = BOND_TYPES['white']
     current_week = get_game_week_id()
     inv = Investment(
-        team_id=team.id, bond_type='green', original_type='green', degraded=False,
+        team_id=team.id, bond_type='white', original_type='white', degraded=False,
         cost=0.0, payout=bt['payout'], weeks_total=bt['weeks'],
         game_week_id_bought=current_week, game_week_id_maturity=current_week + bt['weeks'],
     )
     db.session.add(inv)
+
+
+def _process_social_affordability(team):
+    """If available influence is negative, deactivate the most expensive effect(s)."""
+    from app.utils import social
+    removed = social.enforce_affordability(team, get_game_day_number())
+    if removed:
+        db.session.commit()
+        labels = ', '.join(social.SOCIAL_EFFECTS[k]['label'] for k in removed)
+        notify(f'🥂 Influenza insufficiente: disattivati gli effetti più costosi ({labels}).', 'warning')
 
 
 def _process_social_weekly(team):
@@ -301,10 +311,10 @@ def _process_social_monthly(team):
             for p in team.players.all():
                 p.resistenza = min(10.0, round(p.resistenza + bump, 2))
             granted.append(f"+{bump} resistenza")
-        if spec['monthly_green_bond']:
+        if spec['monthly_white_bond']:
             for _ in range(mult):
-                _grant_free_green_bond(team)
-            granted.append(f"cedola Green ×{mult}" if mult > 1 else "cedola Green")
+                _grant_free_white_bond(team)
+            granted.append(f"cedola White ×{mult}" if mult > 1 else "cedola White")
     team.social_last_month_id = current_month
     db.session.commit()
     if granted:
@@ -2035,6 +2045,7 @@ def process_due_team_events(team):
     # Non-financial / mixed
     _process_wellness(team)
     _process_social_weekly(team)
+    _process_social_affordability(team)
     _process_social_monthly(team)
     _process_stadium_degradation(team)
     _process_annual_events(team)

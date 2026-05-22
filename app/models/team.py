@@ -50,6 +50,7 @@ class Team(db.Model):
 
     # Social / influence
     social_effects_json   = db.Column(db.Text, default='[]')   # active effect keys (max 3)
+    social_deactivated_json = db.Column(db.Text, default='{}') # {effect_key: deactivated_game_day}
     social_last_month_id  = db.Column(db.Integer, default=0)    # last month monthly bonuses applied
     social_last_week_id   = db.Column(db.Integer, default=-1)   # last week channel freshness charged
 
@@ -126,6 +127,7 @@ class Player(db.Model):
     social_instok = db.Column(db.Boolean, default=False)
     social_sportsocial = db.Column(db.Boolean, default=False)
     social_fantasoccer = db.Column(db.Boolean, default=False)
+    social_cooldown_json = db.Column(db.Text, default='{}')   # {channel: closed_game_day}
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 

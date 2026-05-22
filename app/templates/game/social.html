@@ -58,7 +58,7 @@
         </form>
       {% else %}
         <button class="btn btn-secondary btn-sm btn-block" disabled style="opacity:.5;cursor:not-allowed;">
-          {% if not e.constraint_ok %}🔒 Requisiti{% elif active_count >= max_active %}Slot pieni{% else %}Influenza insuff.{% endif %}
+          {% if e.locked %}🚫 Bloccato (180gg){% elif not e.constraint_ok %}🔒 Requisiti{% elif active_count >= max_active %}Slot pieni{% else %}Influenza insuff.{% endif %}
         </button>
       {% endif %}
     </div>
@@ -71,6 +71,7 @@
   <h2 style="font-size:1.05rem;" class="mb-1">Canali dei giocatori</h2>
   <p class="text-muted" style="font-size:.76rem;margin-bottom:1rem;">
     Ogni canale aperto consuma 0,5 di freschezza a settimana (il lunedì). Il carisma è nascosto.
+    Un canale chiuso è riapribile solo dopo 90 giorni di gioco.
   </p>
   <div class="table-wrap">
     <table>
@@ -90,7 +91,11 @@
           </td>
           {% for ckey, clabel, cicon in channels %}
           {% set is_open = p['social_' ~ ckey] %}
+          {% set cd = channel_cooldowns.get((p.id, ckey)) %}
           <td style="text-align:center;">
+            {% if not is_open and cd %}
+            <span class="text-muted" style="font-size:.68rem;" title="Riapribile tra {{ cd }} giorni">🔒 {{ cd }}gg</span>
+            {% else %}
             <form method="POST" action="{{ url_for('game.social_toggle_channel', player_id=p.id, channel=ckey) }}" style="display:inline;">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button class="btn btn-sm {% if is_open %}btn-primary{% else %}btn-secondary{% endif %}"
@@ -98,6 +103,7 @@
                 {{ 'ON' if is_open else 'OFF' }}
               </button>
             </form>
+            {% endif %}
           </td>
           {% endfor %}
         </tr>
