@@ -48,9 +48,6 @@
   <div class="str-box" style="border-color:var(--purple);">
     <div style="font-size:.7rem;color:var(--muted);letter-spacing:1px;">TOTALE</div>
     <div class="str-val" style="color:var(--purple);">{{ "%.1f"|format(strength.total) }}</div>
-    <div style="font-size:.7rem;color:var(--muted);margin-top:.2rem;">
-      mod {{ "%+.0f"|format((strength.mod - 1) * 100) }}%
-    </div>
   </div>
 </div>
 
@@ -74,7 +71,8 @@
     {% endfor %}
   </div>
   <p style="font-size:.75rem;color:var(--muted);margin-top:.25rem;">
-    L'impegno modifica tutte le forze della squadra.
+    L'impegno alto aumenta i gol (+10%) ma anche gli infortuni (+3%/turno);
+    l'impegno basso riduce i gol (−20%) ma dimezza il calo di freschezza.
   </p>
 </div>
 

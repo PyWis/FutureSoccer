@@ -176,13 +176,15 @@ def generate_bot_lineup():
     def1 = _bot_player('bot_def_1', rname())
     att0 = _bot_player('bot_att_0', rname())
     att1 = _bot_player('bot_att_1', rname())
+    res0 = _bot_player('bot_res_0', rname())
+    res1 = _bot_player('bot_res_1', rname())
 
     return {
         'engagement': 'normale',
         'goalkeeper': gk,
         'defenders': [def0, def1],
         'attackers': [att0, att1],
-        'reserves': [],
+        'reserves': [res0, res1],
     }
 
 
@@ -222,13 +224,35 @@ def compute_strength(lineup_dict):
     others_for_att = [p for p in starters if p not in attackers]
     attacco = sum(p['attacco'] for p in attackers) + 0.5 * sum(p['attacco'] for p in others_for_att)
 
-    mod = _ENGAGEMENT_MODS.get(engagement, 1.00)
-
+    # Engagement no longer scales raw strength; it affects goal chance, injury
+    # rate and freshness loss explicitly (see process_turn).
     return {
-        'porta': round(porta * mod, 2),
-        'difesa': round(difesa * mod, 2),
-        'attacco': round(attacco * mod, 2),
+        'porta': round(porta, 2),
+        'difesa': round(difesa, 2),
+        'attacco': round(attacco, 2),
     }
+
+
+# ── Engagement effects (applied per turn in process_turn) ─────────────────────
+# High engagement (aggressivo / super_aggressivo): +10% goal chance, +3% injury
+# chance per player per turn. Low engagement (basso / moderato): -20% goal chance,
+# -50% freshness loss per turn.
+_ENGAGEMENT_GOAL_MULT = {'aggressivo': 1.10, 'super_aggressivo': 1.10,
+                         'basso': 0.80, 'moderato': 0.80}
+_ENGAGEMENT_INJURY_ADD = {'aggressivo': 0.03, 'super_aggressivo': 0.03}
+_ENGAGEMENT_FRESH_MULT = {'basso': 0.50, 'moderato': 0.50}
+
+
+def engagement_goal_mult(engagement):
+    return _ENGAGEMENT_GOAL_MULT.get(engagement, 1.0)
+
+
+def engagement_injury_add(engagement):
+    return _ENGAGEMENT_INJURY_ADD.get(engagement, 0.0)
+
+
+def engagement_fresh_mult(engagement):
+    return _ENGAGEMENT_FRESH_MULT.get(engagement, 1.0)
 
 
 def apply_freshness_loss(lineup_dict, delta=-0.3):
@@ -310,9 +334,11 @@ def check_freshness_exclusions(lineup_dict):
     return lineup_dict, excluded_names
 
 
-def roll_injuries(lineup_dict, facility_field_stars=0):
+def roll_injuries(lineup_dict, facility_field_stars=0, injury_add=0.0):
     """
-    For each starter, roll injury probability.
+    For each starter, roll injury probability (injury_add raises it per turn,
+    e.g. for aggressive engagement). An injured player leaves the field, cannot
+    return, and loses 5.0–12.0 freshness (applied to the real player at the end).
     Returns (modified_lineup_dict, list of injury events).
     """
     injury_events = []
@@ -325,14 +351,15 @@ def roll_injuries(lineup_dict, facility_field_stars=0):
         return None
 
     def roll_for_player(p):
-        prob = max(0.0, get_injury_base() - p['resistenza'] / 2500 - 0.001 * facility_field_stars)
+        prob = max(0.0, get_injury_base() - p['resistenza'] / 2500
+                   - 0.001 * facility_field_stars + injury_add)
         return random.random() < prob
 
     # Goalkeeper
     gk = lineup_dict.get('goalkeeper')
     if gk and roll_for_player(gk):
         replacement = get_fresh_reserve()
-        malus = round(random.uniform(-15, -5), 1)
+        malus = round(random.uniform(-12.0, -5.0), 1)
         event = {
             'player_name': gk['name'],
             'player_id': gk['player_id'],
@@ -347,7 +374,7 @@ def roll_injuries(lineup_dict, facility_field_stars=0):
     for p in list(lineup_dict.get('defenders') or []):
         if roll_for_player(p):
             replacement = get_fresh_reserve()
-            malus = round(random.uniform(-15, -5), 1)
+            malus = round(random.uniform(-12.0, -5.0), 1)
             event = {
                 'player_name': p['name'],
                 'player_id': p['player_id'],
@@ -366,7 +393,7 @@ def roll_injuries(lineup_dict, facility_field_stars=0):
     for p in list(lineup_dict.get('attackers') or []):
         if roll_for_player(p):
             replacement = get_fresh_reserve()
-            malus = round(random.uniform(-15, -5), 1)
+            malus = round(random.uniform(-12.0, -5.0), 1)
             event = {
                 'player_name': p['name'],
                 'player_id': p['player_id'],
@@ -543,17 +570,59 @@ def process_turn(match, facility_field_stars=0):
             away_lineup = apply_pending_subs(away_lineup, away_subs)
             away_lineup = apply_role_changes(away_lineup, away_subs.get('role_changes', {}))
 
-    # 3. Apply freshness loss for both lineups (-0.3 per turn)
-    home_lineup = apply_freshness_loss(home_lineup, delta=-0.3)
-    away_lineup = apply_freshness_loss(away_lineup, delta=-0.3)
+    home_eng = home_lineup.get('engagement', 'normale')
+    away_eng = away_lineup.get('engagement', 'normale')
+
+    # 3. Apply freshness loss for both lineups (-0.3/turn, halved for low engagement)
+    home_lineup = apply_freshness_loss(home_lineup, delta=-0.3 * engagement_fresh_mult(home_eng))
+    away_lineup = apply_freshness_loss(away_lineup, delta=-0.3 * engagement_fresh_mult(away_eng))
 
     # 4. Check freshness exclusions
     home_lineup, home_excluded = check_freshness_exclusions(home_lineup)
     away_lineup, away_excluded = check_freshness_exclusions(away_lineup)
 
-    # 5. Roll injuries
-    home_lineup, home_injuries = roll_injuries(home_lineup, facility_field_stars)
-    away_lineup, away_injuries = roll_injuries(away_lineup, 0)
+    # 5. Roll injuries (+3% per player for high engagement)
+    home_lineup, home_injuries = roll_injuries(
+        home_lineup, facility_field_stars, injury_add=engagement_injury_add(home_eng))
+    away_lineup, away_injuries = roll_injuries(
+        away_lineup, 0, injury_add=engagement_injury_add(away_eng))
+
+    # 5b. Forfeit: a team with fewer than 5 players on the field loses 0-3.
+    def _on_field(lu):
+        return ((1 if lu.get('goalkeeper') else 0)
+                + len(lu.get('defenders') or [])
+                + len(lu.get('attackers') or []))
+
+    home_n = _on_field(home_lineup)
+    away_n = _on_field(away_lineup)
+    if home_n < 5 or away_n < 5:
+        events = []
+        if away_n < 5 and home_n >= 5:
+            match.home_score, match.away_score = 3, 0
+            events.append({'team': 'home', 'type': 'forfeit',
+                           'text': 'Vittoria a tavolino 3-0: avversario con meno di 5 giocatori in campo.'})
+        else:
+            match.home_score, match.away_score = 0, 3
+            events.append({'team': 'away', 'type': 'forfeit',
+                           'text': 'Sconfitta a tavolino 0-3: meno di 5 giocatori in campo.'})
+        turns = json.loads(match.turns_json or '[]')
+        turns.append({
+            'turn': match.current_turn,
+            'home_str': compute_strength(home_lineup),
+            'away_str': compute_strength(away_lineup),
+            'home_goal_val': None, 'away_goal_val': None,
+            'home_goal': False, 'away_goal': False,
+            'events': events, 'forfeit': True,
+        })
+        match.home_lineup_json = json.dumps(home_lineup)
+        match.away_lineup_json = json.dumps(away_lineup)
+        match.turns_json = json.dumps(turns)
+        match.home_pending_subs_json = '{}'
+        match.away_pending_subs_json = '{}'
+        match.last_turn_at = datetime.utcnow()
+        match.status = 'completed'
+        finalize_match(match)
+        return
 
     # 6. Compute strengths
     home_str = compute_strength(home_lineup)
@@ -564,16 +633,18 @@ def process_turn(match, facility_field_stars=0):
     #   A goal is scored when Goal >= 1. Max one goal per team per turn.
     gc = get_goal_coeff()
 
-    def _goal(att_strength, opp_def, opp_porta):
+    def _goal(att_strength, opp_def, opp_porta, goal_mult):
         denom = opp_def + opp_porta
         rand_factor = random.uniform(0.0, 2.0)
         if denom <= 0:
             return True, float('inf')  # uncontested attack
-        value = gc * att_strength * rand_factor / denom
+        value = gc * att_strength * rand_factor / denom * goal_mult
         return value >= 1.0, round(value, 3)
 
-    home_scores, home_goal_val = _goal(home_str['attacco'], away_str['difesa'], away_str['porta'])
-    away_scores, away_goal_val = _goal(away_str['attacco'], home_str['difesa'], home_str['porta'])
+    home_scores, home_goal_val = _goal(home_str['attacco'], away_str['difesa'],
+                                       away_str['porta'], engagement_goal_mult(home_eng))
+    away_scores, away_goal_val = _goal(away_str['attacco'], home_str['difesa'],
+                                       home_str['porta'], engagement_goal_mult(away_eng))
 
     # No scoring on the opening turn (T0): the match is just kicking off.
     if match.current_turn == 0:

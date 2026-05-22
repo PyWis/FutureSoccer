@@ -439,6 +439,7 @@ def social_page():
     if not current_user.team:
         return redirect(url_for('game.create_team'))
     team = current_user.team
+    current_day = get_game_day_number()
     players = sorted(team.players.all(), key=lambda p: p.avg_skill, reverse=True)
     state = social.compute_state(team)
     active = state['active']
@@ -447,16 +448,26 @@ def social_page():
     for key, spec in sorted(social.SOCIAL_EFFECTS.items(), key=lambda kv: kv[1]['threshold']):
         constraint_ok = social.meets_constraint(team, spec.get('requires'))
         is_active = key in active
-        # Can activate if not active, slot free, constraint ok, and enough available influence
-        can_activate = (not is_active and len(active) < social.MAX_ACTIVE_EFFECTS
+        locked = social.is_effect_locked(team, key, current_day)
+        can_activate = (not is_active and not locked and len(active) < social.MAX_ACTIVE_EFFECTS
                         and constraint_ok and state['available'] >= spec['threshold'])
         effects_view.append({
             'key': key, 'spec': spec,
             'is_active': is_active,
             'constraint_ok': constraint_ok,
             'can_activate': can_activate,
+            'locked': locked,
             'applies': state['applies'].get(key, False),
         })
+
+    # Per-player channel reopen cooldowns
+    channel_cooldowns = {}
+    for p in players:
+        for ckey, _, _ in social.SOCIAL_CHANNELS:
+            if not getattr(p, f'social_{ckey}'):
+                reopen = social.channel_reopen_day(p, ckey)
+                if reopen is not None and current_day < reopen:
+                    channel_cooldowns[(p.id, ckey)] = reopen - current_day
 
     return render_template('game/social.html',
                            team=team,
@@ -464,6 +475,7 @@ def social_page():
                            players=players,
                            channels=social.SOCIAL_CHANNELS,
                            channel_count=social.channel_count,
+                           channel_cooldowns=channel_cooldowns,
                            points=state['total'],
                            committed=state['committed'],
                            available=state['available'],
@@ -486,10 +498,26 @@ def social_toggle_channel(player_id, channel):
         flash('Giocatore non nella tua squadra.', 'danger')
         return redirect(url_for('game.social_page'))
     attr = f'social_{channel}'
-    setattr(player, attr, not getattr(player, attr))
-    db.session.commit()
-    state = 'aperto' if getattr(player, attr) else 'chiuso'
-    flash(f'Canale {channel} {state} per {player.name}.', 'info')
+    current_day = get_game_day_number()
+    currently_open = getattr(player, attr)
+
+    if currently_open:
+        # Closing: start the 90-day reopen cooldown
+        setattr(player, attr, False)
+        social.record_channel_closed(player, channel, current_day)
+        db.session.commit()
+        flash(f'Canale {channel} chiuso per {player.name}. Riapribile fra '
+              f'{social.CHANNEL_REOPEN_COOLDOWN_DAYS} giorni di gioco.', 'info')
+    else:
+        # Opening: blocked until the cooldown elapses
+        if not social.can_reopen_channel(player, channel, current_day):
+            days_left = social.channel_reopen_day(player, channel) - current_day
+            flash(f'Canale {channel} riapribile tra {days_left} giorni di gioco.', 'danger')
+            return redirect(url_for('game.social_page'))
+        setattr(player, attr, True)
+        social.clear_channel_cooldown(player, channel)
+        db.session.commit()
+        flash(f'Canale {channel} aperto per {player.name}.', 'info')
     return redirect(url_for('game.social_page'))
 
 
@@ -504,18 +532,25 @@ def social_effect(key, action):
         return redirect(url_for('game.social_page'))
     spec = social.SOCIAL_EFFECTS[key]
     active = social.get_active_effects(team)
+    current_day = get_game_day_number()
 
     if action == 'deactivate':
         if key in active:
             active.remove(key)
             social.set_active_effects(team, active)
+            social.mark_deactivated(team, key, current_day)
             db.session.commit()
-            flash(f'{spec["label"]} disattivato.', 'info')
+            flash(f'{spec["label"]} disattivato. Riattivabile entro '
+                  f'{social.EFFECT_RELOCK_DAYS} giorni di gioco.', 'info')
         return redirect(url_for('game.social_page'))
 
     if action == 'activate':
         if key in active:
             flash('Effetto già attivo.', 'warning')
+            return redirect(url_for('game.social_page'))
+        if social.is_effect_locked(team, key, current_day):
+            flash(f'{spec["label"]} è bloccato definitivamente '
+                  f'(disattivato da oltre {social.EFFECT_RELOCK_DAYS} giorni).', 'danger')
             return redirect(url_for('game.social_page'))
         if len(active) >= social.MAX_ACTIVE_EFFECTS:
             flash(f'Puoi avere al massimo {social.MAX_ACTIVE_EFFECTS} effetti attivi.', 'danger')
@@ -523,7 +558,10 @@ def social_effect(key, action):
         if not social.meets_constraint(team, spec.get('requires')):
             msg = {'women': 'squadra composta solo da donne',
                    'cyber': 'squadra composta solo da cyber',
-                   'lite': f'squadra con {social.LITE_MAX_PLAYERS} o meno componenti'}.get(spec.get('requires'))
+                   'lite': f'squadra con {social.LITE_MAX_PLAYERS} o meno componenti',
+                   'all_instok': 'squadra con TUTTI i giocatori su Instok',
+                   'all_sportsocial': 'squadra con TUTTI i giocatori su SportSocial',
+                   'all_fantasoccer': 'squadra con TUTTI i giocatori su FantaSoccer'}.get(spec.get('requires'))
             flash(f'Questo effetto richiede una {msg}.', 'danger')
             return redirect(url_for('game.social_page'))
         state = social.compute_state(team)
@@ -533,6 +571,7 @@ def social_effect(key, action):
             return redirect(url_for('game.social_page'))
         active.append(key)
         social.set_active_effects(team, active)
+        social.clear_deactivated(team, key)
         db.session.commit()
         flash(f'{spec["label"]} attivato! 🥂', 'success')
         return redirect(url_for('game.social_page'))

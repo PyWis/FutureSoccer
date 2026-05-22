@@ -94,11 +94,11 @@ _ENGAGEMENT_MODS = {
     'aggressivo': 1.10, 'super_aggressivo': 1.15,
 }
 ENGAGEMENT_OPTIONS = [
-    ('basso',           'Basso',           '-25%'),
-    ('moderato',        'Moderato',        '-10%'),
-    ('normale',         'Normale',         '±0%'),
-    ('aggressivo',      'Aggressivo',      '+10%'),
-    ('super_aggressivo','Super aggressivo','+15%'),
+    ('basso',           'Basso',           '−20% gol · −50% calo freschezza'),
+    ('moderato',        'Moderato',        '−20% gol · −50% calo freschezza'),
+    ('normale',         'Normale',         'nessun effetto'),
+    ('aggressivo',      'Aggressivo',      '+10% gol · +3% infortuni/turno'),
+    ('super_aggressivo','Super aggressivo','+10% gol · +3% infortuni/turno'),
 ]
 
 
@@ -175,13 +175,14 @@ class TeamFormation(db.Model):
         others_for_att = [p for p in starters if p not in attackers]
         attacco = sum(p.attacco for p in attackers) + 0.5 * sum(p.attacco for p in others_for_att)
 
-        mod = _ENGAGEMENT_MODS.get(self.engagement, 1.00)
+        # Engagement no longer scales raw strength; its effects (goals, injuries,
+        # freshness) are applied per turn in the match engine.
         return {
-            'porta':   round(porta * mod, 2),
-            'difesa':  round(difesa * mod, 2),
-            'attacco': round(attacco * mod, 2),
-            'total':   round((porta + difesa + attacco) * mod, 2),
-            'mod':     mod,
+            'porta':   round(porta, 2),
+            'difesa':  round(difesa, 2),
+            'attacco': round(attacco, 2),
+            'total':   round(porta + difesa + attacco, 2),
+            'mod':     1.0,
             'engagement': self.engagement,
         }
 
