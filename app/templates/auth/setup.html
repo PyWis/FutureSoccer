@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Configurazione Iniziale — FutureSoccer{% endblock %}
+{% block extra_head %}
+<style>
+  .setup-wrap { max-width: 520px; margin: 4rem auto; }
+  .setup-header { text-align: center; margin-bottom: 2rem; }
+  .setup-card {
+    background: var(--card); border: 1px solid var(--card-border);
+    border-radius: 16px; padding: 2.5rem; position: relative; overflow: hidden;
+  }
+  .setup-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--purple), var(--cyan));
+  }
+  .setup-badge {
+    display: inline-flex; align-items: center; gap: .4rem;
+    padding: .3rem .8rem; border-radius: 99px;
+    background: rgba(123,47,255,.15); color: #b77fff;
+    border: 1px solid rgba(123,47,255,.3);
+    font-size: .72rem; font-weight: 700; letter-spacing: 1px;
+    margin-bottom: 1rem;
+  }
+  .pw-hint { font-size: .75rem; color: var(--muted); margin-top: .3rem; }
+  .info-box {
+    margin-top: 1.5rem; padding: 1rem;
+    background: rgba(123,47,255,.05);
+    border-radius: 8px; border: 1px solid rgba(123,47,255,.15);
+  }
+</style>
+{% endblock %}
+{% block content %}
+<div class="setup-wrap">
+  <div class="setup-header">
+    <div class="setup-badge">⚙️ PRIMO AVVIO</div>
+    <h1 style="color:var(--purple);">CONFIGURAZIONE</h1>
+    <p style="color:var(--muted); margin-top:.5rem;">
+      Benvenuto in FutureSoccer. Crea l'account superadmin per iniziare.
+    </p>
+  </div>
+  <div class="setup-card">
+    <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-group">
+        <label>NOME UTENTE ADMIN</label>
+        <input type="text" name="username" class="form-control"
+               placeholder="Es: admin" required minlength="3" maxlength="50"
+               autofocus>
+      </div>
+      <div class="form-group">
+        <label>EMAIL</label>
+        <input type="email" name="email" class="form-control"
+               placeholder="admin@esempio.com" required>
+      </div>
+      <div class="form-group">
+        <label>PASSWORD</label>
+        <input type="password" name="password" class="form-control"
+               placeholder="Almeno 8 caratteri" required minlength="8">
+        <div class="pw-hint">Minimo 8 caratteri. Conservala in un posto sicuro.</div>
+      </div>
+      <div class="form-group">
+        <label>CONFERMA PASSWORD</label>
+        <input type="password" name="confirm_password" class="form-control"
+               placeholder="Ripeti la password" required>
+      </div>
+      <button type="submit" class="btn btn-primary btn-block"
+              style="margin-top:.5rem; padding:.85rem; background:linear-gradient(135deg,var(--purple),var(--cyan));">
+        🔐 CREA SUPERADMIN
+      </button>
+    </form>
+    <div class="info-box">
+      <p style="font-size:.8rem; color:var(--muted); text-align:center;">
+        Questo passaggio è richiesto una sola volta.<br>
+        <strong style="color:var(--purple);">Non sarà più possibile accedere a questa pagina</strong>
+        una volta creato l'account.
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}

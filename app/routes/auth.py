@@ -8,6 +8,42 @@ from app.utils.brevo import send_verification_email, send_welcome_email, send_pa
 auth_bp = Blueprint('auth', __name__)
 
 
+@auth_bp.route('/setup', methods=['GET', 'POST'])
+def setup():
+    if User.query.filter_by(role='superadmin').first():
+        return redirect(url_for('auth.login'))
+
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        email = request.form.get('email', '').strip().lower()
+        password = request.form.get('password', '')
+        confirm = request.form.get('confirm_password', '')
+
+        error = None
+        if not username or len(username) < 3:
+            error = 'Il nome utente deve avere almeno 3 caratteri.'
+        elif not email or '@' not in email:
+            error = 'Inserisci un indirizzo email valido.'
+        elif len(password) < 8:
+            error = 'La password deve avere almeno 8 caratteri.'
+        elif password != confirm:
+            error = 'Le password non coincidono.'
+
+        if error:
+            flash(error, 'danger')
+            return render_template('auth/setup.html')
+
+        admin = User(username=username, email=email, role='superadmin', is_verified=True)
+        admin.set_password(password)
+        db.session.add(admin)
+        db.session.commit()
+
+        flash('Superadmin creato! Ora puoi accedere.', 'success')
+        return redirect(url_for('auth.login'))
+
+    return render_template('auth/setup.html')
+
+
 @auth_bp.route('/register', methods=['GET', 'POST'])
 @limiter.limit('10 per hour', methods=['POST'])
 def register():

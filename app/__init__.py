@@ -115,6 +115,16 @@ def create_app():
             return dict(g_date='', g_weekday=0, g_is_training=False, g_is_sponsor=False,
                         g_fed_streak=0, g_fed_weeks_left=0)
 
+    @app.before_request
+    def _require_setup():
+        from flask import request as req, redirect, url_for
+        from app.models.user import User
+        exempt = {'auth.setup', 'static'}
+        if req.endpoint in exempt:
+            return
+        if not User.query.filter_by(role='superadmin').first():
+            return redirect(url_for('auth.setup'))
+
     with app.app_context():
         db.create_all()
         _seed_admin()
@@ -127,21 +137,17 @@ _DEFAULT_ADMIN_PASSWORD = 'admin'
 
 
 def _seed_admin():
+    """Seeds superadmin from env vars only when ADMIN_PASSWORD is explicitly configured."""
     from app.models.user import User
     if User.query.filter_by(role='superadmin').first():
         return
-    password = os.environ.get('ADMIN_PASSWORD')
-    is_prod = os.environ.get('FLASK_ENV') == 'production'
+    password = os.environ.get('ADMIN_PASSWORD', '')
     if not password or password == _DEFAULT_ADMIN_PASSWORD:
-        if is_prod:
-            raise RuntimeError(
-                'Refusing to seed superadmin with default/empty password in production. '
-                'Set a strong ADMIN_PASSWORD.'
-            )
-        # Dev only: generate a random password and surface it in the logs once.
-        import secrets as _secrets
-        password = _secrets.token_urlsafe(16)
-        print(f'[SEED] Superadmin created with generated password: {password}')
+        # No env-var seed configured — the setup wizard will handle creation.
+        return
+    is_prod = os.environ.get('FLASK_ENV') == 'production'
+    if is_prod and len(password) < 12:
+        raise RuntimeError('ADMIN_PASSWORD must be at least 12 characters in production.')
     admin = User(
         username=os.environ.get('ADMIN_USERNAME', 'fusoccer'),
         email=os.environ.get('ADMIN_EMAIL', 'admin@futuresoccer.com'),
