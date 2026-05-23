@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+{% block title %}Calendario · {{ league.name }} · FutureSoccer 2099{% endblock %}
+
+{% block content %}
+<div class="page-header flex flex-between flex-center">
+  <div>
+    <h1>📅 Calendario — {{ league.name }}</h1>
+    <p class="text-muted" style="font-size:.84rem;margin-top:.2rem;">
+      Stagione {{ season.season_number }}
+      {% if season.status == 'active' %} · In corso{% endif %}
+    </p>
+  </div>
+  <a href="{{ url_for('league.detail', league_id=league.id) }}"
+     class="btn btn-secondary btn-sm">← Dettaglio Lega</a>
+</div>
+
+{% if matches %}
+
+{% set rounds = {} %}
+{% for m in matches %}
+  {% if m.round_number not in rounds %}
+    {% set _ = rounds.update({m.round_number: []}) %}
+  {% endif %}
+  {% set _ = rounds[m.round_number].append(m) %}
+{% endfor %}
+
+{% set total_rounds = matches|map(attribute='round_number')|max %}
+
+{% for rn in range(1, total_rounds + 1) %}
+{% set round_matches = matches|selectattr('round_number','eq',rn)|list %}
+{% if round_matches %}
+<div class="card mb-2">
+  <div class="flex flex-between flex-center" style="margin-bottom:.8rem;">
+    <h3>
+      {% if round_matches[0].is_final_round %}
+        🏁 Ultima Giornata (Giornata {{ rn }})
+      {% else %}
+        Giornata {{ rn }}
+      {% endif %}
+    </h3>
+    <span class="text-muted" style="font-size:.78rem;">{{ fmt_day(round_matches[0].scheduled_game_day) }}</span>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Casa</th><th style="text-align:center;">vs</th><th>Ospite</th>
+          <th style="text-align:center;">Risultato</th><th>Stato</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for match in round_matches %}
+        {% set is_my = (match.home_team_id == my_team_id or match.away_team_id == my_team_id) %}
+        <tr {% if is_my %}style="background:rgba(0,245,255,.05);"{% endif %}>
+          <td>
+            <strong {% if match.home_team_id == my_team_id %}style="color:var(--cyan);"{% endif %}>
+              {{ match.home_team.name if match.home_team else '—' }}
+            </strong>
+          </td>
+          <td style="text-align:center;color:var(--muted);">vs</td>
+          <td>
+            <strong {% if match.away_team_id == my_team_id %}style="color:var(--cyan);"{% endif %}>
+              {{ match.away_team.name if match.away_team else '—' }}
+            </strong>
+          </td>
+          <td style="text-align:center;font-family:'Orbitron',monospace;font-size:.9rem;">
+            {% if match.status == 'played' %}
+            <span {% if match.home_score > match.away_score %}style="color:var(--success);"
+                  {% elif match.home_score < match.away_score %}style="color:var(--danger);"
+                  {% else %}style="color:var(--muted);"{% endif %}>
+              {{ match.home_score }} – {{ match.away_score }}
+            </span>
+            {% elif match.scheduled_game_day <= current_day %}
+            <span class="text-muted">In elaborazione…</span>
+            {% else %}
+            <span class="text-muted">{{ fmt_day(match.scheduled_game_day) }}</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if match.status == 'played' %}
+            <span class="badge badge-green">Giocata</span>
+            {% else %}
+            <span class="badge badge-cyan">Programmata</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if match.status == 'played' %}
+            <a href="{{ url_for('league.match_detail', league_id=league.id, match_id=match.id) }}"
+               class="btn btn-secondary btn-sm">Vedi →</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endfor %}
+
+{% else %}
+<div class="card text-center" style="padding:3rem;">
+  <p class="text-muted">Il calendario non è ancora stato generato.</p>
+  <p class="text-muted" style="font-size:.82rem;">Avvia la stagione per generare automaticamente il calendario.</p>
+</div>
+{% endif %}
+{% endblock %}

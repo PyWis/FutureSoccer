@@ -1,0 +1,119 @@
+{% extends 'base.html' %}
+{% block title %}Partita · {{ league.name }} · FutureSoccer 2099{% endblock %}
+
+{% block content %}
+<div class="page-header flex flex-between flex-center">
+  <div>
+    <h1>⚽ Partita — Giornata {{ match.round_number }}{% if match.is_final_round %} 🏁{% endif %}</h1>
+    <p class="text-muted" style="font-size:.84rem;margin-top:.2rem;">
+      {{ league.name }} · Stagione {{ match.season.season_number }}
+    </p>
+  </div>
+  <a href="{{ url_for('league.calendar', league_id=league.id) }}"
+     class="btn btn-secondary btn-sm">← Calendario</a>
+</div>
+
+<!-- Score card -->
+<div class="card mb-3" style="text-align:center;border-color:{% if match.status == 'played' %}rgba(46,213,115,.3){% else %}rgba(0,245,255,.2){% endif %};">
+  <div style="font-size:.75rem;color:var(--muted);letter-spacing:2px;margin-bottom:.8rem;">
+    {{ fmt_day(match.played_game_day or match.scheduled_game_day) }}
+  </div>
+
+  <div style="display:flex;align-items:center;justify-content:center;gap:2rem;">
+    <div style="flex:1;text-align:right;">
+      <div style="font-family:'Orbitron',monospace;font-size:1.1rem;color:var(--text);">
+        {{ match.home_team.name if match.home_team else '—' }}
+      </div>
+      <div style="font-size:.75rem;color:var(--muted);">Casa</div>
+    </div>
+
+    <div style="font-family:'Orbitron',monospace;font-size:2.5rem;min-width:140px;text-align:center;">
+      {% if match.status == 'played' %}
+      <span {% if match.home_score > match.away_score %}style="color:var(--success);"
+            {% elif match.home_score < match.away_score %}style="color:var(--muted);"
+            {% else %}style="color:var(--warning);"{% endif %}>
+        {{ match.home_score }}
+      </span>
+      <span style="color:var(--muted);font-size:1.5rem;"> – </span>
+      <span {% if match.away_score > match.home_score %}style="color:var(--success);"
+            {% elif match.away_score < match.home_score %}style="color:var(--muted);"
+            {% else %}style="color:var(--warning);"{% endif %}>
+        {{ match.away_score }}
+      </span>
+      {% else %}
+      <span class="text-muted" style="font-size:1.2rem;">vs</span>
+      {% endif %}
+    </div>
+
+    <div style="flex:1;text-align:left;">
+      <div style="font-family:'Orbitron',monospace;font-size:1.1rem;color:var(--text);">
+        {{ match.away_team.name if match.away_team else '—' }}
+      </div>
+      <div style="font-size:.75rem;color:var(--muted);">Ospite</div>
+    </div>
+  </div>
+
+  {% if match.status == 'played' %}
+  <div style="margin-top:.8rem;">
+    {% if match.home_score > match.away_score %}
+    <span class="badge badge-green">Victoria Casa</span>
+    {% elif match.away_score > match.home_score %}
+    <span class="badge badge-green">Vittoria Ospite</span>
+    {% else %}
+    <span class="badge badge-cyan">Pareggio</span>
+    {% endif %}
+  </div>
+  {% else %}
+  <div style="margin-top:.8rem;">
+    <span class="badge badge-cyan">
+      Programmata: {{ fmt_day(match.scheduled_game_day) }}
+    </span>
+  </div>
+  {% endif %}
+</div>
+
+{% if match.status == 'played' and turns %}
+<!-- Turn log -->
+<div class="card">
+  <h3 style="margin-bottom:1rem;">📝 Cronaca Partita</h3>
+  <div style="display:flex;flex-direction:column;gap:.6rem;">
+    {% for turn in turns %}
+    <div style="padding:.6rem 1rem;background:rgba(255,255,255,.02);border-radius:8px;border-left:3px solid
+      {% if turn.get('forfeit') %}var(--danger)
+      {% elif turn.home_goal or turn.away_goal %}var(--success)
+      {% else %}var(--card-border){% endif %};">
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem;">
+        <span style="font-family:'Orbitron',monospace;font-size:.7rem;color:var(--muted);">
+          {% if turn.turn == 0 %}Calcio d'inizio
+          {% elif turn.turn <= 6 %}Turno {{ turn.turn }}
+          {% else %}Tempi Supplementari
+          {% endif %}
+        </span>
+        {% if turn.home_str and turn.away_str %}
+        <span style="font-size:.72rem;color:var(--muted);">
+          ATT {{ turn.home_str.attacco }} vs DEF {{ turn.away_str.difesa }}
+        </span>
+        {% endif %}
+      </div>
+
+      {% for event in turn.events %}
+      <div style="font-size:.85rem;margin-top:.2rem;
+        {% if event.type == 'goal' %}color:var(--success);font-weight:700;
+        {% elif event.type == 'injury' %}color:var(--warning);
+        {% elif event.type == 'forfeit' %}color:var(--danger);font-weight:700;
+        {% else %}color:var(--muted);{% endif %}">
+        {% if event.type == 'goal' %}⚽ {% elif event.type == 'injury' %}🚑 {% elif event.type == 'forfeit' %}🚩 {% endif %}
+        {{ event.text }}
+      </div>
+      {% else %}
+      {% if turn.turn > 0 %}
+      <div style="font-size:.82rem;color:var(--muted);">Nessun evento rilevante.</div>
+      {% endif %}
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

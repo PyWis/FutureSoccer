@@ -61,6 +61,7 @@ def create_app():
     from app.routes.game import game_bp
     from app.routes.events import events_bp
     from app.routes.match import match_bp
+    from app.routes.private_league import league_bp
 
     app.register_blueprint(main_bp)
     app.register_blueprint(auth_bp, url_prefix='/auth')
@@ -68,6 +69,7 @@ def create_app():
     app.register_blueprint(game_bp, url_prefix='/game')
     app.register_blueprint(events_bp, url_prefix='/events')
     app.register_blueprint(match_bp, url_prefix='/match')
+    app.register_blueprint(league_bp, url_prefix='/leagues')
 
     @app.before_request
     def _apply_due_team_events():
@@ -87,6 +89,11 @@ def create_app():
             process_due_team_events(team)
         except Exception:
             # Never let event processing brick a page load; leave DB clean.
+            db.session.rollback()
+        try:
+            from app.utils.league_engine import process_due_league_events
+            process_due_league_events()
+        except Exception:
             db.session.rollback()
 
     @app.context_processor
@@ -161,6 +168,7 @@ def _seed_admin():
 
 def _init_game_clock():
     from app.models.game import GameConfig, Investment  # Investment imported to register metadata
+    import app.models.private_league  # register private league tables
     from datetime import datetime
     if not GameConfig.query.first():
         db.session.add(GameConfig(real_start=datetime.utcnow()))

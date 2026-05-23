@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+{% block title %}Leghe Private · FutureSoccer 2099{% endblock %}
+
+{% block content %}
+<div class="page-header flex flex-between flex-center">
+  <div>
+    <h1>🏆 Leghe Private</h1>
+    <p class="text-muted" style="font-size:.88rem;margin-top:.3rem;">
+      Torneo privato tra manager — organizza, partecipa, vinci.
+    </p>
+  </div>
+  {% if can_create %}
+  <a href="{{ url_for('league.create') }}" class="btn btn-primary">+ Crea Lega</a>
+  {% endif %}
+</div>
+
+{% if my_mems %}
+<div class="card mb-3" style="border-color:rgba(0,245,255,.25);">
+  <h3 style="margin-bottom:1rem;">Le tue Leghe Attive</h3>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Lega</th><th>Stagione</th><th>Squadre</th><th>Stato</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for mem in my_mems %}
+        <tr>
+          <td><strong>{{ mem.league.name }}</strong>
+            {% if mem.league.owner_id == current_user.id %}
+            <span class="badge badge-gold" style="margin-left:.4rem;">Owner</span>
+            {% endif %}
+          </td>
+          <td>Stagione {{ mem.season.season_number }}</td>
+          <td>
+            {% set cnt = mem.season.memberships|selectattr('status','equalto','active')|list|length %}
+            {{ cnt }} / {{ mem.league.capacity }}
+          </td>
+          <td>
+            {% if mem.season.status == 'forming' %}
+            <span class="badge badge-cyan">In formazione</span>
+            {% elif mem.season.status == 'active' %}
+            <span class="badge badge-green">Attiva</span>
+            {% endif %}
+          </td>
+          <td>
+            <a href="{{ url_for('league.detail', league_id=mem.league_id) }}"
+               class="btn btn-secondary btn-sm">Dettaglio →</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<h2 style="margin-bottom:1rem;">Tutte le Leghe</h2>
+
+{% if league_data %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Nome</th><th>Proprietario</th><th>Stagione</th>
+        <th>Squadre</th><th>Capienza</th><th>Stato</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in league_data %}
+      {% set lg = item.league %}
+      {% set s = item.season %}
+      <tr>
+        <td><strong style="color:var(--cyan);">{{ lg.name }}</strong></td>
+        <td style="color:var(--muted);font-size:.82rem;">{{ lg.owner.username }}</td>
+        <td>{% if s %}S{{ s.season_number }}{% else %}—{% endif %}</td>
+        <td>
+          {% if s %}{{ item.member_count }}{% else %}—{% endif %}
+        </td>
+        <td>{{ lg.capacity }}</td>
+        <td>
+          {% if not s %}
+          <span class="badge" style="background:rgba(136,136,136,.15);color:#888;">Nessuna</span>
+          {% elif s.status == 'forming' %}
+          <span class="badge badge-cyan">Iscrizioni</span>
+          {% elif s.status == 'active' %}
+          <span class="badge badge-green">In corso</span>
+          {% elif s.status == 'completed' %}
+          <span class="badge" style="background:rgba(123,47,255,.2);color:#b77fff;">Completata</span>
+          {% elif s.status == 'cancelled' %}
+          <span class="badge badge-red">Annullata</span>
+          {% endif %}
+        </td>
+        <td>
+          <a href="{{ url_for('league.detail', league_id=lg.id) }}"
+             class="btn btn-secondary btn-sm">Apri →</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card text-center" style="padding:3rem;">
+  <p style="font-size:2rem;">🏆</p>
+  <p class="text-muted" style="margin-top:.5rem;">Nessuna lega privata ancora creata.</p>
+  {% if can_create %}
+  <a href="{{ url_for('league.create') }}" class="btn btn-primary mt-2">Crea la prima!</a>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

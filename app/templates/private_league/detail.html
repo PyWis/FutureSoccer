@@ -1,0 +1,223 @@
+{% extends 'base.html' %}
+{% block title %}{{ league.name }} · FutureSoccer 2099{% endblock %}
+
+{% block content %}
+<div class="page-header flex flex-between flex-center">
+  <div>
+    <h1>🏆 {{ league.name }}</h1>
+    <p class="text-muted" style="font-size:.84rem;margin-top:.2rem;">
+      Proprietario: <strong>{{ league.owner.username }}</strong>
+      · Capienza: {{ league.capacity }}
+      {% if league.capacity < 24 %}(+2 prossima stagione){% else %}(max){% endif %}
+    </p>
+  </div>
+  <a href="{{ url_for('league.index') }}" class="btn btn-secondary btn-sm">← Tutte le leghe</a>
+</div>
+
+<!-- Season status banner -->
+{% if season %}
+<div class="card mb-3"
+     style="border-color:{% if season.status=='active' %}rgba(46,213,115,.3){% elif season.status=='forming' %}rgba(0,245,255,.3){% else %}rgba(136,136,136,.2){% endif %};">
+  <div class="flex flex-between flex-center">
+    <div>
+      <h3 style="margin-bottom:.3rem;">Stagione {{ season.season_number }}</h3>
+      <p class="text-muted" style="font-size:.82rem;">
+        {% if season.status == 'forming' %}
+          Fase di raccolta iscrizioni · {{ memberships|selectattr('status','equalto','active')|list|length }}/{{ league.capacity }} squadre
+          (min. {{ min_teams }})
+        {% elif season.status == 'active' %}
+          In corso · {{ season.num_teams }} squadre · {{ season.duration_weeks }} settimane
+          · Fine: {{ fmt_day(season.end_game_day) }}
+        {% elif season.status == 'completed' %}
+          Completata
+        {% elif season.status == 'cancelled' %}
+          Annullata (meno di {{ min_teams }} squadre)
+        {% endif %}
+      </p>
+    </div>
+    <div class="flex gap-1">
+      {% if season.status == 'forming' %}
+      <span class="badge badge-cyan">Iscrizioni aperte</span>
+      {% elif season.status == 'active' %}
+      <span class="badge badge-green">In corso</span>
+      {% endif %}
+
+      {% if can_start %}
+      <form method="POST" action="{{ url_for('league.start', league_id=league.id) }}" style="display:inline;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-primary btn-sm"
+                onclick="return confirm('Avviare la stagione adesso?')">▶ Avvia Stagione</button>
+      </form>
+      {% endif %}
+
+      {% if can_join %}
+      <form method="POST" action="{{ url_for('league.join', league_id=league.id) }}" style="display:inline;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-primary btn-sm"
+                onclick="return confirm('Iscriversi costa {{ entry_fee }} (iscrizione) + {{ perm_fee }} (permanenza). Confermi?')">
+          + Iscriviti
+        </button>
+      </form>
+      {% endif %}
+
+      {% if my_mem and season.status == 'forming' and league.owner_id != current_user.id %}
+      <form method="POST" action="{{ url_for('league.leave', league_id=league.id) }}" style="display:inline;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-danger btn-sm"
+                onclick="return confirm('Abbandonare la lega?')">← Esci</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Finance summary (active season) -->
+  {% if season.status == 'active' %}
+  <div class="cyber-line"></div>
+  <div class="grid-4" style="margin-top:.5rem;">
+    <div style="text-align:center;">
+      <div style="font-size:.65rem;color:var(--muted);letter-spacing:1px;">BUDGET LEGA</div>
+      <div style="font-family:'Orbitron',monospace;color:var(--cyan);font-size:.95rem;">
+        {{ fmt_m(season.total_budget) }}
+      </div>
+    </div>
+    <div style="text-align:center;">
+      <div style="font-size:.65rem;color:var(--muted);letter-spacing:1px;">PRESTIGIO</div>
+      <div style="font-family:'Orbitron',monospace;color:var(--warning);font-size:.95rem;">
+        {{ "%.0f"|format(season.prestige_base) }}
+      </div>
+    </div>
+    <div style="text-align:center;">
+      <div style="font-size:.65rem;color:var(--muted);letter-spacing:1px;">SPONSOR</div>
+      <div style="font-family:'Orbitron',monospace;color:var(--success);font-size:.95rem;">
+        {{ fmt_m(season.sponsor_amount) }}
+      </div>
+    </div>
+    <div style="text-align:center;">
+      <div style="font-size:.65rem;color:var(--muted);letter-spacing:1px;">FATTORE RANDOM</div>
+      <div style="font-family:'Orbitron',monospace;color:var(--purple);font-size:.95rem;">
+        {{ "%.0f"|format(season.prestige_random * 100) }}%
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% else %}
+<div class="card mb-3 text-center" style="padding:2rem;">
+  <p class="text-muted">Nessuna stagione disponibile per questa lega.</p>
+</div>
+{% endif %}
+
+<!-- Standings / Members -->
+<div class="grid-2">
+
+  <!-- Classifica / Lista iscritti -->
+  <div class="card">
+    <h3 style="margin-bottom:1rem;">
+      {% if season and season.status == 'active' %}Classifica{% else %}Squadre Iscritte{% endif %}
+    </h3>
+
+    {% if season and memberships %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>Squadra</th>
+            {% if season.status == 'active' %}
+            <th>Pt</th><th>G</th><th>V</th><th>P</th><th>S</th><th>GF</th><th>GS</th><th>±</th>
+            {% else %}
+            <th>Manager</th><th>Forza</th>
+            {% endif %}
+            {% if is_owner and season.status == 'active' %}<th></th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for m in standings %}
+          {% set idx = loop.index0 %}
+          <tr {% if m.team_id == (current_user.team.id if current_user.team else -1) %}
+              style="background:rgba(0,245,255,.05);"{% endif %}>
+            <td>
+              {% if idx == 0 %}<span style="color:gold;">🥇</span>
+              {% elif idx == 1 %}<span style="color:silver;">🥈</span>
+              {% elif idx == 2 %}<span style="color:#cd7f32;">🥉</span>
+              {% else %}{{ idx + 1 }}{% endif %}
+            </td>
+            <td>
+              <strong>{{ m.team.name if m.team else '—' }}</strong>
+              {% if m.status == 'excluded_owner' %}
+                <span class="badge badge-red" style="margin-left:.3rem;">Esclusa</span>
+              {% elif m.status == 'excluded_auto' %}
+                <span class="badge" style="background:rgba(136,136,136,.15);color:#888;margin-left:.3rem;">Retrocessa</span>
+              {% endif %}
+              {% if m.team and m.team.manager_id == league.owner_id %}
+                <span class="badge badge-gold" style="margin-left:.3rem;font-size:.6rem;">owner</span>
+              {% endif %}
+            </td>
+            {% if season.status == 'active' %}
+            <td><strong style="color:var(--cyan);">{{ m.points }}</strong></td>
+            <td>{{ m.wins + m.draws + m.losses }}</td>
+            <td>{{ m.wins }}</td><td>{{ m.draws }}</td><td>{{ m.losses }}</td>
+            <td>{{ m.goals_for }}</td><td>{{ m.goals_against }}</td>
+            <td style="{% if m.goals_diff > 0 %}color:var(--success){% elif m.goals_diff < 0 %}color:var(--danger){% endif %}">
+              {{ '%+d'|format(m.goals_diff) }}
+            </td>
+            {% else %}
+            <td style="color:var(--muted);font-size:.82rem;">
+              {{ m.team.manager.username if m.team and m.team.manager else '—' }}
+            </td>
+            <td style="color:var(--cyan);">
+              {{ "%.2f"|format(m.team.top7_avg_skill) if m.team else '—' }}
+            </td>
+            {% endif %}
+            {% if is_owner and season.status == 'active' and m.team_id in kickable_ids %}
+            <td>
+              <form method="POST"
+                    action="{{ url_for('league.kick', league_id=league.id, team_id=m.team_id) }}"
+                    style="display:inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-danger btn-sm"
+                        onclick="return confirm('Escludere {{ m.team.name }}?')">Escludi</button>
+              </form>
+            </td>
+            {% elif is_owner and season.status == 'active' %}
+            <td></td>
+            {% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-muted" style="font-size:.88rem;">Nessuna squadra iscritta.</p>
+    {% endif %}
+  </div>
+
+  <!-- Info sidebar -->
+  <div>
+    <!-- Rules summary -->
+    <div class="card mb-2">
+      <h3 style="margin-bottom:.8rem;">📋 Regole</h3>
+      <ul style="list-style:none;font-size:.82rem;color:var(--muted);line-height:2;">
+        <li>🗓️ Durata: <strong style="color:var(--text);">N settimane</strong> (N = squadre)</li>
+        <li>⚽ Gare di sola andata, calendario casuale</li>
+        <li>🏁 Ultima giornata: tutte le partite in contemporanea</li>
+        <li>📊 Tie-break: Punti → ΔReti → GF → Random</li>
+        <li>💰 Budget lega: <strong style="color:var(--text);">2% owner / 68% uguale / 30% merito</strong></li>
+        <li>🏆 Bonus punti: 1°+100 / 2°+50 / 3°+20 / 4°+10</li>
+        {% if season and season.num_teams and season.num_teams >= 24 %}
+        <li>⬇️ Ultime 2 escluse automaticamente dalla prossima stagione</li>
+        {% endif %}
+      </ul>
+    </div>
+
+    <!-- Calendar link (active season) -->
+    {% if season and season.status in ('active', 'completed') %}
+    <div class="card">
+      <h3 style="margin-bottom:.8rem;">📅 Calendario Partite</h3>
+      <a href="{{ url_for('league.calendar', league_id=league.id) }}"
+         class="btn btn-secondary btn-block">Vedi Calendario →</a>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

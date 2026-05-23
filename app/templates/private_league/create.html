@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% block title %}Crea Lega Privata · FutureSoccer 2099{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>🏆 Crea Lega Privata</h1>
+  <p class="text-muted" style="font-size:.88rem;margin-top:.3rem;">
+    Costi di avvio: <strong style="color:var(--cyan);">{{ cost }}</strong> oppure
+    <strong style="color:var(--warning);">Prestito Speciale</strong>
+    ({{ loan_weeks }} rate da {{ loan_weekly }}/settimana · totale {{ loan_total }}).
+  </p>
+</div>
+
+<div style="max-width:520px;">
+  <div class="card">
+    <form method="POST" action="{{ url_for('league.create') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="form-group">
+        <label>Nome della Lega</label>
+        <input type="text" name="name" class="form-control"
+               placeholder="es. Premier Galattica 2099"
+               maxlength="100" minlength="3" required>
+      </div>
+
+      <div class="form-group">
+        <label>Modalità di pagamento</label>
+        <select name="payment" class="form-control" id="paymentSel">
+          <option value="direct">Pagamento diretto ({{ cost }})</option>
+          <option value="loan">Prestito Speciale ({{ loan_weekly }}/settimana × {{ loan_weeks }})</option>
+        </select>
+        <p class="text-muted" style="font-size:.78rem;margin-top:.4rem;" id="paymentNote">
+          Budget attuale: <strong style="color:var(--success);">{{ team_budget }}</strong>
+        </p>
+      </div>
+
+      <div class="cyber-line"></div>
+
+      <div class="card" style="background:rgba(0,245,255,.03);border-color:rgba(0,245,255,.2);padding:1rem;margin-bottom:1.2rem;">
+        <h3 style="margin-bottom:.6rem;font-size:.82rem;">Regole creazione lega</h3>
+        <ul style="list-style:none;font-size:.82rem;color:var(--muted);line-height:1.8;">
+          <li>🔒 Puoi essere proprietario di <strong>1 sola</strong> lega privata</li>
+          <li>👥 Partecipare a max <strong>3 leghe</strong> contemporaneamente</li>
+          <li>📋 Servono almeno <strong>4 squadre</strong> per avviare la stagione</li>
+          <li>📈 La capienza cresce di <strong>+2 per stagione</strong> (max 24)</li>
+          <li>🏦 Il prestito va pagato <strong>anche se la lega viene annullata</strong></li>
+        </ul>
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-block">Crea Lega →</button>
+      <a href="{{ url_for('league.index') }}" class="btn btn-secondary btn-block mt-1">Annulla</a>
+    </form>
+  </div>
+</div>
+
+<script>
+document.getElementById('paymentSel').addEventListener('change', function() {
+  const note = document.getElementById('paymentNote');
+  if (this.value === 'loan') {
+    note.innerHTML = 'Il prestito viene restituito in <strong style="color:var(--warning);">{{ loan_weeks }} rate</strong> da <strong style="color:var(--warning);">{{ loan_weekly }}/settimana</strong> (totale {{ loan_total }}).';
+  } else {
+    note.innerHTML = 'Budget attuale: <strong style="color:var(--success);">{{ team_budget }}</strong>';
+  }
+});
+</script>
+{% endblock %}

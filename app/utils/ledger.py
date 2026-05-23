@@ -25,6 +25,9 @@ CAT_RETREAT = 'ritiro'
 CAT_STADIUM = 'stadio'
 CAT_FINE = 'multa'
 CAT_SOCIAL = 'social'
+CAT_LEAGUE_ENTRY  = 'lega_iscrizione'
+CAT_LEAGUE_PERM   = 'lega_permanenza'
+CAT_LEAGUE_INCOME = 'lega_proventi'
 
 # label + icon for display in the bilancio page
 CATEGORIES = {
@@ -44,6 +47,9 @@ CATEGORIES = {
     CAT_STADIUM:      ('Stadio', '🏗️'),
     CAT_FINE:         ('Multe', '🚨'),
     CAT_SOCIAL:       ('Social / Influenza', '🥂'),
+    CAT_LEAGUE_ENTRY: ('Lega Privata – Iscrizione', '🏆'),
+    CAT_LEAGUE_PERM:  ('Lega Privata – Permanenza', '🏆'),
+    CAT_LEAGUE_INCOME:('Lega Privata – Proventi', '🏆'),
 }
 
 
