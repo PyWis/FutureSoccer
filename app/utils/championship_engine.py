@@ -506,6 +506,46 @@ def get_team_championship_summary(team):
     }
 
 
+def get_team_championship_fixtures(team):
+    """All championship matches of the team in the current active monthly season,
+    ordered by matchday. Returns [] if not in an active championship."""
+    if team is None:
+        return []
+    from app.models.championship import ChampionshipSeason, ChampionshipMatch
+    from app.models.team import Team
+    from app.utils.gameclock import get_game_month_id, game_day_to_date
+
+    season = ChampionshipSeason.query.filter_by(
+        month_id=get_game_month_id(), status='active').first()
+    if not season:
+        return []
+
+    matches = ChampionshipMatch.query.filter(
+        ChampionshipMatch.season_id == season.id,
+        db.or_(ChampionshipMatch.home_team_id == team.id,
+               ChampionshipMatch.away_team_id == team.id),
+    ).order_by(ChampionshipMatch.scheduled_game_day, ChampionshipMatch.round_number).all()
+
+    out = []
+    for m in matches:
+        is_home = m.home_team_id == team.id
+        opp = Team.query.get(m.away_team_id if is_home else m.home_team_id)
+        gf = m.home_score if is_home else m.away_score
+        ga = m.away_score if is_home else m.home_score
+        outcome = None
+        if m.status == 'played' and gf is not None:
+            outcome = 'V' if gf > ga else ('P' if gf < ga else 'N')
+        out.append({
+            'date': game_day_to_date(m.scheduled_game_day),
+            'round': m.round_number,
+            'opponent': opp.name if opp else '—',
+            'is_home': is_home,
+            'status': m.status,
+            'gf': gf, 'ga': ga, 'outcome': outcome,
+        })
+    return out
+
+
 # ── Driver (called on page load and from the scheduler) ──────────────────────────
 
 def process_due_championship_events():

@@ -429,12 +429,16 @@ def calendario():
             'direction': 'inviata' if is_challenger else 'ricevuta',
         })
 
+    from app.utils.championship_engine import get_team_championship_fixtures
+    champ_fixtures = get_team_championship_fixtures(team)
+
     return render_template('game/calendario.html',
                            team=team,
                            game_date=format_game_date(),
                            season_label=format_game_season(season),
                            played=played,
                            upcoming=upcoming_view,
+                           champ_fixtures=champ_fixtures,
                            fmt_date=format_game_date)
 
 

@@ -50,6 +50,41 @@
   </div>
 </div>
 
+<!-- ── PARTITE DI CAMPIONATO ── -->
+<div class="card mb-3">
+  <h2 style="font-size:1.05rem;" class="mb-2">🏆 Campionato del mese</h2>
+  {% if champ_fixtures %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>G.</th><th>DATA</th><th>C/T</th><th>AVVERSARIO</th><th style="text-align:center;">RISULTATO</th><th style="text-align:center;">ESITO</th></tr>
+      </thead>
+      <tbody>
+        {% for f in champ_fixtures %}
+        <tr>
+          <td style="color:var(--muted);">{{ f.round }}</td>
+          <td style="font-size:.8rem;">{{ fmt_date(f.date) }}</td>
+          <td>{{ '🏠' if f.is_home else '✈️' }}</td>
+          <td><strong>{{ f.opponent }}</strong></td>
+          <td style="text-align:center;font-family:'Orbitron',monospace;">
+            {% if f.status == 'played' %}{{ f.gf }} – {{ f.ga }}{% else %}<span class="text-muted">da giocare</span>{% endif %}
+          </td>
+          <td style="text-align:center;">
+            {% if f.outcome == 'V' %}<span class="badge badge-green">V</span>
+            {% elif f.outcome == 'P' %}<span class="badge badge-red">P</span>
+            {% elif f.outcome == 'N' %}<span class="badge badge-cyan">N</span>
+            {% else %}<span class="text-muted">—</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-muted" style="font-size:.85rem;">Nessun campionato attivo in questo mese (luglio: finali annuali · agosto: pausa). Le date si fissano a inizio mese.</p>
+  {% endif %}
+</div>
+
 <!-- ── PROSSIME PARTITE ── -->
 <div class="card mb-3">
   <h2 style="font-size:1.05rem;" class="mb-2">⏭️ Prossime partite</h2>
