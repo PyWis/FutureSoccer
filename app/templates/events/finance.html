@@ -35,6 +35,44 @@
   </div>
 </div>
 
+<!-- ── LEAGUE CREATION LOANS ── -->
+{% if league_loans %}
+<div class="card mb-4" style="border-color:rgba(255,165,0,.25);">
+  <h3 style="margin-bottom:.75rem;">🏆 Prestiti Speciali Lega Privata</h3>
+  {% for item in league_loans %}
+  {% set loan = item.loan %}
+  <div class="loan-row">
+    <div style="min-width:120px;">
+      <span class="badge badge-gold">🏆 Lega Privata</span>
+      <div style="font-size:.7rem;color:var(--muted);margin-top:.2rem;">
+        cap. €{{ "%.2f"|format(loan.principal/1_000_000) }}M
+      </div>
+    </div>
+    <div style="text-align:center;">
+      <div style="font-family:'Orbitron',monospace;font-size:.95rem;color:var(--danger);">
+        −€{{ "%.0f"|format(loan.weekly_payment/1000) }}k
+      </div>
+      <div style="font-size:.65rem;color:var(--muted);">/ settimana</div>
+    </div>
+    <div style="text-align:right;">
+      <div style="font-size:.85rem;font-weight:700;">{{ item.weeks_left }} sett. rimanenti</div>
+      <div style="font-size:.72rem;color:var(--muted);">
+        residuo €{{ "%.2f"|format(item.remaining_due/1_000_000) }}M
+      </div>
+      {% if item.weeks_overdue > 0 %}
+      <div style="font-size:.68rem;color:var(--danger);margin-top:.15rem;">
+        ⚠️ {{ item.weeks_overdue }} sett. arretrate
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+  <p style="font-size:.75rem;color:var(--muted);margin-top:.6rem;padding-top:.6rem;border-top:1px solid var(--card-border);">
+    Non conta verso il limite di {{ max_loans }} prestiti regolari. Viene rimborsato automaticamente ogni settimana.
+  </p>
+</div>
+{% endif %}
+
 <!-- ── ACTIVE LOANS ── -->
 {% if active_loans %}
 <div class="card mb-4">

@@ -117,9 +117,14 @@ def create():
                           f'Creazione Lega Privata: {name}')
             loan_obj = None
         else:
-            # Special federation loan
-            if active_loans >= 3:
-                flash('Hai già 3 prestiti attivi. Non puoi prenderne un altro.', 'danger')
+            # Special federation loan — only regular loans count toward the cap
+            regular_loan_count = Loan.query.filter(
+                Loan.team_id == team.id,
+                Loan.is_active == True,
+                Loan.loan_type != 'league_creation',
+            ).count()
+            if regular_loan_count >= 3:
+                flash('Hai già 3 prestiti regolari attivi. Non puoi prenderne un altro.', 'danger')
                 return redirect(url_for('league.create'))
             loan_obj = Loan(
                 team_id=team.id,
@@ -132,8 +137,11 @@ def create():
             )
             db.session.add(loan_obj)
             db.session.flush()
+            # Loan disbursed then immediately used for creation: net zero on team budget
             ledger.record(team, LEAGUE_LOAN_PRINCIPAL, ledger.CAT_LOAN_IN,
                           f'Prestito Speciale Federazione – Lega: {name}')
+            ledger.record(team, -LEAGUE_CREATION_COST, ledger.CAT_LEAGUE_ENTRY,
+                          f'Creazione Lega Privata (via prestito): {name}')
 
         league = PrivateLeague(
             name=name,

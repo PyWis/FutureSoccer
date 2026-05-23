@@ -1130,9 +1130,12 @@ def finance():
     current_week = get_game_week_id()
 
     # ── Loans ──
-    active_loans = Loan.query.filter_by(team_id=team.id, is_active=True).order_by(Loan.created_at).all()
-    has_federation_loan = any(l.loan_type == 'federation' for l in active_loans)
-    can_borrow = not has_federation_loan and len(active_loans) < MAX_LOANS
+    all_active_loans = Loan.query.filter_by(team_id=team.id, is_active=True).order_by(Loan.created_at).all()
+    # League-creation loans are managed separately and don't count toward the 3-loan cap
+    regular_loans = [l for l in all_active_loans if l.loan_type != 'league_creation']
+    league_creation_loans = [l for l in all_active_loans if l.loan_type == 'league_creation']
+    has_federation_loan = any(l.loan_type == 'federation' for l in regular_loans)
+    can_borrow = not has_federation_loan and len(regular_loans) < MAX_LOANS
 
     total_stars = (team.facility_training + team.facility_stream +
                    team.facility_locker + team.facility_ground)
@@ -1140,17 +1143,19 @@ def finance():
     for key, t in LOAN_TIERS.items():
         tiers[key] = {**t, 'principal': total_stars * t['multiplier']}
 
-    loans_display = []
-    for loan in active_loans:
+    def _loan_entry(loan):
         weeks_left = loan.weeks_total - loan.weeks_paid
         weeks_overdue = max(0, current_week - loan.last_paid_week_id)
-        loans_display.append({
+        return {
             'loan': loan,
             'weeks_left': weeks_left,
             'remaining_due': round(loan.weekly_payment * weeks_left, 2),
             'weeks_overdue': weeks_overdue,
-        })
-    total_weekly_debt = sum(l.weekly_payment for l in active_loans)
+        }
+
+    loans_display = [_loan_entry(l) for l in regular_loans]
+    league_loans_display = [_loan_entry(l) for l in league_creation_loans]
+    total_weekly_debt = sum(l.weekly_payment for l in all_active_loans)
 
     # ── Investments ──
     active_investments = Investment.query.filter_by(team_id=team.id, is_active=True).order_by(Investment.created_at).all()
@@ -1177,6 +1182,7 @@ def finance():
                            team=team,
                            game_date=format_game_date(),
                            active_loans=loans_display,
+                           league_loans=league_loans_display,
                            has_federation_loan=has_federation_loan,
                            can_borrow=can_borrow,
                            total_stars=total_stars,
@@ -1203,11 +1209,12 @@ def finance_borrow():
     team = current_user.team
 
     active_loans = Loan.query.filter_by(team_id=team.id, is_active=True).all()
-    has_federation_loan = any(l.loan_type == 'federation' for l in active_loans)
+    regular_loans = [l for l in active_loans if l.loan_type != 'league_creation']
+    has_federation_loan = any(l.loan_type == 'federation' for l in regular_loans)
     if has_federation_loan:
         flash('Non puoi richiedere prestiti mentre è attivo l\'Aiuto dalla Federazione.', 'danger')
         return redirect(url_for('events.finance'))
-    if len(active_loans) >= MAX_LOANS:
+    if len(regular_loans) >= MAX_LOANS:
         flash(f'Hai già {MAX_LOANS} prestiti attivi. Restituiscili prima di richiederne altri.', 'danger')
         return redirect(url_for('events.finance'))
 
