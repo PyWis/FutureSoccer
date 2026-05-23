@@ -2037,6 +2037,11 @@ def process_due_team_events(team):
     """
     from app.routes.game import _process_team_freshness
 
+    # Bot teams (public championship fillers) have no manager, finances or market
+    # activity — skip the entire economic loop for them.
+    if getattr(team, 'is_bot', False):
+        return
+
     # Global: resolve any auctions whose windows have closed (may credit/debit
     # this team as buyer or seller).
     _process_free_agent_auctions()

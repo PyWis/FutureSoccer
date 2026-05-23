@@ -48,6 +48,15 @@ def run_scheduled_tasks():
             db.session.rollback()
             log.exception('event processing failed for team %s', getattr(team, 'id', '?'))
 
+    # 1b. Public monthly championship: create seasons, auto-play due matches,
+    #     finalise months. Idempotent, advances even with no live traffic.
+    try:
+        from app.utils.championship_engine import process_due_championship_events
+        process_due_championship_events()
+    except Exception:
+        db.session.rollback()
+        log.exception('championship event processing failed')
+
     # 2. Advance active matches whose turn timer elapsed
     turn_seconds = get_turn_duration()
     for match in FriendlyMatch.query.filter_by(status='active').all():

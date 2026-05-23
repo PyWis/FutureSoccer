@@ -182,7 +182,7 @@ def sell_player(player_id):
 @login_required
 def standings():
     teams = sorted(
-        Team.query.all(),
+        Team.query.filter_by(is_bot=False).all(),
         key=lambda t: (t.points, t.goals_diff, t.goals_for),
         reverse=True,
     )

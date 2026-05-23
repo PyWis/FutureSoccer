@@ -1,4 +1,5 @@
 import os
+import calendar
 from datetime import datetime, timedelta, date
 
 GAME_START_DATE = date(2099, 8, 31)
@@ -128,3 +129,53 @@ def format_game_season(season=None):
     if season is None:
         season = get_game_season()
     return f"{season}/{season + 1}"
+
+
+# ── Monthly championship calendar ──────────────────────────────────────────────
+
+CHAMPIONSHIP_LAST_MATCHDAY = 28   # the fixed final matchday of every month
+
+
+def _date_to_game_day(d):
+    return (d - GAME_START_DATE).days
+
+
+def get_month_start_game_day(d=None):
+    """Game-day number of the 1st of the current game month."""
+    if d is None:
+        d = get_game_date()
+    return _date_to_game_day(date(d.year, d.month, 1))
+
+
+def get_month_last_matchday_game_day(d=None):
+    """Game-day number of the fixed last matchday (the 28th)."""
+    if d is None:
+        d = get_game_date()
+    return _date_to_game_day(date(d.year, d.month, CHAMPIONSHIP_LAST_MATCHDAY))
+
+
+def get_month_end_game_day(d=None):
+    """Game-day number of the last calendar day of the current game month."""
+    if d is None:
+        d = get_game_date()
+    last_day = calendar.monthrange(d.year, d.month)[1]
+    return _date_to_game_day(date(d.year, d.month, last_day))
+
+
+def is_competition_month(d=None):
+    """Monthly championships run September–June. July = annual finals, August = off."""
+    if d is None:
+        d = get_game_date()
+    return d.month not in (7, 8)
+
+
+def is_july_finals(d=None):
+    if d is None:
+        d = get_game_date()
+    return d.month == 7
+
+
+def is_august_offseason(d=None):
+    if d is None:
+        d = get_game_date()
+    return d.month == 8

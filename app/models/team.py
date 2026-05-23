@@ -20,6 +20,11 @@ class Team(db.Model):
     color_secondary = db.Column(db.String(7), default='#7b2fff')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    # Public monthly championship: bot teams fill empty group slots; current_tier
+    # is the division a team belongs to between months (elite|gold|silver|bronze|iron).
+    is_bot = db.Column(db.Boolean, default=False, index=True)
+    current_tier = db.Column(db.String(10), default='iron', index=True)
+
     # Game events tracking
     scouting_paid_week_id = db.Column(db.Integer, default=-1)
     scouting_enabled = db.Column(db.Boolean, default=False)

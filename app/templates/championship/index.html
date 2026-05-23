@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Campionato — FutureSoccer{% endblock %}
+
+{% macro standings_table(standings, tier) %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>#</th><th>SQUADRA</th><th>G</th><th>V</th><th>P</th><th>S</th><th>GF</th><th>GS</th><th>DR</th><th>PTS</th></tr>
+    </thead>
+    <tbody>
+      {% for m in standings %}
+      {% set is_me = my_team and m.team_id == my_team.id %}
+      <tr style="{% if is_me %}background:rgba(0,245,255,0.06);{% endif %}">
+        <td>
+          {% if loop.index == 1 %}<span title="Promosso" style="color:#ffd700;">▲</span>
+          {% elif tier != 'iron' and loop.index > (standings|length - 2) %}<span title="Retrocesso" style="color:var(--danger);">▼</span>
+          {% endif %}
+          {{ loop.index }}
+        </td>
+        <td>
+          <div style="display:flex;align-items:center;gap:0.6rem;">
+            <div style="width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,{{ m.team.color_primary }},{{ m.team.color_secondary }});"></div>
+            <span style="font-weight:700;">{{ m.team.name }}{% if m.team.is_bot %} <span style="font-size:0.65rem;color:var(--muted);">BOT</span>{% endif %}{% if is_me %} <span style="font-size:0.7rem;color:var(--cyan);">(tu)</span>{% endif %}</span>
+          </div>
+        </td>
+        <td>{{ m.wins + m.draws + m.losses }}</td>
+        <td style="color:var(--success);">{{ m.wins }}</td>
+        <td style="color:var(--warning);">{{ m.draws }}</td>
+        <td style="color:var(--danger);">{{ m.losses }}</td>
+        <td>{{ m.goals_for }}</td>
+        <td>{{ m.goals_against }}</td>
+        <td>{{ '+' if m.goals_diff > 0 else '' }}{{ m.goals_diff }}</td>
+        <td><strong style="font-family:'Orbitron',monospace;color:var(--cyan);">{{ m.points }}</strong></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endmacro %}
+
+{% block content %}
+<div class="page-header">
+  <h1>🏆 CAMPIONATO MENSILE</h1>
+  {% if season %}
+    <p class="text-muted">Mese in corso · ultima giornata fissa il 28 · promozioni e retrocessioni a fine mese</p>
+  {% else %}
+    <p class="text-muted">Nessun campionato attivo in questo mese (luglio = finali annuali, agosto = pausa).</p>
+  {% endif %}
+</div>
+
+{% if my_group %}
+<div class="card">
+  <h2 style="margin-top:0;">Il tuo girone — {{ my_group.label }}</h2>
+  {{ standings_table(my_standings, my_group.tier) }}
+</div>
+{% elif season %}
+<div class="card"><p class="text-muted">La tua squadra non è ancora iscritta al campionato di questo mese.</p></div>
+{% endif %}
+
+{% for tier, groups in tiers %}
+<div class="card">
+  <h2 style="margin-top:0;text-transform:capitalize;">{{ tier }}</h2>
+  {% for group, standings in groups %}
+    <h3 style="color:var(--muted);">{{ group.label }}</h3>
+    {{ standings_table(standings, tier) }}
+  {% endfor %}
+</div>
+{% endfor %}
+{% endblock %}
