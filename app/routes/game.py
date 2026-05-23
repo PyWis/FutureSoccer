@@ -430,7 +430,9 @@ def calendario():
         })
 
     from app.utils.championship_engine import get_team_championship_fixtures
+    from app.utils.tournament_engine import get_team_tournament_fixtures
     champ_fixtures = get_team_championship_fixtures(team)
+    cup_fixtures = get_team_tournament_fixtures(team)
 
     return render_template('game/calendario.html',
                            team=team,
@@ -439,6 +441,7 @@ def calendario():
                            played=played,
                            upcoming=upcoming_view,
                            champ_fixtures=champ_fixtures,
+                           cup_fixtures=cup_fixtures,
                            fmt_date=format_game_date)
 
 

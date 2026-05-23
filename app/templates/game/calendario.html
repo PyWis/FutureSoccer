@@ -85,6 +85,41 @@
   {% endif %}
 </div>
 
+<!-- ── COPPE DI LUGLIO ── -->
+{% if cup_fixtures %}
+<div class="card mb-3">
+  <h2 style="font-size:1.05rem;" class="mb-2">👑 Coppe di luglio</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>COMPETIZIONE</th><th>TURNO</th><th>DATA</th><th>C/T</th><th>AVVERSARIO</th><th style="text-align:center;">RISULTATO</th><th style="text-align:center;">ESITO</th></tr>
+      </thead>
+      <tbody>
+        {% for f in cup_fixtures %}
+        <tr>
+          <td style="font-size:.82rem;">{{ f.competition }}</td>
+          <td style="color:var(--muted);font-size:.82rem;">{{ f.round }}</td>
+          <td style="font-size:.8rem;">{{ fmt_date(f.date) }}</td>
+          <td>{{ '🏠' if f.is_home else '✈️' }}</td>
+          <td><strong>{{ f.opponent }}</strong></td>
+          <td style="text-align:center;font-family:'Orbitron',monospace;">
+            {% if f.status == 'played' and f.gf is not none %}{{ f.gf }} – {{ f.ga }}{% if f.penalties %} <span style="font-size:.65rem;color:var(--warning);">d.c.r.</span>{% endif %}
+            {% elif f.status == 'played' %}<span class="text-muted">passa</span>
+            {% else %}<span class="text-muted">da giocare</span>{% endif %}
+          </td>
+          <td style="text-align:center;">
+            {% if f.outcome == 'V' %}<span class="badge badge-green">V</span>
+            {% elif f.outcome == 'P' %}<span class="badge badge-red">P</span>
+            {% else %}<span class="text-muted">—</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
 <!-- ── PROSSIME PARTITE ── -->
 <div class="card mb-3">
   <h2 style="font-size:1.05rem;" class="mb-2">⏭️ Prossime partite</h2>

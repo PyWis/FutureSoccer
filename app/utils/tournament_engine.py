@@ -288,6 +288,73 @@ def _create_supercoppa(season, main, secondary):
     return t
 
 
+# ── Calendar fixtures ────────────────────────────────────────────────────────
+
+_KIND_LABEL = {'main': 'Torneo Principale', 'secondary': 'Torneo Secondario',
+               'supercoppa': 'Supercoppa'}
+
+
+def _round_label(bracket_size, round_index):
+    total = max(1, bracket_size.bit_length() - 1)
+    remaining = total - round_index
+    return {1: 'Finale', 2: 'Semifinale', 3: 'Quarti', 4: 'Ottavi'}.get(
+        remaining, f'Turno {round_index + 1}')
+
+
+def get_team_tournament_fixtures(team):
+    """The team's July tournament matches (current season), ordered by day.
+    Returns [] outside July or if the team has no tournament matches yet."""
+    if team is None:
+        return []
+    from app.models.championship import Tournament, TournamentMatch
+    from app.models.team import Team
+    from app.utils.gameclock import is_july_finals, get_game_season, game_day_to_date
+
+    if not is_july_finals():
+        return []
+
+    season = get_game_season()
+    tournaments = {t.id: t for t in Tournament.query.filter_by(season=season).all()}
+    if not tournaments:
+        return []
+
+    matches = TournamentMatch.query.filter(
+        TournamentMatch.tournament_id.in_(list(tournaments.keys())),
+        db.or_(TournamentMatch.home_team_id == team.id,
+               TournamentMatch.away_team_id == team.id),
+    ).order_by(TournamentMatch.scheduled_game_day).all()
+
+    out = []
+    for m in matches:
+        t = tournaments[m.tournament_id]
+        is_home = m.home_team_id == team.id
+        opp_id = m.away_team_id if is_home else m.home_team_id
+        if opp_id is None:
+            opponent = '— (bye)' if m.status == 'played' else 'Da definire'
+        else:
+            opp = Team.query.get(opp_id)
+            opponent = opp.name if opp else '—'
+        gf = m.home_score if is_home else m.away_score
+        ga = m.away_score if is_home else m.home_score
+        outcome = None
+        if m.status == 'played':
+            if m.winner_team_id == team.id:
+                outcome = 'V'
+            elif m.winner_team_id:
+                outcome = 'P'
+        out.append({
+            'competition': _KIND_LABEL.get(t.kind, t.kind),
+            'round': _round_label(t.bracket_size, m.round_index),
+            'date': game_day_to_date(m.scheduled_game_day),
+            'opponent': opponent,
+            'is_home': is_home,
+            'status': m.status,
+            'gf': gf, 'ga': ga, 'outcome': outcome,
+            'penalties': m.decided_by_penalties,
+        })
+    return out
+
+
 # ── Driver ───────────────────────────────────────────────────────────────────
 
 def process_due_tournament_events():
