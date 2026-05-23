@@ -93,14 +93,25 @@ def lobby():
         ).all()
     }
 
-    # All other teams (exclude own, exclude already challenged this week)
+    # Human teams to challenge (exclude own, bots, and already challenged this week)
     can_challenge = not is_match_day  # challenges only on non-match days
     other_teams = []
     if can_challenge:
         other_teams = Team.query.filter(
             Team.id != team.id,
+            Team.is_bot == False,           # noqa: E712
+            Team.manager_id != None,        # noqa: E712
             ~Team.id.in_(already_challenged_ids),
         ).all()
+
+    # Bot teams: always available to play instantly on match days (no acceptance
+    # needed). Show the closest in strength to the player for balanced friendlies.
+    bot_teams = []
+    if is_match_day:
+        bots = Team.query.filter_by(is_bot=True).all()
+        my_force = team.top7_avg_skill
+        bots.sort(key=lambda b: abs(b.top7_avg_skill - my_force))
+        bot_teams = bots[:12]
 
     # Match-day auto-start: matches begin 60 real seconds after the match day begins
     MATCH_DELAY = 60  # seconds
@@ -168,6 +179,7 @@ def lobby():
         accepted_challenges=accepted_challenges,
         completed_match=completed_match,
         other_teams=other_teams,
+        bot_teams=bot_teams,
         current_day=current_day,
     )
 
@@ -244,6 +256,70 @@ def start_bot():
     db.session.add(match)
     db.session.commit()
 
+    return redirect(url_for('match.view', match_id=match.id))
+
+
+@match_bp.route('/start-vs/<int:team_id>', methods=['POST'])
+@login_required
+def start_vs_bot_team(team_id):
+    """Play an instant friendly against a specific bot team (bots have no manager
+    to accept a challenge, so they are always available like the Squadra del Bar,
+    but field their real roster)."""
+    team = _get_team_or_redirect()
+    if not team:
+        return redirect(url_for('game.create_team'))
+    if not _require_match_day():
+        return redirect(url_for('match.lobby'))
+
+    target = Team.query.get_or_404(team_id)
+    if not target.is_bot:
+        flash('Le squadre dei manager si affrontano tramite il sistema sfide.', 'warning')
+        return redirect(url_for('match.lobby'))
+
+    current_day = get_game_day_number()
+
+    existing = FriendlyMatch.query.filter(
+        FriendlyMatch.status == 'active',
+        db.or_(FriendlyMatch.home_team_id == team.id,
+               FriendlyMatch.away_team_id == team.id),
+    ).first()
+    if existing:
+        flash('Hai già una partita in corso.', 'warning')
+        return redirect(url_for('match.view', match_id=existing.id))
+
+    from app.utils.match_engine import (build_home_lineup, generate_bot_lineup,
+                                         team_has_match_on_day)
+    if team_has_match_on_day(team.id, current_day):
+        flash("Hai già giocato un'amichevole oggi (massimo una al giorno).", 'warning')
+        return redirect(url_for('match.lobby'))
+
+    formation = TeamFormation.query.filter_by(team_id=team.id).first()
+    if not formation:
+        flash('Devi salvare una formazione prima di giocare.', 'danger')
+        return redirect(url_for('match.lobby'))
+
+    home_lineup = build_home_lineup(team, formation)
+    starters = (1 if home_lineup.get('goalkeeper') else 0) \
+        + len(home_lineup.get('defenders') or []) + len(home_lineup.get('attackers') or [])
+    if starters < 2:
+        flash('Non hai abbastanza giocatori in forma per giocare (minimo 2 titolari).', 'danger')
+        return redirect(url_for('match.lobby'))
+
+    bot_formation = TeamFormation.query.filter_by(team_id=target.id).first()
+    away_lineup = build_home_lineup(target, bot_formation) if bot_formation else generate_bot_lineup()
+
+    match = FriendlyMatch(
+        home_team_id=team.id,
+        away_team_id=target.id,
+        game_day=current_day,
+        home_lineup_json=json.dumps(home_lineup),
+        away_lineup_json=json.dumps(away_lineup),
+        last_turn_at=datetime.utcnow(),
+        status='active',
+        current_turn=0,
+    )
+    db.session.add(match)
+    db.session.commit()
     return redirect(url_for('match.view', match_id=match.id))
 
 

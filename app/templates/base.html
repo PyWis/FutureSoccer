@@ -332,64 +332,54 @@
 
     {% else %}
     <!-- PLAYER NAV -->
-    <div class="nav-section-label">Panoramica</div>
+    <div class="nav-section-label">Squadra</div>
     <a href="{{ url_for('game.dashboard') }}"
        class="nav-item {% if request.endpoint == 'game.dashboard' %}active{% endif %}">
       <span class="nav-icon">📊</span><span class="nav-label">Dashboard</span>
     </a>
     <a href="{{ url_for('game.my_team') }}"
        class="nav-item {% if request.endpoint == 'game.my_team' %}active{% endif %}">
-      <span class="nav-icon">🏟️</span><span class="nav-label">La mia Squadra</span>
-    </a>
-    <a href="{{ url_for('game.stadium') }}"
-       class="nav-item {% if request.endpoint and 'game.stadium' in request.endpoint %}active{% endif %}">
-      <span class="nav-icon">🏗️</span><span class="nav-label">Stadio</span>
+      <span class="nav-icon">👥</span><span class="nav-label">La mia Squadra</span>
     </a>
     <a href="{{ url_for('game.formation') }}"
        class="nav-item {% if request.endpoint == 'game.formation' %}active{% endif %}">
       <span class="nav-icon">📋</span><span class="nav-label">Formazione</span>
     </a>
-    <a href="{{ url_for('game.standings') }}"
-       class="nav-item {% if request.endpoint == 'game.standings' %}active{% endif %}">
-      <span class="nav-icon">📋</span><span class="nav-label">Classifica</span>
+    <a href="{{ url_for('game.stadium') }}"
+       class="nav-item {% if request.endpoint and 'game.stadium' in request.endpoint %}active{% endif %}">
+      <span class="nav-icon">🏗️</span><span class="nav-label">Stadio</span>
     </a>
+
+    <div class="nav-section-label" style="margin-top:.5rem;">Competizioni</div>
     <a href="{{ url_for('championship.index') }}"
        class="nav-item {% if request.endpoint and 'championship.' in request.endpoint %}active{% endif %}">
       <span class="nav-icon">🏆</span><span class="nav-label">Campionato &amp; Coppe</span>
+    </a>
+    <a href="{{ url_for('match.lobby') }}"
+       class="nav-item {% if request.endpoint and 'match.' in request.endpoint %}active{% endif %}">
+      <span class="nav-icon">⚽</span>
+      <span class="nav-label">Partita</span>
+      {% if g_weekday in (2, 6) %}<span class="nav-dot"></span>{% else %}<span style="font-size:.62rem;color:var(--muted);">Mer·Dom</span>{% endif %}
     </a>
     <a href="{{ url_for('game.calendario') }}"
        class="nav-item {% if request.endpoint == 'game.calendario' %}active{% endif %}">
       <span class="nav-icon">📅</span><span class="nav-label">Calendario</span>
     </a>
-    <a href="{{ url_for('match.lobby') }}"
-       class="nav-item {% if request.endpoint and 'match.' in request.endpoint %}active{% endif %}">
-      <span class="nav-icon">🏟️</span>
-      <span class="nav-label">Partita</span>
-      {% if g_weekday == 6 %}<span class="nav-dot"></span>{% else %}<span style="font-size:.62rem;color:var(--muted);">Dom</span>{% endif %}
+    <a href="{{ url_for('game.standings') }}"
+       class="nav-item {% if request.endpoint == 'game.standings' %}active{% endif %}">
+      <span class="nav-icon">🏅</span><span class="nav-label">Classifica generale</span>
     </a>
-    <a href="{{ url_for('game.bilancio') }}"
-       class="nav-item {% if request.endpoint == 'game.bilancio' %}active{% endif %}">
-      <span class="nav-icon">💰</span><span class="nav-label">Bilancio</span>
-    </a>
-    <a href="{{ url_for('events.finance') }}"
-       class="nav-item {% if request.endpoint == 'events.finance' %}active{% endif %}">
-      <span class="nav-icon">💳</span>
-      <span class="nav-label">Finanza</span>
-      {% if g_fed_streak > 0 %}
-      <span style="margin-left:auto;font-size:.62rem;font-weight:700;padding:.1rem .35rem;border-radius:8px;
-        background:{% if g_fed_weeks_left <= 5 %}rgba(255,60,60,.25);color:#ff6666{% elif g_fed_weeks_left <= 10 %}rgba(255,180,0,.2);color:#ffb800{% else %}rgba(255,120,0,.15);color:#ff8800{% endif %};
-        border:1px solid currentColor;white-space:nowrap;">
-        🏛️ {{ g_fed_weeks_left }}s
-      </span>
-      {% endif %}
+    <a href="{{ url_for('league.index') }}"
+       class="nav-item {% if request.endpoint and 'league.' in request.endpoint %}active{% endif %}">
+      <span class="nav-icon">🎖️</span><span class="nav-label">Leghe Private</span>
     </a>
 
-    <div class="nav-section-label" style="margin-top:.5rem;">Attività Settimanali</div>
+    <div class="nav-section-label" style="margin-top:.5rem;">Attività settimanali</div>
     <a href="{{ url_for('events.market') }}"
        class="nav-item {% if request.endpoint and 'events.market' in request.endpoint %}active{% endif %}">
       <span class="nav-icon">🛒</span>
       <span class="nav-label">Mercato</span>
-      <span style="font-size:.62rem;color:var(--muted);">Lun</span>
+      {% if g_weekday == 0 %}<span class="nav-dot"></span>{% else %}<span style="font-size:.62rem;color:var(--muted);">Lun</span>{% endif %}
     </a>
     <a href="{{ url_for('events.training') }}"
        class="nav-item {% if request.endpoint == 'events.training' %}active{% endif %}">
@@ -407,22 +397,33 @@
        class="nav-item {% if request.endpoint and 'events.wellness' in request.endpoint %}active{% endif %}">
       <span class="nav-icon">🏥</span><span class="nav-label">Benessere</span>
     </a>
-
-    <div class="nav-section-label" style="margin-top:.5rem;">Leghe</div>
-    <a href="{{ url_for('league.index') }}"
-       class="nav-item {% if request.endpoint and 'league.' in request.endpoint %}active{% endif %}">
-      <span class="nav-icon">🏆</span><span class="nav-label">Leghe Private</span>
-    </a>
-
-    <div class="nav-section-label" style="margin-top:.5rem;">Mercato</div>
     <a href="{{ url_for('events.free_agents') }}"
        class="nav-item {% if request.endpoint == 'events.free_agents' %}active{% endif %}">
       <span class="nav-icon">🔓</span><span class="nav-label">Svincolati</span>
     </a>
 
+    <div class="nav-section-label" style="margin-top:.5rem;">Finanze</div>
+    <a href="{{ url_for('game.bilancio') }}"
+       class="nav-item {% if request.endpoint == 'game.bilancio' %}active{% endif %}">
+      <span class="nav-icon">💰</span><span class="nav-label">Bilancio</span>
+    </a>
+    <a href="{{ url_for('events.finance') }}"
+       class="nav-item {% if request.endpoint == 'events.finance' %}active{% endif %}">
+      <span class="nav-icon">💳</span>
+      <span class="nav-label">Finanza</span>
+      {% if g_fed_streak > 0 %}
+      <span style="margin-left:auto;font-size:.62rem;font-weight:700;padding:.1rem .35rem;border-radius:8px;
+        background:{% if g_fed_weeks_left <= 5 %}rgba(255,60,60,.25);color:#ff6666{% elif g_fed_weeks_left <= 10 %}rgba(255,180,0,.2);color:#ffb800{% else %}rgba(255,120,0,.15);color:#ff8800{% endif %};
+        border:1px solid currentColor;white-space:nowrap;">
+        🏛️ {{ g_fed_weeks_left }}s
+      </span>
+      {% endif %}
+    </a>
+
+    <div class="nav-section-label" style="margin-top:.5rem;">Comunità</div>
     <a href="{{ url_for('events.hall_of_fame') }}"
        class="nav-item {% if request.endpoint == 'events.hall_of_fame' %}active{% endif %}">
-      <span class="nav-icon">🏆</span><span class="nav-label">Hall of Fame</span>
+      <span class="nav-icon">⭐</span><span class="nav-label">Hall of Fame</span>
     </a>
     <a href="{{ url_for('game.social_page') }}"
        class="nav-item {% if request.endpoint == 'game.social_page' %}active{% endif %}">

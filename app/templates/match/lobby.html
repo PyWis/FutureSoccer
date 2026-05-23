@@ -136,6 +136,29 @@
   </form>
 </div>
 
+<!-- ── PLAY VS BOT TEAMS ── -->
+{% if match_unlocked and bot_teams %}
+<div class="card mb-3">
+  <div class="section-title">🤖 Gioca contro una squadra CPU</div>
+  <div style="font-size:.78rem;color:var(--muted);margin-bottom:.6rem;">
+    Avversari ordinati per forza simile alla tua. Disponibili subito, senza sfida.
+  </div>
+  {% for t in bot_teams %}
+  <div class="team-row">
+    <div>
+      <strong>{{ t.name }}</strong>
+      <span style="font-size:.72rem;color:var(--muted);margin-left:.5rem;text-transform:capitalize;">{{ t.current_tier }}</span>
+      <span style="font-size:.72rem;color:var(--cyan);margin-left:.5rem;">forza {{ "%.1f"|format(t.top7_avg_skill) }}</span>
+    </div>
+    <form method="POST" action="{{ url_for('match.start_vs_bot_team', team_id=t.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-sm" style="background:var(--cyan);color:#000;">⚽ Gioca</button>
+    </form>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
 {% else %}
 
 <!-- ── CONFIRMED MATCHES (Mon-Sat) ── -->
