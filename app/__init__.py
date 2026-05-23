@@ -145,6 +145,12 @@ def create_app():
             return redirect(url_for('auth.setup'))
 
     with app.app_context():
+        # Register model metadata for tables not imported via the blueprints above,
+        # so a fresh DB (even without running migrations) gets every table created.
+        # NOTE: aliased imports — a bare `import app.models.x` would rebind the
+        # local `app` (the Flask instance) to the package module.
+        import app.models.private_league as _pl_models  # noqa: F401
+        import app.models.championship as _ch_models    # noqa: F401
         db.create_all()
         _seed_admin()
         _init_game_clock()
