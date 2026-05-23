@@ -128,3 +128,69 @@ class ChampionshipMatch(db.Model):
     def __repr__(self):
         return (f'<ChampionshipMatch {self.home_team_id}v{self.away_team_id} '
                 f'day={self.scheduled_game_day} {self.status}>')
+
+
+# ── July annual finals: knockout tournaments + Supercoppa ───────────────────────
+
+class Tournament(db.Model):
+    __tablename__ = 'tournaments'
+
+    id = db.Column(db.Integer, primary_key=True)
+    season = db.Column(db.Integer, nullable=False, index=True)   # year the season started (Sep)
+    kind = db.Column(db.String(12), nullable=False)              # main | secondary | supercoppa
+    status = db.Column(db.String(20), default='active')          # active | completed
+
+    bracket_size = db.Column(db.Integer, default=0)
+    start_game_day = db.Column(db.Integer, nullable=True)
+    days_between_rounds = db.Column(db.Integer, default=7)
+    winner_team_id = db.Column(db.Integer, db.ForeignKey('teams.id'), nullable=True)
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    matches = db.relationship('TournamentMatch', back_populates='tournament',
+                              cascade='all, delete-orphan',
+                              order_by='TournamentMatch.round_index, TournamentMatch.slot_index')
+    winner_team = db.relationship('Team', foreign_keys=[winner_team_id])
+
+    __table_args__ = (
+        db.UniqueConstraint('season', 'kind', name='uq_tournament_season_kind'),
+    )
+
+    def __repr__(self):
+        return f'<Tournament {self.kind} {self.season} {self.status}>'
+
+
+class TournamentMatch(db.Model):
+    __tablename__ = 'tournament_matches'
+
+    id = db.Column(db.Integer, primary_key=True)
+    tournament_id = db.Column(db.Integer, db.ForeignKey('tournaments.id'), nullable=False)
+
+    round_index = db.Column(db.Integer, nullable=False)    # 0 = first round
+    slot_index = db.Column(db.Integer, nullable=False)     # 0-based within the round
+
+    home_team_id = db.Column(db.Integer, db.ForeignKey('teams.id'), nullable=True)
+    away_team_id = db.Column(db.Integer, db.ForeignKey('teams.id'), nullable=True)
+
+    scheduled_game_day = db.Column(db.Integer, nullable=False, index=True)
+    status = db.Column(db.String(20), default='scheduled')  # scheduled | played
+
+    home_score = db.Column(db.Integer, nullable=True)
+    away_score = db.Column(db.Integer, nullable=True)
+    decided_by_penalties = db.Column(db.Boolean, default=False)
+    winner_team_id = db.Column(db.Integer, db.ForeignKey('teams.id'), nullable=True)
+
+    home_lineup_json = db.Column(db.Text, default='{}')
+    away_lineup_json = db.Column(db.Text, default='{}')
+    turns_json = db.Column(db.Text, default='[]')
+    injuries_json = db.Column(db.Text, default='[]')
+    played_game_day = db.Column(db.Integer, nullable=True)
+
+    tournament = db.relationship('Tournament', back_populates='matches')
+    home_team = db.relationship('Team', foreign_keys=[home_team_id])
+    away_team = db.relationship('Team', foreign_keys=[away_team_id])
+    winner_team = db.relationship('Team', foreign_keys=[winner_team_id])
+
+    def __repr__(self):
+        return (f'<TournamentMatch t={self.tournament_id} r{self.round_index}s{self.slot_index} '
+                f'{self.status}>')

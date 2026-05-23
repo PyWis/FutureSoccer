@@ -102,6 +102,11 @@ def create_app():
             process_due_championship_events()
         except Exception:
             db.session.rollback()
+        try:
+            from app.utils.tournament_engine import process_due_tournament_events
+            process_due_tournament_events()
+        except Exception:
+            db.session.rollback()
 
     @app.context_processor
     def inject_game_globals():

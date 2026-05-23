@@ -57,6 +57,13 @@ def run_scheduled_tasks():
         db.session.rollback()
         log.exception('championship event processing failed')
 
+    try:
+        from app.utils.tournament_engine import process_due_tournament_events
+        process_due_tournament_events()
+    except Exception:
+        db.session.rollback()
+        log.exception('tournament event processing failed')
+
     # 2. Advance active matches whose turn timer elapsed
     turn_seconds = get_turn_duration()
     for match in FriendlyMatch.query.filter_by(status='active').all():

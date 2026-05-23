@@ -179,3 +179,17 @@ def is_august_offseason(d=None):
     if d is None:
         d = get_game_date()
     return d.month == 8
+
+
+def get_july_first_game_day(d=None):
+    """Game-day number of 1 July of the current game year (start of the finals)."""
+    if d is None:
+        d = get_game_date()
+    return _date_to_game_day(date(d.year, 7, 1))
+
+
+def get_july_last_game_day(d=None):
+    """Game-day number of 31 July (Supercoppa day)."""
+    if d is None:
+        d = get_game_date()
+    return _date_to_game_day(date(d.year, 7, 31))
