@@ -437,6 +437,75 @@ def finalize_month(season):
     season.status = 'completed'
 
 
+# ── Dashboard summary ────────────────────────────────────────────────────────
+
+def get_team_championship_summary(team):
+    """Read-only snapshot for the dashboard card. Returns None if the team is not
+    in an active monthly championship (e.g. July/August)."""
+    if team is None:
+        return None
+    from app.models.championship import (
+        ChampionshipSeason, ChampionshipMembership, ChampionshipMatch,
+    )
+    from app.models.team import Team
+    from app.utils.gameclock import (
+        get_game_month_id, get_game_day_number, game_day_to_date, format_game_date,
+    )
+
+    season = ChampionshipSeason.query.filter_by(
+        month_id=get_game_month_id(), status='active').first()
+    if not season:
+        return None
+
+    mem = ChampionshipMembership.query.filter_by(
+        season_id=season.id, team_id=team.id).first()
+    if not mem:
+        return None
+
+    group = mem.group
+    standings = get_group_standings(group)
+    total = len(standings)
+    position = next((i + 1 for i, m in enumerate(standings) if m.team_id == team.id), None)
+
+    if position == 1:
+        zone = 'promo'
+    elif group.tier != 'iron' and position and position > total - RELEGATE_PER_GROUP:
+        zone = 'releg'
+    else:
+        zone = 'safe'
+
+    current_day = get_game_day_number()
+    nxt = ChampionshipMatch.query.filter(
+        ChampionshipMatch.season_id == season.id,
+        ChampionshipMatch.status == 'scheduled',
+        ChampionshipMatch.scheduled_game_day >= current_day,
+        db.or_(ChampionshipMatch.home_team_id == team.id,
+               ChampionshipMatch.away_team_id == team.id),
+    ).order_by(ChampionshipMatch.scheduled_game_day).first()
+
+    next_match = None
+    if nxt:
+        opp_id = nxt.away_team_id if nxt.home_team_id == team.id else nxt.home_team_id
+        opp = Team.query.get(opp_id)
+        next_match = {
+            'opponent': opp.name if opp else '—',
+            'is_home': nxt.home_team_id == team.id,
+            'date': format_game_date(game_day_to_date(nxt.scheduled_game_day)),
+            'days_until': max(0, nxt.scheduled_game_day - current_day),
+        }
+
+    return {
+        'tier': group.tier,
+        'group_label': group.label,
+        'position': position,
+        'total': total,
+        'points': mem.points,
+        'zone': zone,
+        'next_match': next_match,
+        'days_to_close': max(0, (season.last_matchday_game_day or current_day) - current_day),
+    }
+
+
 # ── Driver (called on page load and from the scheduler) ──────────────────────────
 
 def process_due_championship_events():

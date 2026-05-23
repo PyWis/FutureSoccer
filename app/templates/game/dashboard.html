@@ -25,6 +25,39 @@
 </div>
 {% else %}
 
+{% if champ %}
+{% set zone_color = {'promo': 'var(--success)', 'releg': 'var(--danger)', 'safe': 'var(--cyan)'} %}
+{% set zone_text = {'promo': '▲ Zona promozione', 'releg': '▼ Zona retrocessione', 'safe': 'Salvo'} %}
+<div class="card card-glow mb-4" style="border-left:4px solid {{ zone_color[champ.zone] }};">
+  <div class="flex flex-between flex-center" style="flex-wrap:wrap;gap:1rem;">
+    <div>
+      <div class="text-muted" style="font-size:.72rem;letter-spacing:1px;">🏆 CAMPIONATO MENSILE · {{ champ.tier|upper }} · {{ champ.group_label }}</div>
+      <div style="font-family:'Orbitron',monospace;font-size:1.8rem;font-weight:900;color:{{ zone_color[champ.zone] }};margin-top:.2rem;">
+        {{ champ.position }}º<span style="font-size:1rem;color:var(--muted);">/{{ champ.total }}</span>
+        <span style="font-size:.9rem;margin-left:.5rem;">{{ champ.points }} pts</span>
+      </div>
+      <div style="font-size:.8rem;color:{{ zone_color[champ.zone] }};margin-top:.2rem;">{{ zone_text[champ.zone] }}</div>
+    </div>
+    <div style="text-align:right;">
+      {% if champ.next_match %}
+        <div class="text-muted" style="font-size:.72rem;letter-spacing:1px;">PROSSIMA PARTITA</div>
+        <div style="font-weight:700;font-size:.95rem;margin-top:.2rem;">
+          {{ '🏠' if champ.next_match.is_home else '✈️' }} {{ champ.next_match.opponent }}
+        </div>
+        <div style="font-size:.78rem;color:var(--muted);">
+          {% if champ.next_match.days_until == 0 %}<span class="text-cyan">Oggi!</span>
+          {% else %}tra {{ champ.next_match.days_until }} g · {{ champ.next_match.date }}{% endif %}
+        </div>
+      {% else %}
+        <div class="text-muted" style="font-size:.8rem;">Nessuna partita in programma</div>
+      {% endif %}
+      <div style="font-size:.72rem;color:var(--muted);margin-top:.4rem;">Verdetti tra {{ champ.days_to_close }} g (giornata 28)</div>
+      <a href="{{ url_for('championship.index') }}" class="btn btn-secondary btn-sm" style="margin-top:.5rem;">Vai al campionato</a>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <div class="grid-4 mb-4">
   <div class="card" style="text-align:center;">
     <div style="font-family:'Orbitron',monospace;font-size:1.6rem;font-weight:900;color:var(--success);">€{{ "%.1f"|format(team.budget/1000000) }}M</div>

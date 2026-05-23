@@ -50,12 +50,17 @@ def dashboard():
         _process_stadium_degradation(current_user.team)
     team = current_user.team
     weekday = get_game_weekday()
+    champ = None
+    if team:
+        from app.utils.championship_engine import get_team_championship_summary
+        champ = get_team_championship_summary(team)
     return render_template('game/dashboard.html',
                            team=team,
                            game_date=format_game_date(),
                            weekday=weekday,
                            is_training=is_training_day(),
-                           is_sponsor=is_sponsor_day())
+                           is_sponsor=is_sponsor_day(),
+                           champ=champ)
 
 
 def _process_team_freshness(team):
