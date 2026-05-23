@@ -70,33 +70,64 @@
     </div>
   </div>
 
-  <!-- Finance summary (active season) -->
-  {% if season.status == 'active' %}
+  <!-- Montepremi banner -->
+  {% if prize_total is not none %}
   <div class="cyber-line"></div>
-  <div class="grid-4" style="margin-top:.5rem;">
-    <div style="text-align:center;">
-      <div style="font-size:.65rem;color:var(--muted);letter-spacing:1px;">BUDGET LEGA</div>
-      <div style="font-family:'Orbitron',monospace;color:var(--cyan);font-size:.95rem;">
-        {{ fmt_m(season.total_budget) }}
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-top:.5rem;">
+
+    <!-- Valore principale -->
+    <div style="text-align:center;flex:1;min-width:140px;">
+      <div style="font-size:.62rem;color:var(--muted);letter-spacing:1.5px;">
+        💰 MONTEPREMI{% if prize_is_estimate %} (min. stimato){% endif %}
+      </div>
+      <div style="font-family:'Orbitron',monospace;font-size:1.6rem;
+                  color:var(--warning);line-height:1.1;margin-top:.2rem;">
+        {{ fmt_m(prize_total) }}
+        {% if prize_is_estimate %}
+        <span style="font-size:.8rem;color:var(--muted);"> +sponsor</span>
+        {% endif %}
       </div>
     </div>
-    <div style="text-align:center;">
-      <div style="font-size:.65rem;color:var(--muted);letter-spacing:1px;">PRESTIGIO</div>
-      <div style="font-family:'Orbitron',monospace;color:var(--warning);font-size:.95rem;">
-        {{ "%.0f"|format(season.prestige_base) }}
+
+    <!-- Breakdown -->
+    <div style="display:flex;gap:1.5rem;flex-wrap:wrap;justify-content:center;">
+      {% if prize_fees is not none %}
+      <div style="text-align:center;">
+        <div style="font-size:.6rem;color:var(--muted);letter-spacing:1px;">QUOTE ISCRIZIONE</div>
+        <div style="font-family:'Orbitron',monospace;color:var(--cyan);font-size:.9rem;">
+          {{ fmt_m(prize_fees) }}
+        </div>
+        <div style="font-size:.65rem;color:var(--muted);">
+          ({{ fmt_m(15_000_000) }} × {{ season.num_teams if season.status=='active' else memberships|selectattr('status','equalto','active')|list|length }})
+        </div>
       </div>
-    </div>
-    <div style="text-align:center;">
-      <div style="font-size:.65rem;color:var(--muted);letter-spacing:1px;">SPONSOR</div>
-      <div style="font-family:'Orbitron',monospace;color:var(--success);font-size:.95rem;">
-        {{ fmt_m(season.sponsor_amount) }}
+      {% endif %}
+
+      {% if prize_sponsor is not none %}
+      <div style="text-align:center;">
+        <div style="font-size:.6rem;color:var(--muted);letter-spacing:1px;">SPONSOR STAGIONE</div>
+        <div style="font-family:'Orbitron',monospace;color:var(--success);font-size:.9rem;">
+          {{ fmt_m(prize_sponsor) }}
+        </div>
+        <div style="font-size:.65rem;color:var(--muted);">
+          {{ "%.0f"|format(season.prestige_random * 100) }}% fattore random
+        </div>
       </div>
-    </div>
-    <div style="text-align:center;">
-      <div style="font-size:.65rem;color:var(--muted);letter-spacing:1px;">FATTORE RANDOM</div>
-      <div style="font-family:'Orbitron',monospace;color:var(--purple);font-size:.95rem;">
-        {{ "%.0f"|format(season.prestige_random * 100) }}%
+      {% else %}
+      <div style="text-align:center;">
+        <div style="font-size:.6rem;color:var(--muted);letter-spacing:1px;">SPONSOR STAGIONE</div>
+        <div style="font-size:.82rem;color:var(--muted);">calcolato all'avvio</div>
       </div>
+      {% endif %}
+
+      {% if season and season.status == 'active' %}
+      <div style="text-align:center;">
+        <div style="font-size:.6rem;color:var(--muted);letter-spacing:1px;">DISTRIBUZIONE</div>
+        <div style="font-size:.75rem;color:var(--muted);line-height:1.7;">
+          2% owner · 68% uguale · 30% merito
+        </div>
+      </div>
+      {% endif %}
     </div>
   </div>
   {% endif %}

@@ -49,13 +49,32 @@ def index():
 
     all_leagues = PrivateLeague.query.order_by(PrivateLeague.created_at.desc()).all()
 
-    # Enrich each league with current_season info
+    # Enrich each league with current_season info + estimated prize pool
     league_data = []
     for lg in all_leagues:
         s = lg.current_season
         count = (PrivateLeagueMembership.query
                  .filter_by(season_id=s.id if s else -1, status='active').count()) if s else 0
-        league_data.append({'league': lg, 'season': s, 'member_count': count})
+
+        # Montepremi
+        if s is None:
+            prize_pool = 0.0
+            prize_is_estimate = False
+        elif s.status == 'forming':
+            # Solo quote già impegnate; sponsor non ancora calcolato
+            prize_pool = (ENTRY_FEE + PERMANENCE_FEE) * count
+            prize_is_estimate = True        # sarà più alto (+ sponsor)
+        else:
+            prize_pool = s.total_budget
+            prize_is_estimate = False
+
+        league_data.append({
+            'league': lg,
+            'season': s,
+            'member_count': count,
+            'prize_pool': prize_pool,
+            'prize_is_estimate': prize_is_estimate,
+        })
 
     my_mems = (PrivateLeagueMembership.query
                .join(PrivateLeagueSeason)
@@ -229,6 +248,22 @@ def detail(league_id):
         dt = game_day_to_date(d)
         return f'{WEEKDAY_IT[dt.weekday()]} {dt.day}/{dt.month}/{dt.year}'
 
+    # Montepremi breakdown per la pagina dettaglio
+    n_members = len([m for m in memberships if m.status == 'active'])
+    if season and season.status == 'active':
+        prize_fees = (ENTRY_FEE + PERMANENCE_FEE) * season.num_teams
+        prize_sponsor = season.sponsor_amount
+        prize_total = season.total_budget
+        prize_is_estimate = False
+    elif season and season.status == 'forming':
+        prize_fees = (ENTRY_FEE + PERMANENCE_FEE) * n_members
+        prize_sponsor = None        # non ancora calcolato
+        prize_total = prize_fees    # minimo stimato (senza sponsor)
+        prize_is_estimate = True
+    else:
+        prize_fees = prize_sponsor = prize_total = None
+        prize_is_estimate = False
+
     return render_template('private_league/detail.html',
                            league=league,
                            season=season,
@@ -244,7 +279,11 @@ def detail(league_id):
                            fmt_day=fmt_day,
                            min_teams=MIN_TEAMS,
                            entry_fee=_fmt_m(ENTRY_FEE),
-                           perm_fee=_fmt_m(PERMANENCE_FEE))
+                           perm_fee=_fmt_m(PERMANENCE_FEE),
+                           prize_total=prize_total,
+                           prize_fees=prize_fees,
+                           prize_sponsor=prize_sponsor,
+                           prize_is_estimate=prize_is_estimate)
 
 
 # ── Join ──────────────────────────────────────────────────────────────────────

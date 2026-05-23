@@ -21,26 +21,38 @@
     <table>
       <thead>
         <tr>
-          <th>Lega</th><th>Stagione</th><th>Squadre</th><th>Stato</th><th></th>
+          <th>Lega</th><th>Stagione</th><th>Squadre</th><th>Montepremi</th><th>Stato</th><th></th>
         </tr>
       </thead>
       <tbody>
         {% for mem in my_mems %}
+        {% set s = mem.season %}
+        {% set cnt = s.memberships|selectattr('status','equalto','active')|list|length %}
         <tr>
           <td><strong>{{ mem.league.name }}</strong>
             {% if mem.league.owner_id == current_user.id %}
             <span class="badge badge-gold" style="margin-left:.4rem;">Owner</span>
             {% endif %}
           </td>
-          <td>Stagione {{ mem.season.season_number }}</td>
+          <td>Stagione {{ s.season_number }}</td>
+          <td>{{ cnt }} / {{ mem.league.capacity }}</td>
           <td>
-            {% set cnt = mem.season.memberships|selectattr('status','equalto','active')|list|length %}
-            {{ cnt }} / {{ mem.league.capacity }}
+            {% if s.status == 'active' %}
+            <span style="font-family:'Orbitron',monospace;color:var(--warning);font-size:.9rem;">
+              {{ fmt_m(s.total_budget) }}
+            </span>
+            {% elif s.status == 'forming' %}
+            <span style="font-family:'Orbitron',monospace;color:var(--muted);font-size:.88rem;">
+              {{ fmt_m((15_000_000 * cnt)|float) }}
+              <span style="font-size:.7rem;color:var(--muted);"> +sponsor</span>
+            </span>
+            {% else %}—
+            {% endif %}
           </td>
           <td>
-            {% if mem.season.status == 'forming' %}
+            {% if s.status == 'forming' %}
             <span class="badge badge-cyan">In formazione</span>
-            {% elif mem.season.status == 'active' %}
+            {% elif s.status == 'active' %}
             <span class="badge badge-green">Attiva</span>
             {% endif %}
           </td>
@@ -63,8 +75,8 @@
   <table>
     <thead>
       <tr>
-        <th>Nome</th><th>Proprietario</th><th>Stagione</th>
-        <th>Squadre</th><th>Capienza</th><th>Stato</th><th></th>
+        <th>Nome</th><th>Proprietario</th><th>S</th>
+        <th>Squadre</th><th>💰 Montepremi</th><th>Stato</th><th></th>
       </tr>
     </thead>
     <tbody>
@@ -74,11 +86,20 @@
       <tr>
         <td><strong style="color:var(--cyan);">{{ lg.name }}</strong></td>
         <td style="color:var(--muted);font-size:.82rem;">{{ lg.owner.username }}</td>
-        <td>{% if s %}S{{ s.season_number }}{% else %}—{% endif %}</td>
+        <td>{% if s %}{{ s.season_number }}{% else %}—{% endif %}</td>
+        <td>{% if s %}{{ item.member_count }}/{{ lg.capacity }}{% else %}—{% endif %}</td>
         <td>
-          {% if s %}{{ item.member_count }}{% else %}—{% endif %}
+          {% if item.prize_pool > 0 %}
+          <span style="font-family:'Orbitron',monospace;
+            color:{% if item.prize_is_estimate %}var(--muted){% else %}var(--warning){% endif %};
+            font-size:.88rem;">
+            {{ fmt_m(item.prize_pool) }}
+          </span>
+          {% if item.prize_is_estimate %}
+          <span style="font-size:.68rem;color:var(--muted);"> min*</span>
+          {% endif %}
+          {% else %}—{% endif %}
         </td>
-        <td>{{ lg.capacity }}</td>
         <td>
           {% if not s %}
           <span class="badge" style="background:rgba(136,136,136,.15);color:#888;">Nessuna</span>
@@ -101,6 +122,9 @@
     </tbody>
   </table>
 </div>
+<p style="font-size:.72rem;color:var(--muted);margin-top:.5rem;">
+  * In fase di iscrizioni il montepremi minimo è calcolato solo sulle quote (10M iscrizione + 5M permanenza × squadre). Il valore finale cresce con lo sponsor di stagione, calcolato all'avvio.
+</p>
 {% else %}
 <div class="card text-center" style="padding:3rem;">
   <p style="font-size:2rem;">🏆</p>
