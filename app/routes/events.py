@@ -66,7 +66,7 @@ BOND_TYPES = {
     },
     'green': {
         'label': 'Green', 'color': 'var(--success)',
-        'cost': 25_000_000, 'payout': 20_500_000, 'weeks': 25,
+        'cost': 25_000_000, 'payout': 25_500_000, 'weeks': 25,
         'max_count': 10, 'degrade_chance': 0, 'degrade_to': None,
     },
     'yellow': {
