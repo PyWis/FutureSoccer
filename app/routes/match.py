@@ -556,6 +556,11 @@ def substitute(match_id):
         flash('Seleziona un giocatore da sostituire e uno dalla panchina.', 'warning')
         return redirect(url_for('match.view', match_id=match.id))
 
+    roster_ids = {p.id for p in team.players}
+    if out_id not in roster_ids or in_id not in roster_ids:
+        flash('Sostituzione non valida.', 'danger')
+        return redirect(url_for('match.view', match_id=match.id))
+
     subs = json.loads(getattr(match, subs_field) or '{}')
     if 'swap' not in subs:
         subs['swap'] = []
@@ -586,11 +591,13 @@ def change_roles(match_id):
     subs_field = 'home_pending_subs_json' if is_home else 'away_pending_subs_json'
 
     valid_roles = {'goalkeeper', 'defender', 'attacker'}
+    roster_ids = {str(p.id) for p in team.players}
     role_changes = {}
     for key, value in request.form.items():
         if key.startswith('role_') and value in valid_roles:
             pid_str = key[len('role_'):]
-            role_changes[pid_str] = value
+            if pid_str in roster_ids:
+                role_changes[pid_str] = value
 
     if role_changes:
         subs = json.loads(getattr(match, subs_field) or '{}')

@@ -73,6 +73,11 @@ def create_app():
     app.register_blueprint(league_bp, url_prefix='/leagues')
     app.register_blueprint(championship_bp, url_prefix='/championship')
 
+    @app.errorhandler(403)
+    def _forbidden(error):
+        from flask import render_template
+        return render_template('403.html'), 403
+
     @app.before_request
     def _apply_due_team_events():
         """Process all matured day-tick events for the active manager's team,

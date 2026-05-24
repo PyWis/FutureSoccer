@@ -17,6 +17,10 @@ def get_injury_base():
     return float(os.environ.get('INJURY_BASE', 0.010))
 from datetime import datetime
 
+# Formation caps: 1 goalkeeper + up to 3 defenders + up to 3 attackers.
+MAX_DEFENDERS = 3
+MAX_ATTACKERS = 3
+
 _ENGAGEMENT_MODS = {
     'basso': 0.75,
     'moderato': 0.90,
@@ -457,6 +461,12 @@ def apply_role_changes(lineup_dict, role_changes):
         if player is None or current_role == new_role:
             continue
 
+        # Snapshot so an out-of-bounds change can be rolled back without
+        # losing the moved player from the lineup.
+        snap_gk = lineup_dict.get('goalkeeper')
+        snap_def = list(lineup_dict.get('defenders') or [])
+        snap_att = list(lineup_dict.get('attackers') or [])
+
         # Remove from current slot
         if current_role == 'goalkeeper':
             lineup_dict['goalkeeper'] = None
@@ -479,6 +489,14 @@ def apply_role_changes(lineup_dict, role_changes):
         elif new_role == 'attacker':
             lineup_dict['attackers'] = lineup_dict.get('attackers') or []
             lineup_dict['attackers'].append(player)
+
+        # Enforce formation caps (1 GK + up to 3 defenders + up to 3 attackers).
+        if (len(lineup_dict.get('defenders') or []) > MAX_DEFENDERS
+                or len(lineup_dict.get('attackers') or []) > MAX_ATTACKERS
+                or lineup_dict.get('goalkeeper') is None):
+            lineup_dict['goalkeeper'] = snap_gk
+            lineup_dict['defenders'] = snap_def
+            lineup_dict['attackers'] = snap_att
 
     return lineup_dict
 

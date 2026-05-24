@@ -41,7 +41,7 @@ CHANNEL_REOPEN_COOLDOWN_DAYS = 90  # a closed channel can't reopen for 90 game d
 #                        | 'all_instok' | 'all_sportsocial' | 'all_fantasoccer'
 #   doubler            → if True, doubles every OTHER active effect's bonus
 SOCIAL_EFFECTS = {
-    'all_instok':     {'label': 'Boom Instatok',         'icon': '📸', 'threshold': 10,
+    'all_instok':     {'label': 'Boom Instok',           'icon': '📸', 'threshold': 10,
                        'desc': 'Solo se TUTTI i giocatori sono attivi su Instok: +€5M ogni mese',
                        'match_bonus': 0, 'monthly_money': 5_000_000, 'monthly_resistenza': 0.0,
                        'monthly_white_bond': False, 'requires': 'all_instok', 'doubler': False},

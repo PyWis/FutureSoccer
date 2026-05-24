@@ -1,3 +1,4 @@
+from urllib.parse import urlparse
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_user, logout_user, login_required, current_user
 from datetime import datetime
@@ -6,6 +7,22 @@ from app.models.user import User
 from app.utils.brevo import send_verification_email, send_welcome_email, send_password_reset_email
 
 auth_bp = Blueprint('auth', __name__)
+
+
+def _safe_next(target):
+    """Return target only if it's a local, same-site relative URL.
+
+    Prevents open-redirect: a value like ``//evil.example`` or
+    ``https://evil.example`` is rejected so login can't bounce users off-site.
+    """
+    if not target:
+        return None
+    parsed = urlparse(target)
+    if parsed.scheme or parsed.netloc:
+        return None
+    if not target.startswith('/') or target.startswith('//'):
+        return None
+    return target
 
 
 @auth_bp.route('/setup', methods=['GET', 'POST'])
@@ -94,6 +111,7 @@ def register():
 
 
 @auth_bp.route('/verify/<token>')
+@limiter.limit('20 per hour')
 def verify_email(token):
     user = User.query.filter_by(verification_token=token).first()
     if not user:
@@ -138,7 +156,7 @@ def login():
         user.last_login = datetime.utcnow()
         db.session.commit()
 
-        next_page = request.args.get('next')
+        next_page = _safe_next(request.args.get('next'))
         if user.is_superadmin:
             return redirect(next_page or url_for('admin.dashboard'))
         # First-time player without a team → go directly to team creation
@@ -174,6 +192,7 @@ def forgot_password():
 
 
 @auth_bp.route('/reset-password/<token>', methods=['GET', 'POST'])
+@limiter.limit('20 per hour')
 def reset_password(token):
     user = User.query.filter_by(reset_token=token).first()
     if not user or (user.reset_token_expires and datetime.utcnow() > user.reset_token_expires):

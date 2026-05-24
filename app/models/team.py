@@ -116,7 +116,7 @@ class Player(db.Model):
     type = db.Column(db.String(10), default='uomo')   # uomo | donna | cyber
     age = db.Column(db.Integer, default=19)
 
-    # Skills — range 0.5 to 6.5
+    # Skills — generati nel range 0.5–6.5, crescono con l'allenamento fino a 10.0
     porta = db.Column(db.Float, default=3.0)
     difesa = db.Column(db.Float, default=3.0)
     attacco = db.Column(db.Float, default=3.0)

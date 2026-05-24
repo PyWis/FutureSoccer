@@ -21,7 +21,7 @@ MIN_ROSTER = 1
 FACILITY_TYPES = ['training', 'stream', 'locker', 'ground']
 FACILITY_LABELS = {
     'training': 'Impianto di allenamento',
-    'stream':   'Servizi stream',
+    'stream':   'Servizi Streaming',
     'locker':   'Spogliatoi',
     'ground':   'Campo',
 }
@@ -33,7 +33,7 @@ FACILITY_ICONS = {
 }
 FACILITY_EFFECTS = {
     'training': 'Allenamento gratuito al Sabato (p200k) per N giocatori pari alle stelle',
-    'stream':   '— Effetto in arrivo',
+    'stream':   'Ricavi streaming: +€100.000 per stella a ogni partita giocata in casa',
     'locker':   'Ogni stella genera 1 sessione fisioterapia a settimana (visita Benessere per riscuotere)',
     'ground':   'Riduce il rischio infortuni in partita (-0.1% per stella)',
 }
@@ -64,7 +64,7 @@ def dashboard():
 
 
 def _process_team_freshness(team):
-    """Add daily recovery (+0.2/day, cap 10) for all players based on days elapsed.
+    """Add daily recovery (+0.3/day, cap 10) for all players based on days elapsed.
 
     During an active summer retreat (ritiro) freshness is frozen: players stay
     at 0 / negative until the retreat ends. We still advance last_freshness_day
@@ -76,7 +76,7 @@ def _process_team_freshness(team):
         days = max(0, current_day - player.last_freshness_day)
         if days > 0:
             if not ritiro_active:
-                player.freshness = min(10.0, round(player.freshness + days * 0.2, 1))
+                player.freshness = min(10.0, round(player.freshness + days * 0.3, 1))
             player.last_freshness_day = current_day
             changed = True
     if changed:

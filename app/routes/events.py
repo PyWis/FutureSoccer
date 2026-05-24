@@ -2,6 +2,7 @@ import random
 import random as _random
 from flask import Blueprint, render_template, redirect, url_for, flash, request, has_request_context
 from flask_login import login_required, current_user
+from sqlalchemy import or_, and_
 from app import db
 
 
@@ -573,7 +574,7 @@ def training():
 
             if improved and delta > 0:
                 current_val = getattr(p, improved)
-                new_val = min(6.5, round(current_val + delta, 1))
+                new_val = min(10.0, round(current_val + delta, 1))
                 actual = round(new_val - current_val, 1)
                 setattr(p, improved, new_val)
             else:
@@ -905,15 +906,21 @@ def _listing_current_price(listing, current_day):
 
 
 def _process_free_agent_auctions():
-    """Resolve closed auction windows and expire listings with no bids."""
+    """Resolve closed auction windows and listings that reached the 90-day expiry."""
     current_day = get_game_day_number()
     changed = False
 
-    # 1. Resolve closed auction windows
+    # 1. Resolve listings whose auction window closed (7 days after the first
+    #    bid) OR that reached the 90-day expiry. At expiry the player always
+    #    leaves the market: if there are valid bids the highest one wins,
+    #    otherwise the listing simply expires (handled in the no-winner branch).
     closed_listings = FreeAgentListing.query.filter(
         FreeAgentListing.status == 'active',
-        FreeAgentListing.bid_window_end != None,
-        FreeAgentListing.bid_window_end < current_day,
+        or_(
+            and_(FreeAgentListing.bid_window_end != None,
+                 FreeAgentListing.bid_window_end < current_day),
+            FreeAgentListing.expires_game_day <= current_day,
+        ),
     ).all()
 
     for listing in closed_listings:
@@ -959,22 +966,6 @@ def _process_free_agent_auctions():
             listing.status = 'expired'
             for bid in bids:
                 bid.status = 'lost'
-        changed = True
-
-    # 2. Expire listings with no bids that have passed their expiry
-    expired_listings = FreeAgentListing.query.filter(
-        FreeAgentListing.status == 'active',
-        FreeAgentListing.expires_game_day <= current_day,
-        FreeAgentListing.bid_window_start == None,
-    ).all()
-
-    for listing in expired_listings:
-        if listing.player_id:
-            player = Player.query.get(listing.player_id)
-            if player:
-                db.session.delete(player)
-        listing.player_id = None
-        listing.status = 'expired'
         changed = True
 
     if changed:

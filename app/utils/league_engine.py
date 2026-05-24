@@ -352,23 +352,22 @@ def get_standings(season):
     )
 
 
-# ── Weekly payout ─────────────────────────────────────────────────────────────
+# ── Season payout ─────────────────────────────────────────────────────────────
 
-def process_weekly_payout(season):
-    """Distribute weekly share of league budget. Idempotent per game-week."""
-    from app.utils.gameclock import get_game_week_id
+def distribute_season_payout(season):
+    """Distribute the whole accumulated league budget once, at season end.
+
+    The montepremi is paid out in full (2% owner, 68% equal, 30% merit) and the
+    season budget is then zeroed so it can't be paid again.
+    """
     from app.utils import ledger
     from app.models.private_league import PrivateLeagueMembership
-
-    week = get_game_week_id()
-    if season.last_payout_week_id >= week:
-        return
 
     mems = PrivateLeagueMembership.query.filter_by(
         season_id=season.id, status='active').all()
     n = len(mems)
     if n == 0 or season.total_budget <= 0:
-        season.last_payout_week_id = week
+        season.total_budget = 0.0
         return
 
     budget = season.total_budget
@@ -396,7 +395,7 @@ def process_weekly_payout(season):
             ledger.record(m.team, merit_pool * w / total_w, ledger.CAT_LEAGUE_INCOME,
                           f'Quota meritocratica Lega: {season.league.name}')
 
-    season.last_payout_week_id = week
+    season.total_budget = 0.0
 
 
 # ── Season finalisation ───────────────────────────────────────────────────────
@@ -415,6 +414,9 @@ def finalize_season(season):
         for m in standings[-2:]:
             if m.status == 'active':
                 m.status = 'excluded_auto'
+
+    # Pay out the full accumulated montepremi once, then zero the budget.
+    distribute_season_payout(season)
 
     season.status = 'completed'
 
@@ -520,11 +522,10 @@ def process_due_league_events():
     if due:
         db.session.commit()
 
-    # Weekly payouts + season finalization for active seasons
+    # Season finalization (the montepremi is paid out in full at season end)
     active_seasons = PrivateLeagueSeason.query.filter_by(status='active').all()
     for season in active_seasons:
         try:
-            process_weekly_payout(season)
             if season.end_game_day and current_day > season.end_game_day:
                 finalize_season(season)
         except Exception:
