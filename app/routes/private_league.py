@@ -153,6 +153,7 @@ def create():
                 weekly_payment=LEAGUE_LOAN_WEEKLY_PAYMENT,
                 weeks_total=LEAGUE_LOAN_WEEKS,
                 is_active=True,
+                last_paid_week_id=get_game_week_id(),  # prima rata la prossima settimana
             )
             db.session.add(loan_obj)
             db.session.flush()
