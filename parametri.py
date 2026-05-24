@@ -16,9 +16,22 @@ indicato come "fonte".
 # ─────────────────────────────────────────────────────────────────────────────
 # OROLOGIO DI GIOCO            (fonte: app/utils/gameclock.py, .env.example)
 # ─────────────────────────────────────────────────────────────────────────────
-GAME_CLOCK_RATIO = 3600          # secondi reali per ogni giorno di gioco
+GAME_CLOCK_RATIO = 3600          # secondi reali per ogni giorno di gioco in modalità default
                                  # (env GAME_CLOCK_RATIO; 3600 = 1 ora reale = 1 giorno)
 GAME_START = "31 agosto 2099"    # data di inizio del mondo di gioco
+
+# Modalità tempo selezionabili dal superadmin (salvate in GameConfig.time_mode):
+#   'default' → GAME_CLOCK_RATIO (1 ora reale = 1 giorno)
+#   'week'    → 1 giorno reale ≈ 1 settimana di gioco
+#   'month'   → 1 giorno reale = 1 mese di gioco
+TIME_MODE_WEEK_DAY_SECONDS = 12_000   # week mode: 3h20m per giorno (7 giorni + pausa = 24h reali)
+TIME_MODE_MONTH_DAY_SECONDS = 2_880   # month mode: 48 min per giorno (30 giorni = 24h reali)
+WEEK_REAL_SECONDS = 86_400            # in week mode una settimana occupa 24h reali allineate all'ora del server
+# Check superadmin:
+FREEZE_AUG15 = False                  # blocca il gioco al 15 agosto finché attivo, poi riparte da lì
+FAST_AUGUST_DAY_SECONDS = 3_600       # mese veloce: dal 3 agosto, per 24 giorni, 1 ora reale per giorno
+FAST_AUGUST_START = "3 agosto"        # (non interviene se il giorno dura già meno di un'ora)
+FAST_AUGUST_DAYS = 24
 
 # Giorni della settimana di gioco (0=Lun ... 6=Dom)
 TRAINING_WEEKDAYS = (1, 2, 3, 4) # Mar (regolare), Mer (recupero Mar), Gio (regolare), Ven (recupero Gio)

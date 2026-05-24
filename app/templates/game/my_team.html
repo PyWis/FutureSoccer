@@ -79,7 +79,7 @@
           <td>
             {% if players|length > 1 %}
             <form method="POST" action="{{ url_for('game.sell_player', player_id=p.id) }}"
-                  onsubmit="return confirm('Mettere {{ p.name }} sul mercato svincolati a prezzo base €{{ '%.0f'|format(p.avg_skill*1000000) }}? Incasserai il 75% del prezzo di vendita se ceduto entro 60 giorni, il 50% dopo.')">
+                  data-confirm="Mettere {{ p.name }} sul mercato svincolati a prezzo base €{{ '%.0f'|format(p.avg_skill*1000000) }}? Incasserai il 75% del prezzo di vendita se ceduto entro 60 giorni, il 50% dopo.">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button type="submit" class="btn btn-secondary btn-sm">Cedi</button>
             </form>

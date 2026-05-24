@@ -62,13 +62,13 @@
       {% if opt.extra_cost %}
       <div style="font-size:.68rem;color:#ff8800;margin-bottom:.5rem;">💸 {{ opt.extra_cost }}</div>
       {% endif %}
-      <form method="POST" action="{{ url_for('events.wellness_ritiro') }}">
+      <form method="POST" action="{{ url_for('events.wellness_ritiro') }}"
+            data-confirm="Avviare il ritiro {{ opt.label }}? Costa €{{ '%.0f'|format(RITIRO_BASE_COST/1_000_000) }}M e azzera la freschezza positiva.">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="rtype" value="{{ key }}">
         <button type="submit" class="btn btn-sm btn-block"
           style="background:rgba(255,165,0,.15);border:1px solid rgba(255,165,0,.4);color:#ffd700;font-size:.78rem;"
-          {% if team.budget < RITIRO_BASE_COST %}disabled style="opacity:.4;"{% endif %}
-          onclick="return confirm('Avviare il ritiro {{ opt.label }}? Costa €{{ "%.0f"|format(RITIRO_BASE_COST/1_000_000) }}M e azzera la freschezza positiva.')">
+          {% if team.budget < RITIRO_BASE_COST %}disabled{% endif %}>
           Scegli questo ritiro
         </button>
       </form>

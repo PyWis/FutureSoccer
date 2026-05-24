@@ -195,6 +195,34 @@
       z-index:190;
     }
 
+    /* ── GAME MODAL (confirm/alert) ── */
+    .gm-overlay{
+      display:none; position:fixed; inset:0; z-index:3000;
+      background:rgba(4,4,12,.72); backdrop-filter:blur(4px);
+      align-items:center; justify-content:center; padding:1rem;
+    }
+    .gm-overlay.open{ display:flex; animation:gmFade .18s ease; }
+    @keyframes gmFade{from{opacity:0}to{opacity:1}}
+    .gm-box{
+      width:100%; max-width:420px;
+      background:linear-gradient(160deg,var(--card),var(--darker));
+      border:1px solid var(--card-border);
+      border-radius:14px; padding:1.6rem 1.5rem 1.4rem;
+      box-shadow:0 0 0 1px rgba(0,245,255,.08),0 20px 60px rgba(0,0,0,.6);
+      position:relative; animation:gmPop .2s cubic-bezier(.2,.9,.3,1.2);
+    }
+    @keyframes gmPop{from{transform:translateY(12px) scale(.97);opacity:0}to{transform:none;opacity:1}}
+    .gm-box::before{
+      content:""; position:absolute; top:0; left:1.4rem; right:1.4rem; height:2px;
+      background:linear-gradient(90deg,var(--cyan),var(--purple),transparent);
+    }
+    .gm-head{ display:flex; align-items:center; gap:.6rem; margin-bottom:.8rem; }
+    .gm-icon{ font-size:1.5rem; line-height:1; }
+    .gm-title{ font-family:'Orbitron',monospace; font-size:1rem; color:var(--cyan); letter-spacing:1px; }
+    .gm-msg{ font-size:.9rem; color:var(--text); line-height:1.55; white-space:pre-line; }
+    .gm-actions{ display:flex; justify-content:flex-end; gap:.6rem; margin-top:1.4rem; }
+    .gm-overlay .btn{ min-width:96px; text-align:center; }
+
     /* ── COMMON COMPONENTS ── */
     .btn{display:inline-block;padding:.55rem 1.3rem;border-radius:8px;font-family:'Exo 2',sans-serif;
       font-weight:600;font-size:.88rem;text-decoration:none;cursor:pointer;border:none;transition:all .2s;letter-spacing:.4px;}
@@ -449,6 +477,21 @@
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
 {% endif %}
 
+<!-- ── GAME MODAL (confirm / alert) ── -->
+<div class="gm-overlay" id="gmOverlay" role="dialog" aria-modal="true">
+  <div class="gm-box">
+    <div class="gm-head">
+      <span class="gm-icon" id="gmIcon">⚠️</span>
+      <span class="gm-title" id="gmTitle">CONFERMA</span>
+    </div>
+    <div class="gm-msg" id="gmMsg"></div>
+    <div class="gm-actions">
+      <button type="button" class="btn btn-secondary" id="gmCancel">Annulla</button>
+      <button type="button" class="btn btn-primary" id="gmOk">Conferma</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── MAIN WRAP ── -->
 <div class="main-wrap">
 
@@ -509,6 +552,66 @@
     document.getElementById('sidebarOverlay').classList.remove('open');
   }
   setTimeout(()=>{ document.querySelectorAll('.alert').forEach(a=>a.remove()); }, 5500);
+
+  /* ── Game-styled confirm / alert modals ── */
+  (function(){
+    var ov=document.getElementById('gmOverlay');
+    var elIcon=document.getElementById('gmIcon'), elTitle=document.getElementById('gmTitle');
+    var elMsg=document.getElementById('gmMsg'), btnOk=document.getElementById('gmOk'), btnCancel=document.getElementById('gmCancel');
+    var pending=null;
+
+    function close(){ ov.classList.remove('open'); pending=null; }
+    function open(){ ov.classList.add('open'); }
+
+    window.gameConfirm=function(message, onYes, opts){
+      opts=opts||{};
+      elIcon.textContent=opts.icon||'⚠️';
+      elTitle.textContent=opts.title||'CONFERMA';
+      elMsg.textContent=message||'Confermi?';
+      btnCancel.style.display='';
+      btnOk.textContent=opts.okLabel||'Conferma';
+      pending=onYes||null;
+      open();
+    };
+    window.gameAlert=function(message, opts){
+      opts=opts||{};
+      elIcon.textContent=opts.icon||'ℹ️';
+      elTitle.textContent=opts.title||'AVVISO';
+      elMsg.textContent=message||'';
+      btnCancel.style.display='none';
+      btnOk.textContent=opts.okLabel||'OK';
+      pending=null;
+      open();
+    };
+
+    btnOk.addEventListener('click', function(){ var fn=pending; close(); if(fn) fn(); });
+    btnCancel.addEventListener('click', close);
+    ov.addEventListener('click', function(e){ if(e.target===ov) close(); });
+    document.addEventListener('keydown', function(e){ if(e.key==='Escape' && ov.classList.contains('open')) close(); });
+
+    // Intercept forms / controls that declare a data-confirm message.
+    document.addEventListener('submit', function(e){
+      var form=e.target;
+      if(form.dataset && form.dataset.confirm && form.dataset.confirmed!=='1'){
+        e.preventDefault();
+        gameConfirm(form.dataset.confirm, function(){ form.dataset.confirmed='1'; form.submit(); },
+                    {icon:form.dataset.confirmIcon, title:form.dataset.confirmTitle});
+      }
+    }, true);
+    document.addEventListener('click', function(e){
+      var el=e.target.closest('[data-confirm]');
+      if(!el || el.tagName==='FORM') return;
+      // Links / buttons that aren't form submits (a submit button is handled by the form's submit event)
+      var isSubmit=(el.tagName==='BUTTON' && (el.type==='submit'||!el.type) && el.form);
+      if(isSubmit) return;
+      if(el.dataset.confirmed==='1') return;
+      e.preventDefault();
+      gameConfirm(el.dataset.confirm, function(){
+        if(el.tagName==='A' && el.href){ window.location=el.href; }
+        else { el.dataset.confirmed='1'; el.click(); }
+      }, {icon:el.dataset.confirmIcon, title:el.dataset.confirmTitle});
+    }, true);
+  })();
 </script>
 {% block extra_js %}{% endblock %}
 </body>

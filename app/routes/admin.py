@@ -4,11 +4,12 @@ from app import db
 from app.models.user import User
 from app.models.team import Team, Player
 from app.models.game import GameConfig
-from app.utils.gameclock import (get_clock_ratio, format_game_date, get_game_date,
-                                  WEEKDAY_IT, MONTH_IT)
+from app.utils.gameclock import (format_game_date, get_game_date,
+                                  WEEKDAY_IT, MONTH_IT, advance_game_days,
+                                  apply_time_mode, set_week_transition_hour,
+                                  set_freeze_aug15)
 from app.utils.validators import valid_hex_color, parse_float, parse_int
 from functools import wraps
-from datetime import timedelta
 
 admin_bp = Blueprint('admin', __name__)
 
@@ -38,8 +39,9 @@ def dashboard():
     teams = Team.query.order_by(Team.name).all()
     players = Player.query.count()
     game_date = format_game_date()
+    cfg = GameConfig.query.first()
     return render_template('admin/dashboard.html', users=users, teams=teams,
-                           total_players=players, game_date=game_date)
+                           total_players=players, game_date=game_date, cfg=cfg)
 
 
 @admin_bp.route('/clock/advance', methods=['POST'])
@@ -59,10 +61,51 @@ def clock_advance():
         flash('GameConfig non trovato. Avvia prima il gioco.', 'danger')
         return redirect(url_for('admin.dashboard'))
 
-    # Subtract days * ratio seconds from real_start → clock thinks more time has passed
-    cfg.real_start -= timedelta(seconds=days * get_clock_ratio())
+    advance_game_days(cfg, days)
     db.session.commit()
     flash(f'Data avanzata di {days} giorno/i. Nuova data: {format_game_date()}', 'success')
+    return redirect(url_for('admin.dashboard'))
+
+
+TIME_MODES = ('default', 'week', 'month')
+
+
+@admin_bp.route('/clock/time-settings', methods=['POST'])
+@login_required
+@superadmin_required
+def clock_time_settings():
+    cfg = GameConfig.query.first()
+    if not cfg:
+        flash('GameConfig non trovato. Avvia prima il gioco.', 'danger')
+        return redirect(url_for('admin.dashboard'))
+
+    mode = request.form.get('time_mode', 'default')
+    if mode not in TIME_MODES:
+        flash('Modalità tempo non valida.', 'danger')
+        return redirect(url_for('admin.dashboard'))
+
+    try:
+        hour = int(request.form.get('week_transition_hour', cfg.week_transition_hour))
+        if hour < 0 or hour > 23:
+            raise ValueError
+    except (ValueError, TypeError):
+        flash("Ora del server non valida (0–23).", 'danger')
+        return redirect(url_for('admin.dashboard'))
+
+    freeze = request.form.get('freeze_aug15') == 'on'
+    fast_aug = request.form.get('fast_august') == 'on'
+
+    # Order matters: set the transition hour first so a switch to week mode
+    # aligns to it; then apply the mode; then the two checks.
+    if hour != cfg.week_transition_hour:
+        set_week_transition_hour(cfg, hour)
+    if mode != cfg.time_mode:
+        apply_time_mode(cfg, mode)
+    cfg.fast_august = fast_aug
+    set_freeze_aug15(cfg, freeze)
+
+    db.session.commit()
+    flash(f'Impostazioni tempo aggiornate. Data attuale: {format_game_date()}', 'success')
     return redirect(url_for('admin.dashboard'))
 
 

@@ -102,7 +102,7 @@
       <span class="badge" style="background:rgba(80,0,80,.5);color:#cc66ff;border:1px solid #800080;">🔒 Bloccato</span>
       {% else %}
       <form method="POST" action="{{ url_for('events.sponsor_remove', sponsor_id=main_sponsor.id) }}"
-            onsubmit="return confirm('Rimuovere {{ main_sponsor.sponsor_name }}? Perderai i pagamenti rimanenti.')">
+            data-confirm="Rimuovere {{ main_sponsor.sponsor_name }}? Perderai i pagamenti rimanenti.">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="btn btn-danger btn-sm">Rimuovi</button>
       </form>
@@ -136,7 +136,7 @@
       </form>
       {% endif %}
       <form method="POST" action="{{ url_for('events.sponsor_remove', sponsor_id=sp.id) }}"
-            onsubmit="return confirm('Rimuovere {{ sp.sponsor_name }}?')">
+            data-confirm="Rimuovere {{ sp.sponsor_name }}?">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="btn btn-danger btn-sm">Rimuovi</button>
       </form>
@@ -181,7 +181,8 @@
     <div style="display:flex;flex-direction:column;gap:.5rem;align-items:flex-end;">
       {% if dark_sponsor_available %}
       <form method="POST" action="{{ url_for('events.dark_sponsor') }}"
-            onsubmit="return confirm('⚠️ Lo Sponsor Oscuro può avere conseguenze gravi. Procedere?')">
+            data-confirm="Lo Sponsor Oscuro può avere conseguenze gravi. Procedere?"
+            data-confirm-icon="🕶️" data-confirm-title="SPONSOR OSCURO">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="btn" style="background:linear-gradient(135deg,#5c0080,#300050);color:#cc66ff;border:1px solid #800080;font-size:.9rem;padding:.6rem 1.4rem;">
           🕶️ Accetta Offerta

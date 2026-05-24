@@ -33,7 +33,7 @@
             <div class="flex gap-1">
               <a href="{{ url_for('admin.team_edit', team_id=t.id) }}" class="btn btn-secondary btn-sm">Modifica</a>
               <form method="POST" action="{{ url_for('admin.team_delete', team_id=t.id) }}"
-                    onsubmit="return confirm('Eliminare {{ t.name }}?')">
+                    data-confirm="Eliminare {{ t.name }}?">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="btn btn-danger btn-sm">✕</button>
               </form>

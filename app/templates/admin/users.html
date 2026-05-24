@@ -52,7 +52,7 @@
                 </button>
               </form>
               {% if u.id != current_user.id %}
-              <form method="POST" action="{{ url_for('admin.user_delete', user_id=u.id) }}" style="display:inline;" onsubmit="return confirm('Eliminare {{ u.username }}?')">
+              <form method="POST" action="{{ url_for('admin.user_delete', user_id=u.id) }}" style="display:inline;" data-confirm="Eliminare {{ u.username }}?">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="btn btn-danger btn-sm">Elimina</button>
               </form>

@@ -227,7 +227,7 @@ document.getElementById('formationForm').addEventListener('submit', function(e) 
   if (res > 3) errors.push('Puoi selezionare al massimo 3 riserve.');
   if (errors.length > 0) {
     e.preventDefault();
-    alert(errors.join('\n'));
+    gameAlert(errors.join('\n'));
   }
 });
 </script>

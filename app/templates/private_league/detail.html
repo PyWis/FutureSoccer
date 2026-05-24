@@ -43,28 +43,28 @@
       {% endif %}
 
       {% if can_start %}
-      <form method="POST" action="{{ url_for('league.start', league_id=league.id) }}" style="display:inline;">
+      <form method="POST" action="{{ url_for('league.start', league_id=league.id) }}" style="display:inline;"
+            data-confirm="Avviare la stagione adesso?">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" class="btn btn-primary btn-sm"
-                onclick="return confirm('Avviare la stagione adesso?')">▶ Avvia Stagione</button>
+        <button type="submit" class="btn btn-primary btn-sm">▶ Avvia Stagione</button>
       </form>
       {% endif %}
 
       {% if can_join %}
-      <form method="POST" action="{{ url_for('league.join', league_id=league.id) }}" style="display:inline;">
+      <form method="POST" action="{{ url_for('league.join', league_id=league.id) }}" style="display:inline;"
+            data-confirm="Iscriversi costa {{ entry_fee }} (iscrizione) + {{ perm_fee }} (permanenza). Confermi?">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" class="btn btn-primary btn-sm"
-                onclick="return confirm('Iscriversi costa {{ entry_fee }} (iscrizione) + {{ perm_fee }} (permanenza). Confermi?')">
+        <button type="submit" class="btn btn-primary btn-sm">
           + Iscriviti
         </button>
       </form>
       {% endif %}
 
       {% if my_mem and season.status == 'forming' and league.owner_id != current_user.id %}
-      <form method="POST" action="{{ url_for('league.leave', league_id=league.id) }}" style="display:inline;">
+      <form method="POST" action="{{ url_for('league.leave', league_id=league.id) }}" style="display:inline;"
+            data-confirm="Abbandonare la lega?">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" class="btn btn-danger btn-sm"
-                onclick="return confirm('Abbandonare la lega?')">← Esci</button>
+        <button type="submit" class="btn btn-danger btn-sm">← Esci</button>
       </form>
       {% endif %}
     </div>
@@ -203,10 +203,9 @@
             <td>
               <form method="POST"
                     action="{{ url_for('league.kick', league_id=league.id, team_id=m.team_id) }}"
-                    style="display:inline;">
+                    style="display:inline;" data-confirm="Escludere {{ m.team.name }}?">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" class="btn btn-danger btn-sm"
-                        onclick="return confirm('Escludere {{ m.team.name }}?')">Escludi</button>
+                <button type="submit" class="btn btn-danger btn-sm">Escludi</button>
               </form>
             </td>
             {% elif is_owner and season.status == 'active' %}

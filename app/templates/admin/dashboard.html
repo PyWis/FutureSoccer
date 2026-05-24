@@ -115,14 +115,62 @@
   <form method="POST" action="{{ url_for('admin.clock_advance') }}" style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div style="display:flex;gap:.4rem;">
-      <button type="submit" name="days" value="1" class="btn btn-outline btn-sm">+1 giorno</button>
-      <button type="submit" name="days" value="7" class="btn btn-outline btn-sm">+7 giorni</button>
+      <button type="submit" name="days" value="1" class="btn btn-secondary btn-sm">+1 giorno</button>
+      <button type="submit" name="days" value="7" class="btn btn-secondary btn-sm">+7 giorni</button>
     </div>
     <div style="display:flex;gap:.4rem;align-items:center;">
       <input type="number" name="days" min="1" max="365" value="1"
              style="width:64px;background:var(--card);color:var(--text);border:1px solid var(--card-border);border-radius:6px;padding:.3rem .5rem;font-size:.8rem;">
       <button type="submit" class="btn btn-sm" style="background:var(--warning);color:#000;">Avanza</button>
     </div>
+  </form>
+</div>
+
+<!-- ── TIME MODE CONTROL ── -->
+<div class="card mt-4" style="border-color:var(--purple);max-width:480px;">
+  <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.75rem;">
+    <span style="font-size:1.1rem;">⏱️</span>
+    <h3 style="margin:0;">Modalità Tempo</h3>
+  </div>
+  <form method="POST" action="{{ url_for('admin.clock_time_settings') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="form-group" style="margin-bottom:.9rem;">
+      <label>Velocità del tempo</label>
+      <label style="display:flex;gap:.5rem;align-items:flex-start;font-weight:400;color:var(--text);margin-bottom:.4rem;">
+        <input type="radio" name="time_mode" value="default" {% if not cfg or cfg.time_mode == 'default' %}checked{% endif %}>
+        <span><strong>Default</strong> — 1 ora reale = 1 giorno di gioco</span>
+      </label>
+      <label style="display:flex;gap:.5rem;align-items:flex-start;font-weight:400;color:var(--text);margin-bottom:.4rem;">
+        <input type="radio" name="time_mode" value="week" {% if cfg and cfg.time_mode == 'week' %}checked{% endif %}>
+        <span><strong>1 giorno → 1 settimana</strong> — ogni giorno dura 3h 20m; il passaggio Domenica→Lunedì avviene all'ora del server</span>
+      </label>
+      <label style="display:flex;gap:.5rem;align-items:flex-start;font-weight:400;color:var(--text);">
+        <input type="radio" name="time_mode" value="month" {% if cfg and cfg.time_mode == 'month' %}checked{% endif %}>
+        <span><strong>1 giorno → 1 mese</strong> — ogni giorno dura 48 minuti</span>
+      </label>
+    </div>
+
+    <div class="form-group" style="margin-bottom:.9rem;">
+      <label for="week_transition_hour">Ora del server per il passaggio Domenica→Lunedì (UTC, 0–23)</label>
+      <input type="number" id="week_transition_hour" name="week_transition_hour" min="0" max="23"
+             value="{{ cfg.week_transition_hour if cfg else 0 }}" class="form-control" style="max-width:120px;">
+      <div class="text-muted" style="font-size:.72rem;margin-top:.3rem;">Usato solo in modalità "1 giorno → 1 settimana".</div>
+    </div>
+
+    <div style="border-top:1px solid var(--card-border);padding-top:.75rem;margin-bottom:.9rem;">
+      <label style="display:flex;gap:.5rem;align-items:flex-start;font-weight:400;color:var(--text);margin-bottom:.6rem;">
+        <input type="checkbox" name="freeze_aug15" {% if cfg and cfg.freeze_aug15 %}checked{% endif %}>
+        <span>🧊 <strong>Blocca al 15 agosto</strong> — il gioco si ferma al 15 agosto e riparte quando togli il flag
+          {% if cfg and cfg.freeze_aug15 %}<span class="badge badge-cyan" style="font-size:.62rem;">ATTIVO</span>{% endif %}</span>
+      </label>
+      <label style="display:flex;gap:.5rem;align-items:flex-start;font-weight:400;color:var(--text);">
+        <input type="checkbox" name="fast_august" {% if cfg and cfg.fast_august %}checked{% endif %}>
+        <span>⚡ <strong>Mese veloce dal 3 agosto</strong> — per 24 giorni ogni giorno dura 1 ora (non interviene se il giorno dura già meno di un'ora)</span>
+      </label>
+    </div>
+
+    <button type="submit" class="btn btn-primary btn-sm">Salva impostazioni tempo</button>
   </form>
 </div>
 {% endblock %}

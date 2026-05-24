@@ -8,6 +8,21 @@ class GameConfig(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     real_start = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
+    # ── Time control (superadmin) ──
+    # 'default' (1 ora reale = 1 giorno), 'week' (1 giorno reale ≈ 1 settimana),
+    # 'month' (1 giorno reale = 1 mese)
+    time_mode = db.Column(db.String(10), nullable=False, default='default')
+    # Ora del server (UTC, 0-23) a cui avviene il passaggio Domenica→Lunedì in week mode
+    week_transition_hour = db.Column(db.Integer, nullable=False, default=0)
+    # Anchor del modello a settimane allineate (week mode)
+    week_anchor_real = db.Column(db.DateTime, nullable=True)
+    week_anchor_day = db.Column(db.Integer, nullable=True)  # game-day-number di un Lunedì
+    # Check: blocca il gioco al 15 agosto finché il flag resta attivo
+    freeze_aug15 = db.Column(db.Boolean, nullable=False, default=False)
+    freeze_target = db.Column(db.DateTime, nullable=True)
+    # Check: mese veloce dal 3 agosto per 24 giorni (1 ora reale per giorno)
+    fast_august = db.Column(db.Boolean, nullable=False, default=False)
+
 
 class TeamWeeklyOffer(db.Model):
     """One player offer per team per ISO game week (generated on or after Monday)."""

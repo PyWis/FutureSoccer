@@ -10,12 +10,115 @@ MONTH_IT = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno',
             'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre']
 
 
-def get_clock_ratio():
-    """Real seconds per game day (default 3600 = 1 hour).
+# ── Time modes ────────────────────────────────────────────────────────────────
+# Real seconds per game day, by mode:
+WEEK_DAY_SECONDS = 12_000     # 3h20m  → 7 giorni ≈ 23h20m (+ pausa fino all'ora del server = 24h)
+MONTH_DAY_SECONDS = 2_880     # 48 min → 30 giorni = 24h
+FAST_AUGUST_DAY_SECONDS = 3_600   # 1 ora reale per giorno durante il mese veloce
+WEEK_REAL_SECONDS = 86_400        # una settimana di gioco occupa 24h reali (allineate all'ora del server)
 
-    A longer day makes the 2-minute Sunday connect window a small slice of the
-    day rather than most of it; tune via GAME_CLOCK_RATIO."""
+# Mese veloce: dal 3 agosto, per 24 giorni di gioco
+FAST_AUGUST_START_MONTH = 8
+FAST_AUGUST_START_DAY = 3
+FAST_AUGUST_DAYS = 24
+
+
+def get_default_day_seconds():
+    """Durata (secondi reali) di un giorno in modalità default (env GAME_CLOCK_RATIO)."""
     return int(os.environ.get('GAME_CLOCK_RATIO', 3600))
+
+
+def get_base_day_seconds(cfg):
+    """Secondi reali per giorno di gioco in base alla modalità tempo configurata."""
+    mode = getattr(cfg, 'time_mode', 'default')
+    if mode == 'week':
+        return WEEK_DAY_SECONDS
+    if mode == 'month':
+        return MONTH_DAY_SECONDS
+    return get_default_day_seconds()
+
+
+def get_clock_ratio():
+    """Secondi reali per giorno di gioco (compatibilità). Usa la modalità configurata."""
+    from app.models.game import GameConfig
+    cfg = GameConfig.query.first()
+    if not cfg:
+        return get_default_day_seconds()
+    return get_base_day_seconds(cfg)
+
+
+def _in_fast_august(d):
+    """True se la data di gioco d cade nella finestra del mese veloce (3 ago + 24 giorni)."""
+    start = date(d.year, FAST_AUGUST_START_MONTH, FAST_AUGUST_START_DAY)
+    return start <= d < start + timedelta(days=FAST_AUGUST_DAYS)
+
+
+def next_aug15(game_dt):
+    """Prossimo 15 agosto (datetime) a partire dalla data di gioco corrente."""
+    d = game_dt.date()
+    cand = datetime(d.year, 8, 15)
+    if game_dt >= cand:
+        cand = datetime(d.year + 1, 8, 15)
+    return cand
+
+
+def last_server_hour(now, hour):
+    """Più recente istante reale con ora == hour (minuti/secondi a 0) non successivo a now."""
+    cand = now.replace(hour=hour % 24, minute=0, second=0, microsecond=0)
+    if cand > now:
+        cand -= timedelta(days=1)
+    return cand
+
+
+def _week_clock_state(cfg, now):
+    """(game_dt, seconds_into_day, day_total_seconds) per il week mode allineato.
+
+    Una settimana di gioco occupa 24h reali allineate all'ora del server: i 7
+    giorni scorrono (12000s ciascuno, o 3600s nel mese veloce) e poi il tempo
+    resta fermo a fine Domenica fino al successivo confine delle 24h, realizzando
+    il passaggio Domenica→Lunedì solo all'ora del server scelta."""
+    anchor_real = cfg.week_anchor_real or cfg.real_start
+    anchor_day = cfg.week_anchor_day if cfg.week_anchor_day is not None else 0
+    delta = (now - anchor_real).total_seconds()
+    if delta < 0:
+        delta = 0.0
+    weeks = int(delta // WEEK_REAL_SECONDS)
+    into_week = delta - weeks * WEEK_REAL_SECONDS
+    monday_day = anchor_day + 7 * weeks
+
+    acc = 0.0
+    for i in range(7):
+        d = game_day_to_date(monday_day + i)
+        rate = FAST_AUGUST_DAY_SECONDS if (cfg.fast_august and _in_fast_august(d)) else WEEK_DAY_SECONDS
+        if into_week < acc + rate:
+            frac = (into_week - acc) / rate
+            game_dt = datetime(d.year, d.month, d.day) + timedelta(days=frac)
+            return game_dt, into_week - acc, rate
+        acc += rate
+    # Pausa: tempo fermo a fine Domenica fino al prossimo confine settimanale
+    d = game_day_to_date(monday_day + 6)
+    sunday_end = datetime(d.year, d.month, d.day) + timedelta(days=1) - timedelta(seconds=1)
+    return sunday_end, WEEK_DAY_SECONDS, WEEK_DAY_SECONDS
+
+
+def _clock_state(cfg, now=None):
+    """(game_dt, seconds_into_day, day_total_seconds) tenendo conto di modalità,
+    pausa settimanale, mese veloce e freeze al 15 agosto."""
+    if now is None:
+        now = datetime.utcnow()
+    if getattr(cfg, 'time_mode', 'default') == 'week':
+        game_dt, into_day, day_total = _week_clock_state(cfg, now)
+    else:
+        ratio = get_base_day_seconds(cfg)
+        elapsed = (now - cfg.real_start).total_seconds()
+        game_dt = GAME_START_DATETIME + timedelta(seconds=elapsed / ratio * 86400)
+        into_day = elapsed % ratio
+        day_total = ratio
+    # Freeze al 15 agosto
+    if getattr(cfg, 'freeze_aug15', False) and cfg.freeze_target and game_dt >= cfg.freeze_target:
+        game_dt = cfg.freeze_target
+        into_day = 0.0
+    return game_dt, into_day, day_total
 
 
 def get_game_datetime():
@@ -23,8 +126,7 @@ def get_game_datetime():
     cfg = GameConfig.query.first()
     if not cfg:
         return GAME_START_DATETIME
-    elapsed = (datetime.utcnow() - cfg.real_start).total_seconds()
-    return GAME_START_DATETIME + timedelta(days=elapsed / get_clock_ratio())
+    return _clock_state(cfg)[0]
 
 
 def get_game_date():
@@ -104,9 +206,84 @@ def get_seconds_into_game_day():
     cfg = GameConfig.query.first()
     if not cfg:
         return 0
-    total_elapsed = (datetime.utcnow() - cfg.real_start).total_seconds()
-    ratio = get_clock_ratio()
-    return total_elapsed % ratio
+    return _clock_state(cfg)[1]
+
+
+# ── Re-anchoring helpers (superadmin time control) ──────────────────────────────
+
+def _anchor_week(cfg, target_dt, now):
+    """Allinea il week mode all'ora del server, posizionando il Lunedì della
+    settimana di target_dt. Comporta uno snap al confine dell'ora del server."""
+    td = target_dt.date()
+    monday = td - timedelta(days=td.weekday())
+    cfg.week_anchor_day = (monday - GAME_START_DATE).days
+    cfg.week_anchor_real = last_server_hour(now, cfg.week_transition_hour)
+
+
+def _reanchor_linear(cfg, target_dt, now):
+    ratio = get_base_day_seconds(cfg)
+    gdays = (target_dt - GAME_START_DATETIME).total_seconds() / 86400.0
+    cfg.real_start = now - timedelta(seconds=gdays * ratio)
+
+
+def set_game_datetime(cfg, target_dt, now=None):
+    """Re-anchor so the clock reads target_dt at `now`, under the current mode."""
+    if now is None:
+        now = datetime.utcnow()
+    if cfg.time_mode == 'week':
+        _anchor_week(cfg, target_dt, now)
+    else:
+        _reanchor_linear(cfg, target_dt, now)
+
+
+def apply_time_mode(cfg, new_mode, now=None):
+    """Cambia modalità tempo preservando (per quanto possibile) la data corrente.
+    Il week mode comporta uno snap di allineamento all'ora del server."""
+    if now is None:
+        now = datetime.utcnow()
+    if new_mode not in ('default', 'week', 'month'):
+        return
+    current, _, _ = _clock_state(cfg, now)
+    cfg.time_mode = new_mode
+    set_game_datetime(cfg, current, now)
+
+
+def set_week_transition_hour(cfg, hour, now=None):
+    if now is None:
+        now = datetime.utcnow()
+    cfg.week_transition_hour = max(0, min(23, int(hour)))
+    if cfg.time_mode == 'week':
+        current, _, _ = _clock_state(cfg, now)
+        _anchor_week(cfg, current, now)
+
+
+def set_freeze_aug15(cfg, enabled, now=None):
+    """Attiva/disattiva il blocco al 15 agosto. All'attivazione fissa il prossimo
+    15 agosto; alla disattivazione riparte da lì senza salti."""
+    if now is None:
+        now = datetime.utcnow()
+    enabled = bool(enabled)
+    if enabled and not cfg.freeze_aug15:
+        current, _, _ = _clock_state(cfg, now)
+        cfg.freeze_aug15 = True
+        cfg.freeze_target = next_aug15(current)
+    elif not enabled and cfg.freeze_aug15:
+        target = cfg.freeze_target
+        cfg.freeze_aug15 = False
+        if target:
+            set_game_datetime(cfg, target, now)
+        cfg.freeze_target = None
+
+
+def advance_game_days(cfg, days, now=None):
+    """Avanza l'orologio di `days` giorni di gioco, in modo coerente con la modalità."""
+    if now is None:
+        now = datetime.utcnow()
+    if cfg.time_mode == 'week':
+        anchor = cfg.week_anchor_real or cfg.real_start
+        cfg.week_anchor_real = anchor - timedelta(seconds=days * WEEK_DAY_SECONDS)
+    else:
+        cfg.real_start -= timedelta(seconds=days * get_base_day_seconds(cfg))
 
 
 def get_game_month_id():

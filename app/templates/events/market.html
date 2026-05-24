@@ -36,7 +36,7 @@
   <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
     <span class="badge badge-green" style="font-size:.85rem;padding:.5rem 1rem;">✓ Scouting Attivo questa settimana</span>
     <form method="POST" action="{{ url_for('events.deactivate_scouting') }}"
-          onsubmit="return confirm('Disattivare lo scouting avanzato? Non verranno addebitati ulteriori costi dalla prossima settimana.')">
+          data-confirm="Disattivare lo scouting avanzato? Non verranno addebitati ulteriori costi dalla prossima settimana.">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button type="submit" class="btn btn-outline btn-sm" style="font-size:.78rem;color:var(--danger);border-color:var(--danger);">✕ Disattiva</button>
     </form>
@@ -45,7 +45,7 @@
   <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
     <span class="badge" style="font-size:.85rem;padding:.5rem 1rem;background:rgba(123,47,255,.15);color:var(--purple);border:1px solid var(--purple);">⏳ Scouting attivo dalla prossima settimana</span>
     <form method="POST" action="{{ url_for('events.deactivate_scouting') }}"
-          onsubmit="return confirm('Disattivare lo scouting avanzato?')">
+          data-confirm="Disattivare lo scouting avanzato?">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button type="submit" class="btn btn-outline btn-sm" style="font-size:.78rem;color:var(--danger);border-color:var(--danger);">✕ Disattiva</button>
     </form>
@@ -165,7 +165,7 @@
         {% elif offer.is_scouted %}
           {% if team.budget >= 250000 %}
             <form method="POST" action="{{ url_for('events.market_buy') }}" style="margin-top:1rem;"
-                  onsubmit="return confirm('Acquistare il giocatore scouting? L\'identità verrà rivelata al momento dell\'acquisto.')">
+                  data-confirm="Acquistare il giocatore scouting? L'identità verrà rivelata al momento dell'acquisto.">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button type="submit" class="btn btn-primary" style="background:linear-gradient(135deg,var(--purple),#ff6bff);">
                 🔮 Acquista al buio

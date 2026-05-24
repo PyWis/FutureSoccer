@@ -148,7 +148,7 @@
   </p>
 
   {% if total_stars > 0 %}
-  <form method="POST" action="{{ url_for('events.finance_borrow') }}" id="loanForm">
+  <form method="POST" action="{{ url_for('events.finance_borrow') }}" id="loanForm" data-confirm="Confermare il prestito?">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
     <div style="font-size:.7rem;color:var(--muted);letter-spacing:1px;margin-bottom:.6rem;">TIPO DI PRESTITO</div>
@@ -206,8 +206,7 @@
     </div>
 
     <button type="submit" class="btn btn-primary"
-            style="width:100%;margin-top:1rem;font-size:.95rem;"
-            onclick="return confirm('Confermare il prestito?')">
+            style="width:100%;margin-top:1rem;font-size:.95rem;">
       💳 Richiedi Prestito
     </button>
   </form>
@@ -262,7 +261,7 @@
   <p style="font-size:.8rem;color:var(--muted);margin-bottom:1rem;">
     Cedole attive: <strong>{{ active_investments_count }}/{{ max_investments }}</strong>
   </p>
-  <form method="POST" action="{{ url_for('events.finance_invest') }}">
+  <form method="POST" action="{{ url_for('events.finance_invest') }}" data-confirm="Acquistare la cedola selezionata?">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="grid-2" style="gap:.75rem;margin-bottom:1rem;">
       {% for key, bt in bond_types.items() %}
@@ -297,8 +296,7 @@
       </label>
       {% endfor %}
     </div>
-    <button type="submit" class="btn btn-primary" style="width:100%;"
-            onclick="return confirm('Acquistare la cedola selezionata?')">
+    <button type="submit" class="btn btn-primary" style="width:100%;">
       📈 Acquista Cedola
     </button>
   </form>

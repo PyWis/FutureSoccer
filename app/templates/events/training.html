@@ -374,7 +374,7 @@ document.getElementById('trainingForm')?.addEventListener('submit', function(e) 
     }
   })();
   {% endfor %}
-  if (!valid) { e.preventDefault(); alert('Seleziona esattamente 2 skill per ogni giocatore selezionato.'); }
+  if (!valid) { e.preventDefault(); gameAlert('Seleziona esattamente 2 skill per ogni giocatore selezionato.'); }
   {% endif %}
 });
 </script>
