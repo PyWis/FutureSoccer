@@ -26,6 +26,10 @@ class User(db.Model, UserMixin):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime, nullable=True)
 
+    # Premium currency (Gold) and pass tracking
+    gold = db.Column(db.Integer, default=0, nullable=False)
+    seasonal_pass_season = db.Column(db.Integer, default=-1)  # last season the Pass Stagionale was bought
+
     team = db.relationship('Team', back_populates='manager', uselist=False, lazy='select')
 
     def set_password(self, password):

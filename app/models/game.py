@@ -97,8 +97,9 @@ class ActiveSponsor(db.Model):
     sponsor_name = db.Column(db.String(100), nullable=False)
     weekly_amount = db.Column(db.Float, nullable=False)
     remaining_weeks = db.Column(db.Integer, nullable=False)
-    type = db.Column(db.String(10), default='main')  # main | secondary
+    type = db.Column(db.String(10), default='main')  # main | secondary | dark | shoe | gold | stadium
     last_paid_week_id = db.Column(db.Integer, default=-1)
+    locked = db.Column(db.Boolean, default=False)  # contratti bloccati (non rimovibili)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     team = db.relationship('Team', foreign_keys=[team_id], backref='active_sponsors')
@@ -332,6 +333,21 @@ class BudgetTransaction(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     team = db.relationship('Team', foreign_keys=[team_id], backref='transactions')
+
+
+class GoldTransaction(db.Model):
+    """Registro delle movimentazioni della valuta premium (Gold).
+
+    amount > 0 = Gold accreditati (acquisto/pass/regalo), amount < 0 = Gold spesi.
+    """
+    __tablename__ = 'gold_transactions'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    amount = db.Column(db.Integer, nullable=False)
+    reason = db.Column(db.String(120), default='')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', foreign_keys=[user_id], backref='gold_transactions')
 
 
 class Investment(db.Model):

@@ -326,7 +326,7 @@
            style="background:linear-gradient(135deg,{{ current_user.team.color_primary }},{{ current_user.team.color_secondary }});"></div>
       <div>
         <div class="team-mini-name">{{ current_user.team.name }}</div>
-        <div class="team-mini-budget">€{{ "%.1f"|format(current_user.team.budget/1000000) }}M</div>
+        <div class="team-mini-budget">€{{ "%.1f"|format(current_user.team.budget/1000000) }}M · <span style="color:#ffd700;">💎 {{ current_user.gold or 0 }}</span></div>
       </div>
     </div>
   </div>
@@ -456,6 +456,13 @@
     <a href="{{ url_for('game.social_page') }}"
        class="nav-item {% if request.endpoint == 'game.social_page' %}active{% endif %}">
       <span class="nav-icon">🥂</span><span class="nav-label">Social</span>
+    </a>
+
+    <div class="nav-section-label" style="margin-top:.5rem;">Premium</div>
+    <a href="{{ url_for('premium.store') }}"
+       class="nav-item {% if request.endpoint and 'premium.' in request.endpoint %}active{% endif %}">
+      <span class="nav-icon">💎</span><span class="nav-label">Negozio Gold</span>
+      <span style="margin-left:auto;font-size:.7rem;color:#ffd700;font-weight:700;">{{ current_user.gold or 0 }}</span>
     </a>
 
     <div class="nav-section-label" style="margin-top:.5rem;">Account</div>

@@ -53,6 +53,15 @@ class Team(db.Model):
     last_age_year    = db.Column(db.Integer, default=0)
     last_retire_year = db.Column(db.Integer, default=0)
 
+    # Premium (Gold) recurring features — billed once per game month
+    gold_scouting_active   = db.Column(db.Boolean, default=False)  # Scouting Gold: 1 Gold/mese → 1 giocatore
+    gold_scouting_last_month = db.Column(db.Integer, default=0)
+    gold_roster_slots      = db.Column(db.Integer, default=0)      # slot rosa extra (max 3), 1 Gold/mese ciascuno
+    gold_roster_last_month = db.Column(db.Integer, default=0)
+    gold_sponsor_slots     = db.Column(db.Integer, default=0)      # slot sponsor secondario extra (max 1)
+    gold_sponsor_last_month = db.Column(db.Integer, default=0)
+    xmas_pass_last_year    = db.Column(db.Integer, default=0)      # ultimo anno di gioco in cui è stato dato il Gold di Natale
+
     # Social / influence
     social_effects_json   = db.Column(db.Text, default='[]')   # active effect keys (max 3)
     social_deactivated_json = db.Column(db.Text, default='{}') # {effect_key: deactivated_game_day}

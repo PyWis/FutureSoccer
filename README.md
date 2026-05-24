@@ -160,30 +160,35 @@ Pannello di controllo completo per operatori e business:
 
 ---
 
-## 💎 Monetizzazione — Roadmap (da implementare)
+## 💎 Monetizzazione — Valuta Premium (Gold)
 
-> Questa sezione raccoglie, in un unico posto, **tutte le opportunità di monetizzazione previste ma non ancora implementate**, insieme a proposte aggiuntive. Lo stato attuale del codice **non** include alcun sistema di valuta premium o di pagamento reale: le voci seguenti sono un piano di lavoro.
+Il gioco include una **valuta premium (Gold)** con wallet sull'utente, registro transazioni dedicato (`GoldTransaction`) e negozio in-game (`/premium`). Le costanti sono in [`parametri.py`](parametri.py).
 
-### Da implementare (già citate nel concept)
-- **Valuta premium**: una moneta acquistabile con denaro reale, spendibile per le voci sotto. Manca completamente lo scaffolding (modello, wallet, hook di pagamento).
-- **Scouting Avanzato premium**: oggi costa €1M/settimana in-game; aggiungere l'acquisto dell'abbonamento con valuta premium.
-- **Training Premium**: pacchetti per accelerare la crescita dei giocatori (oggi P200k è solo in-game).
-- **Slot rosa extra**: superare il cap di 12 giocatori a pagamento (oggi `MAX_ROSTER = 12` è fisso).
-- **Cosmetici**: colori squadra extra, nomi stadio, skin giocatori.
+### Acquisto Gold (denaro reale)
+> Predisposto con endpoint e provider astratto; **attivo solo configurando un provider di pagamento** (es. Stripe via `STRIPE_SECRET_KEY`). Finché non configurato, i pulsanti d'acquisto reale sono disattivati.
 
-### Proposte aggiuntive
-- **Pass stagionale / Battle Pass**: tracciato di ricompense a obiettivi settimanali (mercato, allenamento, vittorie PvP) con tier gratuito e premium.
-- **Slot sponsor secondario aggiuntivo**: oltre i 2 attuali, sbloccabile a pagamento.
-- **"Assicurazione infortuni"**: riduce o annulla il malus di freschezza da infortunio per N partite.
-- **Boost freschezza istantaneo**: ricarica immediata invece di attendere il recupero giornaliero (+0.3/giorno).
-- **Riduzione cooldown Sponsor Oscuro**: oggi 200 settimane di gioco.
-- **Riduzione cooldown/relock canali social** (oggi 90/180 giorni).
-- **Anticipo montepremi lega** o boost del montepremi.
-- **Cosmetici stadio**: temi visivi degli impianti, esultanze, tracce audio.
-- **Nome/branding personalizzato** per gli sponsor o per la lega privata.
-- **Pacchetti "scout mirato"**: una tantum per pescare un giocatore con un profilo di abilità scelto.
+- **5 €** → 10 Gold · **20 €** → 50 Gold
+- **Abbonamento 5 €/mese** → 8 Gold (primi 6 pagamenti), 16 Gold dai successivi
 
-> Nota tecnica: prima di introdurre acquisti reali serve un layer di pagamento (es. Stripe), un modello `wallet`/`premium_currency` sull'utente e un registro transazioni dedicato, oltre alle relative verifiche server-side.
+### Pass
+- **Pass Stagionale** (3 €): 10 Gold + €25M, una volta a stagione (set–dic) *(richiede pagamento reale)*
+- **Pass Natale**: 2 Gold gratuiti ogni 25 dicembre di gioco *(automatico)*
+- **Pass Finanza**: €250M di gioco → 5 Gold
+
+### Spese Gold (implementate)
+- **Scouting Gold** — 1 Gold/mese di gioco → un giocatore (media fino a 6.0, distribuzione pesata)
+- **Slot rosa extra** — 1 Gold/mese per slot, max 3 (oltre i 12 base)
+- **Slot sponsor secondario extra** — 1 Gold/mese, max 1 (oltre i 2 base)
+- **Sponsor Gold** (10 Gold) — sponsor €4M/sett. per 5 settimane; se l'aiuto della Federazione è attivo, lo salda e resta bloccato in principale per 10 settimane
+- **Sponsor Stadio** (5 Gold) — trasforma lo sponsor principale in Sponsor Stadio per 50 settimane: blocca la manutenzione (niente degradazione)
+- **Boost freschezza** (1 Gold) — +2 freschezza istantanea a tutti i giocatori
+- Il **superadmin** può regalare 10 Gold a tutti gli utenti dalla dashboard
+
+### Roadmap monetizzazione (da implementare)
+- **Integrazione pagamenti** reale (Stripe Checkout + webhook con verifica server-side)
+- **Training Premium**, **cosmetici** (colori/skin/temi stadio), **assicurazione infortuni**
+- Riduzione cooldown Sponsor Oscuro / canali social, anticipo o boost montepremi lega
+- Pacchetti "scout mirato", branding personalizzato sponsor/lega
 
 ---
 

@@ -1,0 +1,152 @@
+{% extends 'base.html' %}
+{% block title %}Negozio Gold · FutureSoccer 2099{% endblock %}
+{% block content %}
+<div class="page-header flex flex-between flex-center">
+  <div>
+    <h1>💎 Negozio Gold</h1>
+    <p class="text-muted" style="font-size:.88rem;margin-top:.3rem;">Valuta premium e vantaggi esclusivi</p>
+  </div>
+  <span class="badge badge-gold" style="font-size:1rem;padding:.5rem 1.1rem;">💎 {{ gold }} Gold</span>
+</div>
+
+<!-- ACQUISTO GOLD -->
+<h2 class="mb-2">Acquista Gold</h2>
+{% if not payments_on %}
+<div class="card mb-3" style="border-color:var(--warning);background:rgba(255,165,0,.05);">
+  <p style="font-size:.85rem;color:var(--warning);">💳 I pagamenti con denaro reale non sono ancora attivi su questo server.</p>
+</div>
+{% endif %}
+<div class="grid-3 mb-4">
+  {% for key, p in packs.items() %}
+  <div class="card text-center">
+    <div style="font-family:'Orbitron',monospace;font-size:1.6rem;color:#ffd700;">💎 {{ p.gold }}</div>
+    <div class="text-muted" style="font-size:.8rem;margin:.3rem 0 .8rem;">{{ p.price_eur }} €</div>
+    <form method="POST" action="{{ url_for('premium.buy_pack', pack=key) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn btn-primary btn-sm btn-block" {% if not payments_on %}disabled style="opacity:.5;"{% endif %}>Acquista</button>
+    </form>
+  </div>
+  {% endfor %}
+  <div class="card text-center">
+    <div style="font-family:'Orbitron',monospace;font-size:1.3rem;color:#ffd700;">Abbonamento</div>
+    <div class="text-muted" style="font-size:.78rem;margin:.3rem 0 .8rem;">{{ sub.price_eur }} €/mese · {{ sub.gold_first6 }} Gold (primi {{ sub.first_count }}), poi {{ sub.gold_after }}</div>
+    <form method="POST" action="{{ url_for('premium.subscribe') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn btn-primary btn-sm btn-block" {% if not payments_on %}disabled style="opacity:.5;"{% endif %}>Abbonati</button>
+    </form>
+  </div>
+</div>
+
+<!-- PASS -->
+<h2 class="mb-2">Pass</h2>
+<div class="grid-3 mb-4">
+  <div class="card">
+    <h3>🍂 Pass Stagionale</h3>
+    <p style="font-size:.82rem;color:var(--muted);margin:.4rem 0;">{{ pass_stag.price_eur }} € → {{ pass_stag.gold }} Gold + €{{ (pass_stag.cash/1000000)|int }}M<br>Una volta a stagione (set–dic).</p>
+    <form method="POST" action="{{ url_for('premium.pass_stagionale') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn btn-primary btn-sm btn-block"
+              {% if seasonal_bought or not seasonal_window %}disabled style="opacity:.5;"{% endif %}>
+        {% if seasonal_bought %}Già acquistato{% elif not seasonal_window %}Fuori finestra{% else %}Acquista{% endif %}
+      </button>
+    </form>
+  </div>
+  <div class="card">
+    <h3>🎄 Pass Natale</h3>
+    <p style="font-size:.82rem;color:var(--muted);margin:.4rem 0;">2 Gold gratuiti ogni 25 dicembre di gioco. Automatico.</p>
+  </div>
+  <div class="card">
+    <h3>💼 Pass Finanza</h3>
+    <p style="font-size:.82rem;color:var(--muted);margin:.4rem 0;">€{{ (pass_finanza.cash/1000000)|int }}M → {{ pass_finanza.gold }} Gold (denaro di gioco).</p>
+    <form method="POST" action="{{ url_for('premium.pass_finanza') }}" data-confirm="Convertire €{{ (pass_finanza.cash/1000000)|int }}M in {{ pass_finanza.gold }} Gold?">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn btn-primary btn-sm btn-block"
+              {% if team.budget < pass_finanza.cash %}disabled style="opacity:.5;"{% endif %}>Converti</button>
+    </form>
+  </div>
+</div>
+
+<!-- SPESE RICORRENTI -->
+<h2 class="mb-2">Abbonamenti Gold (mese di gioco)</h2>
+<div class="grid-3 mb-4">
+  <div class="card">
+    <h3>🔭 Scouting Gold</h3>
+    <p style="font-size:.82rem;color:var(--muted);margin:.4rem 0;">1 Gold/mese → 1 giocatore (media fino a 6.0).</p>
+    <form method="POST" action="{{ url_for('premium.scouting_gold_toggle') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn btn-sm btn-block {% if team.gold_scouting_active %}btn-danger{% else %}btn-primary{% endif %}">
+        {% if team.gold_scouting_active %}Disattiva (attivo){% else %}Attiva{% endif %}
+      </button>
+    </form>
+  </div>
+  <div class="card">
+    <h3>➕ Slot rosa extra</h3>
+    <p style="font-size:.82rem;color:var(--muted);margin:.4rem 0;">1 Gold/mese per slot · attivi: <strong style="color:var(--cyan);">{{ team.gold_roster_slots }}</strong>/{{ roster_max }}</p>
+    <div class="flex gap-1">
+      <form method="POST" action="{{ url_for('premium.roster_slot') }}" style="flex:1;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="add">
+        <button type="submit" class="btn btn-primary btn-sm btn-block" {% if team.gold_roster_slots >= roster_max %}disabled style="opacity:.5;"{% endif %}>+ Slot</button>
+      </form>
+      <form method="POST" action="{{ url_for('premium.roster_slot') }}" style="flex:1;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="remove">
+        <button type="submit" class="btn btn-secondary btn-sm btn-block" {% if team.gold_roster_slots == 0 %}disabled style="opacity:.5;"{% endif %}>− Slot</button>
+      </form>
+    </div>
+  </div>
+  <div class="card">
+    <h3>➕ Slot sponsor extra</h3>
+    <p style="font-size:.82rem;color:var(--muted);margin:.4rem 0;">1 Gold/mese · attivi: <strong style="color:var(--cyan);">{{ team.gold_sponsor_slots }}</strong>/{{ sponsor_max }}</p>
+    <div class="flex gap-1">
+      <form method="POST" action="{{ url_for('premium.sponsor_slot') }}" style="flex:1;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="add">
+        <button type="submit" class="btn btn-primary btn-sm btn-block" {% if team.gold_sponsor_slots >= sponsor_max %}disabled style="opacity:.5;"{% endif %}>+ Slot</button>
+      </form>
+      <form method="POST" action="{{ url_for('premium.sponsor_slot') }}" style="flex:1;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="remove">
+        <button type="submit" class="btn btn-secondary btn-sm btn-block" {% if team.gold_sponsor_slots == 0 %}disabled style="opacity:.5;"{% endif %}>− Slot</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- SPESE UNA TANTUM -->
+<h2 class="mb-2">Vantaggi una tantum</h2>
+<div class="grid-3 mb-4">
+  <div class="card">
+    <h3>🟡 Sponsor Gold</h3>
+    <p style="font-size:.82rem;color:var(--muted);margin:.4rem 0;">
+      {{ sponsor_cost }} Gold → sponsor €{{ (sponsor_weekly/1000000)|int }}M/sett. per {{ sponsor_weeks }} settimane.
+      {% if has_fed_loan %}<br><strong style="color:var(--warning);">Aiuto Federazione attivo:</strong> verrà saldato e lo sponsor resterà bloccato 10 settimane in principale.{% endif %}
+    </p>
+    <form method="POST" action="{{ url_for('premium.sponsor_gold') }}" data-confirm="Attivare lo Sponsor Gold per {{ sponsor_cost }} Gold?">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn btn-primary btn-sm btn-block"
+              {% if gold < sponsor_cost or (has_main and not has_fed_loan) %}disabled style="opacity:.5;"{% endif %}>
+        {% if has_main and not has_fed_loan %}Slot principale occupato{% else %}Attiva ({{ sponsor_cost }} Gold){% endif %}
+      </button>
+    </form>
+  </div>
+  <div class="card">
+    <h3>🏟️ Sponsor Stadio</h3>
+    <p style="font-size:.82rem;color:var(--muted);margin:.4rem 0;">{{ stadium_cost }} Gold → trasforma lo sponsor principale in Sponsor Stadio per {{ stadium_weeks }} settimane: stop alla manutenzione.</p>
+    <form method="POST" action="{{ url_for('premium.sponsor_stadio') }}" data-confirm="Trasformare lo sponsor principale in Sponsor Stadio per {{ stadium_cost }} Gold?">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn btn-primary btn-sm btn-block"
+              {% if gold < stadium_cost %}disabled style="opacity:.5;"{% endif %}>Attiva ({{ stadium_cost }} Gold)</button>
+    </form>
+  </div>
+  <div class="card">
+    <h3>⚡ Boost freschezza</h3>
+    <p style="font-size:.82rem;color:var(--muted);margin:.4rem 0;">{{ fresh_cost }} Gold → +2 freschezza a tutti i giocatori, subito.</p>
+    <form method="POST" action="{{ url_for('premium.freshness_boost') }}" data-confirm="Usare {{ fresh_cost }} Gold per +2 freschezza a tutti?">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn btn-primary btn-sm btn-block"
+              {% if gold < fresh_cost %}disabled style="opacity:.5;"{% endif %}>Usa ({{ fresh_cost }} Gold)</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

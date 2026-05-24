@@ -109,6 +109,19 @@ def clock_time_settings():
     return redirect(url_for('admin.dashboard'))
 
 
+@admin_bp.route('/gold/gift-all', methods=['POST'])
+@login_required
+@superadmin_required
+def gold_gift_all():
+    from app.utils import gold
+    recipients = User.query.filter(User.role != 'superadmin').all()
+    for u in recipients:
+        gold.grant(u, 10, 'Regalo Federazione (admin)')
+    db.session.commit()
+    flash(f'🎁 Regalati 10 Gold a {len(recipients)} utenti.', 'success')
+    return redirect(url_for('admin.dashboard'))
+
+
 # ─── USERS ────────────────────────────────────────────────────────────────────
 
 @admin_bp.route('/users')

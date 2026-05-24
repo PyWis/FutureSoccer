@@ -63,6 +63,7 @@ def create_app():
     from app.routes.match import match_bp
     from app.routes.private_league import league_bp
     from app.routes.championship import championship_bp
+    from app.routes.premium import premium_bp
 
     app.register_blueprint(main_bp)
     app.register_blueprint(auth_bp, url_prefix='/auth')
@@ -72,6 +73,7 @@ def create_app():
     app.register_blueprint(match_bp, url_prefix='/match')
     app.register_blueprint(league_bp, url_prefix='/leagues')
     app.register_blueprint(championship_bp, url_prefix='/championship')
+    app.register_blueprint(premium_bp, url_prefix='/premium')
 
     @app.errorhandler(403)
     def _forbidden(error):

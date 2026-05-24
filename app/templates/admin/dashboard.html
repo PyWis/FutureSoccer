@@ -100,6 +100,11 @@
   <a href="{{ url_for('admin.teams_list') }}" class="btn btn-secondary">🏟️ Squadre</a>
   <a href="{{ url_for('admin.players_list') }}" class="btn btn-secondary">⚽ Giocatori</a>
   <a href="{{ url_for('admin.player_new') }}" class="btn btn-primary">+ Giocatore</a>
+  <form method="POST" action="{{ url_for('admin.gold_gift_all') }}" style="display:inline;"
+        data-confirm="Regalare 10 Gold a tutti gli utenti?">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="btn" style="background:rgba(255,165,0,.18);color:#ffd700;border:1px solid #ffd700;">🎁 Regala 10 Gold a tutti</button>
+  </form>
 </div>
 
 <!-- ── GAME CLOCK CONTROL ── -->

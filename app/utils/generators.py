@@ -71,6 +71,32 @@ def generate_market_offer_data(scouted=False):
     }
 
 
+def generate_gold_scout_player(team_id):
+    """Giocatore dello Scouting Gold (media fino a 6.0) con distribuzione pesata:
+    25% 3.0-3.5 · 25% 3.5-4.0 · 20% 4.0-4.5 · 15% 4.5-5.0 · 10% 5.0-5.5 · 5% 5.5-6.0."""
+    from app.models.team import Player
+    from app.utils.social import roll_carisma
+    bands = [(3.0, 3.5, 25), (3.5, 4.0, 25), (4.0, 4.5, 20),
+             (4.5, 5.0, 15), (5.0, 5.5, 10), (5.5, 6.0, 5)]
+    lo, hi = random.choices([(b[0], b[1]) for b in bands],
+                            weights=[b[2] for b in bands], k=1)[0]
+    avg = round(random.uniform(lo, hi), 2)
+    ptype = _random_type()
+    skills = _generate_skills(avg, max_val=min(MAX_SKILL_ABSOLUTE, avg + 1.0))
+    return Player(
+        name=random_player_name(ptype),
+        type=ptype,
+        age=random.randint(18, 25),
+        porta=skills[0],
+        difesa=skills[1],
+        attacco=skills[2],
+        resistenza=skills[3],
+        carisma=roll_carisma(ptype),
+        is_free_agent=False,
+        team_id=team_id,
+    )
+
+
 def generate_sponsor_offer_data(top7_avg, existing_names=None):
     """Generate a sponsor offer dict based on team top-7 average skill."""
     max_value = (top7_avg / 10.0) * 10_000_000

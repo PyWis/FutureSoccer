@@ -24,9 +24,9 @@ from app.utils.gameclock import (
     get_game_date,
 )
 from app.utils.generators import (
-    generate_market_offer_data, generate_sponsor_offer_data,
+    generate_market_offer_data, generate_sponsor_offer_data, generate_gold_scout_player,
 )
-from app.utils import ledger
+from app.utils import ledger, gold
 
 events_bp = Blueprint('events', __name__)
 
@@ -128,7 +128,7 @@ def _process_sponsor_payments(team):
         weeks_due = max(0, current_week - sp.last_paid_week_id)
         if weeks_due > 0:
             to_pay = min(weeks_due, sp.remaining_weeks)
-            rate = sp.weekly_amount if sp.type == 'main' else sp.weekly_amount * 0.3
+            rate = sp.weekly_amount if sp.type in ('main', 'gold', 'stadium') else sp.weekly_amount * 0.3
             ledger.record(team, rate * to_pay, ledger.CAT_SPONSOR,
                           f'{sp.sponsor_name} ({to_pay} sett.)')
             sp.remaining_weeks -= to_pay
@@ -141,9 +141,15 @@ def _process_sponsor_payments(team):
 
 
 def _process_stadium_degradation(team):
-    """On first visit of a new game month, randomly reduce 2 facilities by 1 star."""
+    """On first visit of a new game month, randomly reduce 2 facilities by 1 star.
+
+    Uno Sponsor Stadio attivo blocca la manutenzione (nessuna degradazione)."""
     current_month = get_game_month_id()
     if team.last_degraded_month >= current_month:
+        return
+    if ActiveSponsor.query.filter_by(team_id=team.id, type='stadium').first():
+        team.last_degraded_month = current_month
+        db.session.commit()
         return
     eligible = [f for f in _FACILITY_ATTRS if getattr(team, f) > 0]
     if eligible:
@@ -392,8 +398,9 @@ def market_buy():
         flash('Hai già acquistato il giocatore di questa settimana.', 'warning')
         return redirect(url_for('events.market'))
 
-    if team.players.count() >= MAX_ROSTER:
-        flash(f'Rosa al completo (massimo {MAX_ROSTER} giocatori).', 'danger')
+    roster_cap = MAX_ROSTER + (team.gold_roster_slots or 0)
+    if team.players.count() >= roster_cap:
+        flash(f'Rosa al completo (massimo {roster_cap} giocatori).', 'danger')
         return redirect(url_for('events.market'))
 
     cost = 250_000
@@ -643,8 +650,9 @@ def sponsors():
     prev_week_id = get_prev_game_week_id()
 
     active = ActiveSponsor.query.filter_by(team_id=team.id).all()
-    main_sponsor = next((s for s in active if s.type in ('main', 'dark')), None)
+    main_sponsor = next((s for s in active if s.type in ('main', 'dark', 'gold', 'stadium')), None)
     secondary_sponsors = [s for s in active if s.type == 'secondary']
+    sec_cap = MAX_SECONDARY + (team.gold_sponsor_slots or 0)
 
     # Sponsor offer window: generated Friday of week W, valid through Wednesday of week W+1.
     # Mon/Tue/Wed → show previous week's offer; Fri/Sat/Sun → show this week's offer; Thu → none.
@@ -687,7 +695,7 @@ def sponsors():
                            main_sponsor=main_sponsor,
                            secondary_sponsors=secondary_sponsors,
                            can_add_main=main_sponsor is None,
-                           can_add_secondary=len(secondary_sponsors) < MAX_SECONDARY,
+                           can_add_secondary=len(secondary_sponsors) < sec_cap,
                            is_friday=is_friday,
                            offer_window_open=offer_window_open,
                            game_date=format_game_date(),
@@ -811,14 +819,15 @@ def sponsor_accept(offer_id, slot):
         return redirect(url_for('events.sponsors'))
 
     active = ActiveSponsor.query.filter_by(team_id=team.id).all()
-    main_count = sum(1 for s in active if s.type == 'main')
+    main_count = sum(1 for s in active if s.type in ('main', 'dark', 'gold', 'stadium'))
     sec_count = sum(1 for s in active if s.type == 'secondary')
 
     if slot == 'main' and main_count >= 1:
         flash('Hai già uno sponsor principale. Rimuovilo prima.', 'danger')
         return redirect(url_for('events.sponsors'))
-    if slot == 'secondary' and sec_count >= MAX_SECONDARY:
-        flash(f'Hai già {MAX_SECONDARY} sponsor secondari.', 'danger')
+    sec_cap = MAX_SECONDARY + (team.gold_sponsor_slots or 0)
+    if slot == 'secondary' and sec_count >= sec_cap:
+        flash(f'Hai già {sec_cap} sponsor secondari.', 'danger')
         return redirect(url_for('events.sponsors'))
 
     week_id = get_game_week_id()
@@ -865,7 +874,7 @@ def sponsor_remove(sponsor_id):
     if sp.team_id != current_user.team.id:
         flash('Operazione non autorizzata.', 'danger')
         return redirect(url_for('events.sponsors'))
-    if sp.type in ('dark', 'shoe'):
+    if sp.locked or sp.type in ('dark', 'shoe', 'stadium'):
         flash('Questo sponsor non può essere rimosso.', 'danger')
         return redirect(url_for('events.sponsors'))
     name = sp.sponsor_name
@@ -1039,8 +1048,9 @@ def free_agent_bid(listing_id):
         flash('Non puoi fare un\'offerta sul tuo stesso giocatore.', 'danger')
         return redirect(url_for('events.free_agents'))
 
-    if team.players.count() >= MAX_ROSTER:
-        flash(f'Rosa al completo (massimo {MAX_ROSTER} giocatori).', 'danger')
+    roster_cap = MAX_ROSTER + (team.gold_roster_slots or 0)
+    if team.players.count() >= roster_cap:
+        flash(f'Rosa al completo (massimo {roster_cap} giocatori).', 'danger')
         return redirect(url_for('events.free_agents'))
 
     current_day = get_game_day_number()
@@ -2011,6 +2021,66 @@ def hof_remove():
     return redirect(url_for('events.hall_of_fame'))
 
 
+def _process_gold_features(team):
+    """Pass di Natale + fatturazione mensile (in Gold) delle feature premium ricorrenti.
+
+    Tutto è idempotente per mese di gioco. La valuta Gold è del manager (User)."""
+    manager = team.manager
+    if manager is None:
+        return
+    changed = False
+
+    # PASS NATALE: 2 Gold gratuiti al primo 25 dicembre di gioco di ogni anno
+    gd = get_game_date()
+    if gd.month == 12 and gd.day >= 25 and (team.xmas_pass_last_year or 0) < gd.year:
+        from app.utils.gold import PASS_NATALE_GOLD
+        gold.grant(manager, PASS_NATALE_GOLD, 'Pass Natale')
+        team.xmas_pass_last_year = gd.year
+        changed = True
+        notify(f'🎄 Pass Natale: +{PASS_NATALE_GOLD} Gold gratuiti!', 'success')
+
+    current_month = get_game_month_id()
+    roster_cap = MAX_ROSTER + (team.gold_roster_slots or 0)
+
+    # Scouting Gold: 1 Gold/mese → 1 giocatore (media fino a 6.0)
+    if team.gold_scouting_active and (team.gold_scouting_last_month or 0) < current_month:
+        if team.players.count() >= roster_cap:
+            team.gold_scouting_last_month = current_month
+            changed = True
+            notify('🔭 Scouting Gold: rosa al completo, nessun giocatore questo mese.', 'warning')
+        elif gold.spend(manager, gold.GOLD_SCOUTING_COST, 'Scouting Gold'):
+            player = generate_gold_scout_player(team.id)
+            db.session.add(player)
+            team.gold_scouting_last_month = current_month
+            changed = True
+            notify(f'🔭 Scouting Gold: ingaggiato {player.name} (media {player.avg_skill:.2f}) per 1 Gold.', 'success')
+        else:
+            team.gold_scouting_active = False
+            changed = True
+            notify('🔭 Scouting Gold disattivato: Gold insufficiente.', 'warning')
+
+    # Slot rosa extra: 1 Gold/mese per slot
+    if (team.gold_roster_slots or 0) > 0 and (team.gold_roster_last_month or 0) < current_month:
+        if gold.spend(manager, gold.GOLD_ROSTER_SLOT_COST * team.gold_roster_slots, 'Slot rosa extra'):
+            team.gold_roster_last_month = current_month
+        else:
+            team.gold_roster_slots = 0
+            notify('➖ Slot rosa extra disattivati: Gold insufficiente.', 'warning')
+        changed = True
+
+    # Slot sponsor secondario extra: 1 Gold/mese per slot
+    if (team.gold_sponsor_slots or 0) > 0 and (team.gold_sponsor_last_month or 0) < current_month:
+        if gold.spend(manager, gold.GOLD_SPONSOR_SLOT_COST * team.gold_sponsor_slots, 'Slot sponsor extra'):
+            team.gold_sponsor_last_month = current_month
+        else:
+            team.gold_sponsor_slots = 0
+            notify('➖ Slot sponsor extra disattivati: Gold insufficiente.', 'warning')
+        changed = True
+
+    if changed:
+        db.session.commit()
+
+
 # ─── CENTRALIZED DAY-TICK PROCESSING ─────────────────────────────────────────────
 
 def process_due_team_events(team):
@@ -2052,5 +2122,6 @@ def process_due_team_events(team):
     _process_social_monthly(team)
     _process_stadium_degradation(team)
     _process_annual_events(team)
+    _process_gold_features(team)
     _process_team_freshness(team)
 

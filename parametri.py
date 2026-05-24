@@ -180,6 +180,27 @@ LEAGUE_POSITION_BONUSES = {1: 100, 2: 50, 3: 20, 4: 10}
 CHAMPIONSHIP_BOT_ROSTER_SIZE = 7 # i bot del campionato schierano una rosa da 7
 
 # ─────────────────────────────────────────────────────────────────────────────
+# VALUTA PREMIUM (GOLD)        (fonte: app/utils/gold.py)
+# ─────────────────────────────────────────────────────────────────────────────
+# Acquisto con denaro reale (predisposto, attivo solo con provider es. Stripe):
+GOLD_PACK_5_EUR = (5, 10)        # 5 € → 10 Gold
+GOLD_PACK_20_EUR = (20, 50)      # 20 € → 50 Gold
+GOLD_SUB_EUR = (5, 8, 16, 6)     # 5 €/mese: 8 Gold per i primi 6 pagamenti, poi 16
+# Pass:
+PASS_STAGIONALE = (3, 10, 25_000_000)  # 3 € → 10 Gold + 25M€ (1 volta/stagione, set–dic)
+PASS_NATALE_GOLD = 2                    # gratuiti ogni 25 dicembre di gioco
+PASS_FINANZA = (250_000_000, 5)         # 250M€ di gioco → 5 Gold
+# Spese Gold ricorrenti (1 Gold/mese di gioco):
+GOLD_SCOUTING_COST = 1                   # → 1 giocatore (media fino a 6.0)
+GOLD_ROSTER_SLOT_COST, GOLD_ROSTER_SLOT_MAX = 1, 3    # slot rosa extra
+GOLD_SPONSOR_SLOT_COST, GOLD_SPONSOR_SLOT_MAX = 1, 1  # slot sponsor secondario extra
+# Spese Gold una tantum:
+GOLD_SPONSOR_COST = 10           # Sponsor Gold: 4M/sett. × 5 settimane (10 e bloccato se aiuto federazione attivo)
+GOLD_STADIUM_COST = 5            # Sponsor Stadio: 50 settimane, blocca la manutenzione stadio
+GOLD_FRESHNESS_COST = 1          # +2 freschezza istantanea a tutti i giocatori
+GOLD_ADMIN_GIFT = 10             # regalo del superadmin a tutti gli utenti
+
+# ─────────────────────────────────────────────────────────────────────────────
 # ECONOMIA GENERALE
 # ─────────────────────────────────────────────────────────────────────────────
 STARTING_BUDGET = 50_000_000     # budget iniziale di ogni squadra
