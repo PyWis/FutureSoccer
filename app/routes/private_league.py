@@ -235,7 +235,7 @@ def detail(league_id):
     kickable_ids = set()
     if is_owner and season and season.status == 'active':
         for m in memberships:
-            if m.team_id == team.id if team else True:
+            if team and m.team_id == team.id:
                 continue
             ok, _ = can_owner_exclude(season, m)
             if ok:

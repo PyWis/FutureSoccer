@@ -21,14 +21,6 @@ from datetime import datetime
 MAX_DEFENDERS = 3
 MAX_ATTACKERS = 3
 
-_ENGAGEMENT_MODS = {
-    'basso': 0.75,
-    'moderato': 0.90,
-    'normale': 1.00,
-    'aggressivo': 1.10,
-    'super_aggressivo': 1.15,
-}
-
 _BOT_FIRST_NAMES = ['Marco', 'Luigi', 'Giovanni', 'Pietro', 'Antonio',
                     'Sandro', 'Fabio', 'Carlo', 'Pino', 'Dario']
 _BOT_LAST_NAMES = ['Rossi', 'Bianchi', 'Ferrari', 'Russo', 'Esposito']

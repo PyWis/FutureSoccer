@@ -233,6 +233,9 @@
     .btn-danger{background:var(--danger);color:#fff;}
     .btn-danger:hover{opacity:.85;}
     .btn-warning{background:var(--warning);color:#000;}
+    .btn-outline{background:transparent;color:var(--text);border:1px solid var(--card-border);}
+    .btn-outline:hover{border-color:var(--cyan);color:var(--cyan);}
+    .btn-outline:disabled{opacity:.4;cursor:not-allowed;}
     .btn-sm{padding:.28rem .65rem;font-size:.76rem;}
     .btn-block{display:block;width:100%;text-align:center;}
     .card{background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:1.5rem;}
@@ -558,7 +561,10 @@
     document.getElementById('sidebar').classList.remove('open');
     document.getElementById('sidebarOverlay').classList.remove('open');
   }
-  setTimeout(()=>{ document.querySelectorAll('.alert').forEach(a=>a.remove()); }, 5500);
+  // Auto-dismiss only confirmation/info alerts. Errors and warnings stay until the user closes them.
+  setTimeout(()=>{
+    document.querySelectorAll('.alert-success, .alert-info').forEach(a=>a.remove());
+  }, 5500);
 
   /* ── Game-styled confirm / alert modals ── */
   (function(){

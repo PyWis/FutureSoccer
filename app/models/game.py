@@ -105,10 +105,6 @@ class ActiveSponsor(db.Model):
     team = db.relationship('Team', foreign_keys=[team_id], backref='active_sponsors')
 
 
-_ENGAGEMENT_MODS = {
-    'basso': 0.75, 'moderato': 0.90, 'normale': 1.00,
-    'aggressivo': 1.10, 'super_aggressivo': 1.15,
-}
 ENGAGEMENT_OPTIONS = [
     ('basso',           'Basso',           '−20% gol · −50% calo freschezza'),
     ('moderato',        'Moderato',        '−20% gol · −50% calo freschezza'),

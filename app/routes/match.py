@@ -362,7 +362,7 @@ def send_challenge(team_id):
     )
     db.session.add(challenge)
     db.session.commit()
-    flash(f'Sfida inviata a {target.name}! Potrete giocare domenica.', 'success')
+    flash(f'Sfida inviata a {target.name}! Potrete giocare il prossimo match day (Mercoledì o Domenica).', 'success')
     return redirect(url_for('match.lobby'))
 
 
@@ -379,7 +379,7 @@ def accept_challenge(challenge_id):
 
     challenge.status = 'accepted'
     db.session.commit()
-    flash('Sfida accettata! La partita si giocherà domenica.', 'success')
+    flash('Sfida accettata! La partita si giocherà al prossimo match day (Mercoledì o Domenica).', 'success')
     return redirect(url_for('match.lobby'))
 
 

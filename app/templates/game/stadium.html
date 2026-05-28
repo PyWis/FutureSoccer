@@ -93,7 +93,11 @@
         <button type="submit"
                 class="btn btn-primary btn-sm"
                 {% if team.budget < upgrade_cost %}disabled title="Budget insufficiente"{% endif %}>
-          Upgrade → {{ stars + 1 }}⭐ — €{{ "%.0f"|format(upgrade_cost/1000) }}k
+          {% if upgrade_cost >= 1_000_000 %}
+            Upgrade → {{ stars + 1 }}⭐ — €{{ "%.0f"|format(upgrade_cost/1_000_000) }}M
+          {% else %}
+            Upgrade → {{ stars + 1 }}⭐ — €{{ "%.0f"|format(upgrade_cost/1000) }}k
+          {% endif %}
         </button>
       </form>
       <p class="degrade-note">Costo upgrade: €{{ "{:,.0f}".format(upgrade_cost) }}</p>

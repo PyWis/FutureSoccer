@@ -237,6 +237,7 @@ def sponsor_gold():
         flash(f'Gold insufficiente (servono {GOLD_SPONSOR_COST}).', 'danger')
         return redirect(url_for('premium.store'))
 
+    weekly_m = GOLD_SPONSOR_WEEKLY / 1_000_000
     if fed_loan is not None:
         # L'aiuto della federazione viene saldato dallo sponsor; sponsor bloccato in main per 10 settimane
         fed_loan.weeks_paid = fed_loan.weeks_total
@@ -247,11 +248,12 @@ def sponsor_gold():
         weeks = GOLD_SPONSOR_WEEKS_FED
         locked = True
         msg = ('🟡 Sponsor Gold: aiuto della Federazione saldato; '
-               f'sponsor bloccato in principale per {weeks} settimane (4M/sett.).')
+               f'sponsor bloccato in principale per {weeks} settimane ({weekly_m:.0f}M/sett.).')
     else:
         weeks = GOLD_SPONSOR_WEEKS
         locked = False
-        msg = f'🟡 Sponsor Gold attivato: 20M in {weeks} settimane (4M/sett.).'
+        total_m = weekly_m * weeks
+        msg = f'🟡 Sponsor Gold attivato: {total_m:.0f}M in {weeks} settimane ({weekly_m:.0f}M/sett.).'
 
     db.session.add(ActiveSponsor(
         team_id=team.id, sponsor_name='Sponsor Gold',

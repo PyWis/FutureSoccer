@@ -192,14 +192,6 @@ function updateCounts() {
   let gk=0, def=0, att=0, res=0;
   document.querySelectorAll('select[name^="role_"]').forEach(s => {
     if (s.value === 'goalkeeper') gk++;
-    else if (s.value === 'defender') att++; // intentional: track
-    else if (s.value === 'attacker') att++;
-    else if (s.value === 'reserve') res++;
-  });
-  // Re-count properly
-  gk=0; def=0; att=0; res=0;
-  document.querySelectorAll('select[name^="role_"]').forEach(s => {
-    if (s.value === 'goalkeeper') gk++;
     else if (s.value === 'defender') def++;
     else if (s.value === 'attacker') att++;
     else if (s.value === 'reserve') res++;
@@ -227,7 +219,7 @@ document.getElementById('formationForm').addEventListener('submit', function(e) 
   if (res > 3) errors.push('Puoi selezionare al massimo 3 riserve.');
   if (errors.length > 0) {
     e.preventDefault();
-    gameAlert(errors.join('\n'));
+    gameAlert(errors.join('\n'), {icon: '⚠️', title: 'FORMAZIONE NON VALIDA'});
   }
 });
 </script>

@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ team.name }} — FutureSoccer{% endblock %}
 {% block content %}
+{% set roster_cap = 12 + (team.gold_roster_slots or 0) %}
 <div class="page-header">
   <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
     <div style="width:64px;height:64px;border-radius:16px;background:linear-gradient(135deg,{{ team.color_primary }},{{ team.color_secondary }});flex-shrink:0;"></div>
@@ -17,7 +18,7 @@
     <div class="text-muted" style="font-size:.72rem;">BUDGET</div>
   </div>
   <div class="card" style="text-align:center;">
-    <div style="font-family:'Orbitron',monospace;font-size:1.5rem;font-weight:900;color:var(--cyan);">{{ players|length }}/12</div>
+    <div style="font-family:'Orbitron',monospace;font-size:1.5rem;font-weight:900;color:var(--cyan);">{{ players|length }}/{{ roster_cap }}</div>
     <div class="text-muted" style="font-size:.72rem;">ROSA</div>
   </div>
   <div class="card" style="text-align:center;">
@@ -35,8 +36,8 @@
 {% if players %}
 <div class="card">
   <div class="flex flex-between flex-center mb-3">
-    <h2>Rosa ({{ players|length }}/12)</h2>
-    {% if players|length < 12 %}
+    <h2>Rosa ({{ players|length }}/{{ roster_cap }})</h2>
+    {% if players|length < roster_cap %}
     <a href="{{ url_for('events.market') }}" class="btn btn-primary btn-sm">+ Acquista</a>
     {% endif %}
   </div>
@@ -53,25 +54,25 @@
           <td>{{ p.age }}</td>
           <td>
             <div style="display:flex;align-items:center;gap:.4rem;">
-              <div class="stat-bar" style="width:40px;"><div class="stat-bar-fill" style="width:{{ (p.porta/6.5*100)|round }}%"></div></div>
+              <div class="stat-bar" style="width:40px;"><div class="stat-bar-fill" style="width:{{ [(p.porta/10*100)|round, 100]|min }}%"></div></div>
               <span style="font-size:.8rem;">{{ "%.1f"|format(p.porta) }}</span>
             </div>
           </td>
           <td>
             <div style="display:flex;align-items:center;gap:.4rem;">
-              <div class="stat-bar" style="width:40px;"><div class="stat-bar-fill" style="width:{{ (p.difesa/6.5*100)|round }}%"></div></div>
+              <div class="stat-bar" style="width:40px;"><div class="stat-bar-fill" style="width:{{ [(p.difesa/10*100)|round, 100]|min }}%"></div></div>
               <span style="font-size:.8rem;">{{ "%.1f"|format(p.difesa) }}</span>
             </div>
           </td>
           <td>
             <div style="display:flex;align-items:center;gap:.4rem;">
-              <div class="stat-bar" style="width:40px;"><div class="stat-bar-fill" style="width:{{ (p.attacco/6.5*100)|round }}%"></div></div>
+              <div class="stat-bar" style="width:40px;"><div class="stat-bar-fill" style="width:{{ [(p.attacco/10*100)|round, 100]|min }}%"></div></div>
               <span style="font-size:.8rem;">{{ "%.1f"|format(p.attacco) }}</span>
             </div>
           </td>
           <td>
             <div style="display:flex;align-items:center;gap:.4rem;">
-              <div class="stat-bar" style="width:40px;"><div class="stat-bar-fill" style="width:{{ (p.resistenza/6.5*100)|round }}%"></div></div>
+              <div class="stat-bar" style="width:40px;"><div class="stat-bar-fill" style="width:{{ [(p.resistenza/10*100)|round, 100]|min }}%"></div></div>
               <span style="font-size:.8rem;">{{ "%.1f"|format(p.resistenza) }}</span>
             </div>
           </td>

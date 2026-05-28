@@ -160,7 +160,7 @@
 {% set my_bid = my_bids.get(listing.id) %}
 {% set type_icon = {'uomo': '👨', 'donna': '👩', 'cyber': '🤖'}.get(listing.player_type, '⚽') %}
 {% set is_seller = (listing.seller_team_id == team.id) %}
-{% set roster_full = (team.players.count() >= 12) %}
+{% set roster_full = (team.players.count() >= 12 + (team.gold_roster_slots or 0)) %}
 
 <div class="fa-card">
   <!-- Type badge -->
@@ -185,7 +185,7 @@
     <div class="skill-bar-row">
       <div class="skill-bar-label">{{ label }}</div>
       <div class="skill-bar-track">
-        <div class="skill-bar-fill" style="width:{{ [(val / 6.5 * 100)|round(1), 100]|min }}%"></div>
+        <div class="skill-bar-fill" style="width:{{ [(val / 10 * 100)|round(1), 100]|min }}%"></div>
       </div>
       <div class="skill-bar-val">{{ "%.1f"|format(val) }}</div>
     </div>

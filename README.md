@@ -33,10 +33,10 @@ Ogni atleta è generato proceduralmente con attributi unici:
 | **Attacco** | Potere offensivo |
 | **Resistenza** | Durata fisica e recupero |
 
-- Le abilità sono generate nel range **0.5–6.5** e possono crescere con l'allenamento fino al tetto massimo di **10.0**
+- Le abilità individuali partono nel range **0.5–4.5** (rosa iniziale e offerte di mercato base); con lo **Scouting Avanzato** si arriva fino a **6.5** e con lo **Scouting Gold** fino a circa **7.0**. Tutte le skill possono crescere con l'allenamento fino al tetto massimo di **10.0**
 - **Freschezza** (scala 0–10): influenza la partecipazione alle partite; i giocatori esausti (freschezza sotto 2) sono esclusi automaticamente
 - **Infortuni**: penalizzano pesantemente la freschezza (da −5 a −12), potendola portare in negativo; vengono gestiti in tempo reale durante le partite e recuperati con le sessioni Benessere
-- **Tre archetipi** di giocatore con distribuzioni di abilità differenti, per strategie di squadra uniche
+- **Tre tipologie** di giocatore (uomo, donna, cyber): ognuna con un range di carisma nascosto diverso (uomo 1–8, donna 4–12, cyber 1–5) che incide sull'influenza social della squadra
 - **Recupero automatico**: +0.3 di freschezza per ogni giorno di riposo (tetto 10)
 
 ### ⚽ Sistema Partite
@@ -53,9 +53,9 @@ Ogni atleta è generato proceduralmente con attributi unici:
 - **Snapshot della formazione**: le statistiche al momento del calcio d'inizio sono fissate, eliminando exploit last-minute
 
 **Modalità di gioco:**
-- **Amichevoli vs AI** (`Squadra del Bar`): disponibili ogni giorno, illimitate
-- **Sfide PvP**: invia la sfida nei giorni liberi; i match day sono **mercoledì e domenica**
-- **Autostart delle sfide** dopo 60 secondi reali dall'orario di gioco stabilito (con risoluzione automatica di backup lato server)
+- **Amichevoli vs AI** (`Squadra del Bar` o squadre bot del campionato): si giocano nei match day (**mercoledì e domenica**), una sola al giorno
+- **Sfide PvP**: invia la sfida nei giorni non-partita (lun–mar–gio–ven–sab); la partita parte automaticamente al prossimo match day (**mercoledì o domenica**)
+- **Autostart delle sfide** dopo 60 secondi reali dall'inizio del match day (con risoluzione automatica di backup lato server)
 
 ### 🏋️ Allenamento Giocatori
 

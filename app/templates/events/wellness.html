@@ -12,9 +12,6 @@
   .fresh-fill{height:100%;border-radius:2px;}
   .btn-xs{padding:.2rem .55rem;font-size:.7rem;}
   .shop-card{border:1px solid var(--card-border);border-radius:12px;padding:1.1rem;margin-bottom:.75rem;}
-  .btn-outline{background:transparent;border:1px solid var(--card-border);color:var(--text);}
-  .btn-outline:hover{border-color:var(--cyan);color:var(--cyan);}
-  .btn-outline:disabled{opacity:.4;cursor:not-allowed;}
 </style>
 {% endblock %}
 {% block content %}
@@ -123,7 +120,7 @@
 </div>
 {% elif purchase_window and already_bought %}
 <div class="card mb-4" style="border-color:rgba(0,245,255,.15);text-align:center;padding:1rem;">
-  <div style="font-size:.82rem;color:var(--muted);">✅ Acquisto effettuato questa settimana — disponibile da <strong>Mercoledì</strong></div>
+  <div style="font-size:.82rem;color:var(--muted);">✅ Acquisto effettuato questa settimana — il prossimo acquisto sarà disponibile da <strong>Mercoledì prossimo</strong></div>
 </div>
 {% else %}
 <div class="card mb-4" style="border-color:rgba(136,136,136,.15);text-align:center;padding:1rem;">
